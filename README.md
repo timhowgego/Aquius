@@ -69,8 +69,8 @@ Others options are documented in the [Configuration](#configuration) section bel
 <script>window.addEventListener("load", function() {
   aquius.init("aquius", {
     "dataset": "https://timhowgego.github.io/Aquius/data/es-rail-20-jul-2018.json",
-    "uiHash": true,
-    "locale": "es-ES"
+    "locale": "es-ES",
+    "uiHash": true
   });
 });</script>
 ```
@@ -127,7 +127,7 @@ Key|Type|Default|Description
 ---|----|-------|-----------
 base|Array|See below|Array of objects containing base layer tile maps, described below
 dataset|string|"default.json"|JSON file containing network data: Recommended full URL, not just filename
-locale|string|"en-US"|Default locale, BCP 47-style: User selection is `t`
+locale|string|"en-US"|Default locale, BCP 47-style. Not to be confused with user selection, `t`
 network|Array|[]|Extension of `network`: Array of products, Object of locale keyed names
 translation|Object|{}|Custom translations: Format matching `aquius.LOC`
 
@@ -141,8 +141,8 @@ For base mapping, `base` is a complex `Array` containing one or more tile layers
       // Optional, if WMS: "wms"
     "options": {
       // Optional, but attribution is always advisable
-      "attribution": "&copy; <a href=
-        'http://www.openstreetmap.org/copyright'>OpenStreetMap</a>
+      "attribution": "&copy;
+        <a href='http://www.openstreetmap.org/copyright'>OpenStreetMap</a>
         contributors"
     }
   }
@@ -232,7 +232,7 @@ c|float|-0.89|_Here_ click Longitude
 k|float|41.66|_Here_ click Latitude
 m|integer|11|_Here_ click zoom
 n|integer|0|User selected network filter: Must match range of networks in `dataset`
-v|string|"lph"|Displayed map layers by first letter: here, link, node, place
+v|string|"lph"|User selected map layers by first letter: here, link, node, place
 s|integer|5|User selected global scale factor: 1,3,5,7,9
 t|string|"en-US"|User selected locale: BCP 47-style
 x|float|-3.689|Map view Longitude
@@ -323,7 +323,7 @@ The `link` key contains an `Array` of lines of link data. Each line of link data
 1. Nodes served (`Array` of `interger`s) - the Node ID of each point the services stops to serve passengers, in order. Routes are presumed to also operate in the reverse direction, but, as described below, the route can be define as one direction only, in which case the start point is only the first point in the `Array`. Node IDs reference an index position in `node`, and if the `link` is populated with data, so must `node` (and in turn `place`).
 1. Caveats (`Object`) - an extendable area for keys indicating special processing conditions attached to this line of link data. In most cases this will be empty, vis: `{}`. Optional keys are described below:
 
-* `circular` - `boolean` true indicates operation is actually a continuous loop, where the start and end points are the same station. Only the nodes for one complete loop should be included - the notional start and end stop thus included twice. Circular services are processed so that their duplicated start/end station is only counted once. **Caution:** Figure-of-eight loops are intentionally double-counted at the point each service passes twice per journey, since such services may reasonably be considered to offer two completely different routes to passengers, however this does result in arithmetic quirks (as demonstrated by Atocha's C-7, described in [Known Issues](#known-issues)).
+* `circular` - `boolean` true indicates operation is actually a continuous loop, where the start and end points are the same station. Only the nodes for one complete loop should be included - the notional start and end stop thus included twice. Circular services are processed so that their duplicated start/end station is only counted once. **Caution:** Figure-of-eight loops are intentionally double-counted at the midpoint each service passes twice per journey, since such services may reasonably be considered to offer two completely different routes to passengers, however this does result in arithmetic quirks (as demonstrated by Atocha's C-7, described in [Known Issues](#known-issues)).
 * `direction` - `boolean` true indicates operation is only in the direction recorded, not also in the opposite direction. As noted under [Known Issues](#known-issues), services that are both circular and directional will produce numeric quirks. *Tip:* Services that loop only at one end of a route (sometimes seen in tram operation) should be recorded as uni-directional with nodes on the common section recorded twice, once in each direction - not recorded as circular.
 * `shared` - `integer` Product ID of the parent service. Shared allows an existing parent service to be assigned an additional child service of a different product category. The parent train is not specifically identified, only its product. Over common sections of route, only the parent will be processed and shown, however if the network is filtered to exclude the parent, the child is processed. The parent service should be defined as the longer of the two routes, such that the parent includes all the stops of the child. Define a `split` if the two routes diverge. Shared was originally required to describe Renfe's practice of sell (state supported) local journey fare products on sections of (theoretically commercial) long distance services, but can likely be hacked in various interesting ways.
 * `split` - `Array` containing `integer` Node IDs describing the unique nodes on the service's route. Split is assigned to one half of a service operated as two portions attached together over a common part of route. Splits can be affected at either or both ends of the route. In theory (untested) more than two portions can be handled by assigning a split to every portion except the first. Like `shared` services, and companion service is not specifically identified, however a `split` should be of the same Product ID as its companion service (else to avoid miscalculations `network` needs to be constructed so that both Product IDs fall into the same categories). Railway services south of London were built on this style of operation, while Renfe only routinely split trains operated on _very_ long distance routes.

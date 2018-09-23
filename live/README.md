@@ -1,4 +1,4 @@
-# Aquius - Live Demonstrations
+# Live Demonstrations
 
 > _Here+Us_ - An Alternative Approach to Public Transport Network Discovery
 
