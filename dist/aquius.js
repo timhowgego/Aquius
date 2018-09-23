@@ -140,8 +140,8 @@ var aquius = aquius || {
   this.statusIcon("\uD83C\uDF0D");
 
   dataset = (typeof option === "object" && "dataset" in option && typeof option.dataset === "string") ?
-    option.dataset : "https://github.com/timhowgego/Aquius/dist/default.json";
-    // Default is a valid but empty dataset
+    option.dataset : "https://timhowgego.github.io/Aquius/dist/default.json";
+    // Default is a valid but empty dataset. @todo Should be internal to script
   css = "https://unpkg.com/leaflet@1.3.4/dist/leaflet.css";
   js = "https://unpkg.com/leaflet@1.3.4/dist/leaflet.js";
   self = this;
@@ -459,6 +459,7 @@ var aquius = aquius || {
          }
       }
       this.OPT[keys[i]] = option[keys[i]];
+      continue;
     }
     // Then JSON configuration option if available
     if ("MEM" in this && "net" in this.MEM && "option" in this.MEM.net && keys[i] in this.MEM.net.option &&
@@ -611,7 +612,7 @@ var aquius = aquius || {
     self.draw();
   });
 
-  self.MEM.map.attributionControl.addAttribution("<a href='https://github.com/timhowgego/Aquius'>Aquius</a>");
+  self.MEM.map.attributionControl.addAttribution("<a href='https://timhowgego.github.io/Aquius/'>Aquius</a>");
     // Not localised
 
   for (i = 0; i < self.OPT.base.length; i += 1) {

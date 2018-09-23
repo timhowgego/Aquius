@@ -4,7 +4,7 @@
 
 ## Description
 
-![Aquius at Ciudad Real](static/aquius-ciudad-real.jpg)
+[![Aquius at Ciudad Real](static/aquius-ciudad-real.jpg)](live/es-rail-20-jul-2018/#x-3.296/y39.092/z7/c-3.966/k38.955/m8/s7/vlphn)
 
 Aquius visualises the links between people that are made possible by transport networks. The user clicks once on a location, and near-instantly all the routes, stops, services, and connected populations are summarised visually. Aquius answers the question, what services are available _here_? And to a degree, who am I connected to by those services? Population is a proxy for all manner of socio-economic activity and facilities, measured both in utility and in perception. This approach differs from most conventional public transport network mapping:
 
@@ -16,6 +16,8 @@ Conceptually Aquius is half-way between those two. The application makes no serv
 * Aquius maps links, not routes. Straight-line links are shown between defined service stops, not drawn along the precise geographic route taken. This allows services that do not stop at all intermediate stops to be clearly differentiated. It also makes it technically possible for an internet client to work with a large transport network. However Aquius is limited to displaying conventional scheduled public transport, and perhaps not display information in the manner users have come to expect.
 * The project was initially developed for network analysis, where a snapshot of the entire network is taken as a proxy for all days. More specific filters (for example, before 10:00, or on Sunday) could be crudely hacked in as separate products (detailed in Data Structure), however to handle this optimally Aquius would need some modest code and data structure rewrites.
 * Only the direct service from _here_ is shown, not journeys affected by interchange. Certain networks (especially urban) may presume interchange at key points in the network. It is theoretically possible to define such interchange from one service to one other service of the same type within the network dataset by mimicking a service which splits into two porions part-way through its journey. However if the desire is to show all possible interchanges withut letting users explore the possibilities for themselves, then Aquius is not the logical platform to use: Displaying all possible interchanges quickly results in a map of every service, that then fails to convey what is genuinely local to _here_.
+
+Ready to explore? [Try a live demonstration](live/)!
 
 In this document:
 
@@ -45,7 +47,9 @@ As is, Aquius simply builds into a specific `HTML` element on a web page, the mo
 ```html
 <div id="aquius-div-id" style="height:100%;"></div>
 <script src="absolute/url/to/aquius.js" async></script>
-<script>window.addEventListener("load", function() { aquius.init("aquius-div-id"); });</script>
+<script>window.addEventListener("load", function() {
+  aquius.init("aquius-div-id");
+});</script>
 ```
 
 Older browsers also require the `html` and `body` elements to be styled with a `height` of 100% before correctly displaying the `div` at 100%. Absolute paths are recommended to produce portable embedded code, but not enforced.
@@ -60,12 +64,15 @@ Others options are documented in the [Configuration](#configuration) section bel
 
 ```html
 <div id="aquius" style="height:100%;"></div>
-<script src="aquius.min.js" async></script>
-<script>window.addEventListener("load", function() { aquius.init("aquius", {
-  "dataset": "data/es-rail-20-jul-2018.json",
-  "uiHash": true,
-  "locale": "es-ES"
-}); });</script>
+<script src="https://timhowgego.github.io/Aquius/dist/aquius.min.js"
+  async></script>
+<script>window.addEventListener("load", function() {
+  aquius.init("aquius", {
+    "dataset": "https://timhowgego.github.io/Aquius/data/es-rail-20-jul-2018.json",
+    "uiHash": true,
+    "locale": "es-ES"
+  });
+});</script>
 ```
 
 **Caution:** The only function guaranteed to remain accessible is `aquius.init()`. The current externally exposed function structure is a work in progress.
@@ -130,11 +137,16 @@ For base mapping, `base` is a complex `Array` containing one or more tile layers
 "base": [
   {
     "url": "http://{s}.tiles.wmflabs.org/bw-mapnik/{z}/{x}/{y}.png", 
-    "type": "", // Optional, if WMS: "wms"
-    "options": { // Optional, but attribution is always advisable
-      "attribution": "&copy; <a href='http://www.openstreetmap.org/copyright'>OpenStreetMap</a> contributors" 
+    "type": "",
+      // Optional, if WMS: "wms"
+    "options": {
+      // Optional, but attribution is always advisable
+      "attribution": "&copy; <a href=
+        'http://www.openstreetmap.org/copyright'>OpenStreetMap</a>
+        contributors"
     }
-  } // Extendable for multiple maps
+  }
+    // Extendable for multiple maps
 ]
 ```
 
@@ -145,9 +157,12 @@ The extension of `network` allow extra network filters to be appended to the def
 ```javascript
 "network": [ 
   [ 
-    [14], // Product ID(s)
-    {"en-US": "FEVE"} // Locale:Name, must include the default locale
-  ] // Extendable for multiple networks
+    [14],
+      // Product ID(s)
+    {"en-US": "FEVE"}
+      // Locale:Name, must include the default locale
+  ] 
+  // Extendable for multiple networks
 ]
 ```
 
@@ -155,16 +170,20 @@ The `translation` `Object` allows bespoke locales to be hacked in. Bespoke trans
 
 ```javascript
 "translation": {
-  "xx-XX": { // BCP 47-style locale
-    "language": "X-ish", // Required language name in that locale
-    "embed": "Embed", // Translate values into locale, leave keys alone
+  "xx-XX": {
+    // BCP 47-style locale
+    "language": "X-ish",
+      // Required language name in that locale
+    "embed": "Embed",
+      // Translate values into locale, leave keys alone
     "export": "Export",
     "here": "Location",
     "link": "Services",
     "node": "Stops",
     "place": "People",
     "scale": "Scale"
-  } // Extendable for multiple locales
+  }
+    // Extendable for multiple locales
 }
 ```
 
@@ -178,13 +197,13 @@ Key|Type|Default|Description
 ---|----|-------|-----------
 hereColor|string|"green"|CSS Color for here layer circle strokes
 linkColor|string|"red"|CSS Color for link (service) layer strokes
-linkScale|float|1.0|Scale factor for link (service) layer strokes: ceil(log(1+(service*(1/(scale*4))))*scale*4)
+linkScale|float|1.0|Scale factor for link (service) layer strokes: ceil( log( 1 + ( service * ( 1 / ( scale * 4 ) ) ) ) * scale * 4)
 nodeColor|string|"black"|CSS Color for node (stop) layer circle strokes
-nodeScale|float|1.0|Scale factor for node (stop) layer circles: ceil(log(1+(service*(1/(scale*4))))*scale*2)
+nodeScale|float|1.0|Scale factor for node (stop) layer circles: ceil( log( 1 + ( service * ( 1 / ( scale * 4) ) ) ) * scale * 2)
 panelScale|float|1.0|Scale factor for text on the bottom-left summary panel
 placeColor|string|"blue"|CSS Color of place (population) layer circle fill
 placeOpacity|float|0.5|CSS Opacity of place (population) layer circle fill: 0-1
-placeScale|float|1.0|Scale factor for place (population) layer circles: ceil(sqrt(people*scale/666)
+placeScale|float|1.0|Scale factor for place (population) layer circles: ceil( sqrt( people * scale / 666)
 
 **Caution:** Colors accept any CSS format, but be wary of introducing transparency this way, because it tends to slow down rendering.
 
@@ -234,15 +253,22 @@ The most basic dataset is a `Object` with a key "meta", that key containing anot
 {
   "meta": {
     "attribution": {
-      "en-US": "Copyright and attribution", // Short, with basic HTML markup allowed
+      "en-US": "Copyright and attribution",
+        // Short, with basic HTML markup allowed
       "es-ES": "Derechos"
     },
+    "description": {
+      "en-US": "Human readable description"
+    },
     "name": {
-      "en-US": "Human readable name", // Short, text only
+      "en-US": "Human readable name",
+        // Short, text only
       "es-ES": "Nombre"
     },
-    "schema": "0", // Required, always "0"
-    "url": "absolute/url/to/more/human/readable/information" // Will be wrapped around name
+    "schema": "0",
+      // Required, always "0"
+    "url": "absolute/url/to/more/human/readable/information"
+      // Will be wrapped around name
   }
 }
 ```
