@@ -1,11 +1,4 @@
-Aquius
-
-Interactive public transport link map
-
-public transport, railway, network, travel, map, geospatial, connectivity, accessibility
-
-
-#Aquius
+# Aquius
 
 > _Here+Us_ - An Alternative Approach to Public Transport Network Discovery
 
@@ -63,13 +56,13 @@ The first argument of the function `aquius.init()` requires a valid `id` referin
 * `locale`: `String` (quoted) of the initial [BCP 47-style](https://en.wikipedia.org/wiki/IETF_language_tag) locale, currently `en-US` or `es-ES`. Users may choose their language - this option simply defines the initial state.
 * `uiHash`: `Boolean` (true or false, no quotes) indicating whether Aquius records its current state as a hash in the browser's URL bar (great for sharing, but may interfere with other elements of web page design).
 
-Others options are documented in the [Configuration](#configuration) section below. Here is a live example with the Spanish Railway dataset:
+Others options are documented in the [Configuration](#configuration) section below. Here is an example with the Spanish Railway dataset:
 
 ```html
 <div id="aquius" style="height:100%;"></div>
-<script src="https://github.com/timhowgego/Aquius/dist/aquius.min.js" async></script>
+<script src="aquius.min.js" async></script>
 <script>window.addEventListener("load", function() { aquius.init("aquius", {
-  "dataset": "https://github.com/timhowgego/Aquius/data/es-rail-20-jul-2018.json",
+  "dataset": "data/es-rail-20-jul-2018.json",
   "uiHash": true,
   "locale": "es-ES"
 }); });</script>
