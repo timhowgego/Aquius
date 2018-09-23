@@ -4,7 +4,7 @@
 
 ## Spanish Railways
 
-[![Aquius at Ciudad Real](https://timhowgego.github.io/Aquius/live/static/aquius-ciudad-real.jpg)](https://timhowgego.github.io/Aquius/live/es-rail-20-jul-2018/#x-3.296/y39.092/z7/c-3.966/k38.955/m8/s7/vlphn)
+[![Aquius at Ciudad Real](https://timhowgego.github.io/Aquius/static/aquius-ciudad-real.jpg)](https://timhowgego.github.io/Aquius/live/es-rail-20-jul-2018/#x-3.296/y39.092/z7/c-3.966/k38.955/m8/s7/vlphn)
 
 [Spanish Railways (Friday 20 July 2018)](es-rail-20-jul-2018/): Snapshot of all non-tourist passenger train services within Spain - [more information about this dataset](https://timhowgego.wordpress.com/2018/09/04/disassembling-trenes/). Of Interest:
 
