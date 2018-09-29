@@ -98,6 +98,8 @@ var aquius = aquius || {
       // CSS Color for node (stop) layer circle strokes
     "nodeScale": 1.0,
       // Scale factor for node (stop) layer circles: ceil(log(1+(service*(1/(scale*2))))*scale)
+    "panelOpacity": 0.7,
+      // CSS Opacity for background of the bottom-left summary panel
     "panelScale": 1.0,
       // Scale factor for text on the bottom-left summary panel
     "placeColor": "#00f",
@@ -106,7 +108,7 @@ var aquius = aquius || {
       // CSS Opacity of place (population) layer circle fill: 0-1
     "placeScale": 1.0,
       // Scale factor for place (population) layer circles: ceil(sqrt(people*scale/666)
-    "v": "lph",
+    "v": "hlp",
       // Displayed map layers by first letter: here, link, node, place
     "s": 5,
       // User selected global scale factor: 0 to 10
@@ -766,10 +768,8 @@ var aquius = aquius || {
               // Available in default locale
               document.getElementById(toLocaliseNames[i]).textContent =
                 configOptions.translation[configOptions.locale][toLocalise[toLocaliseNames[i]]];
-            } else {
-              // Error fallback to key name
-              document.getElementById(toLocaliseNames[i]).textContent = toLocalise[toLocaliseNames[i]];
             }
+              // Leave unchanged or blank
           }
 
         }
@@ -1067,7 +1067,7 @@ var aquius = aquius || {
           "className": "aquius-panel",
           "id": configId + "panel"
         }, {
-          "background-color": "rgba(255,255,255,0.7)",
+          "background-color": "rgba(255,255,255," + configOptions.panelOpacity + ")",
           "font-weight": "bold",
           "padding": "0 3px",
           "border-radius": "5px"
@@ -1139,7 +1139,8 @@ var aquius = aquius || {
 
     if ("network" in configOptions.dataObject &&
       Array.isArray(configOptions.dataObject.network) &&
-      configOptions.dataObject.network.length > 1
+      configOptions.dataObject.network.length > 1 &&
+      configOptions.uiNetwork === true
     ) {
 
       selection = [];
@@ -1462,6 +1463,10 @@ var aquius = aquius || {
     typeof configOptions.dataObject !== "object"
   ) {
     configOptions.dataObject = emptyNetworkJSON();
+  } else {
+    if ("dataset" in configOptions) {
+      delete configOptions.dataset;
+    }
   }
 
   if ("leaflet" in configOptions &&

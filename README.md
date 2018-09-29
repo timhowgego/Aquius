@@ -96,8 +96,6 @@ Aquius is fundamentally inaccessible to those with severe visual impairment: The
 
 Tooltips may display in haphazard positions: Tooltips display in the middle of the visual element plotted, however multiple links are often draw as multiple elements (with the same service value) connected together, so _the middle_ ceases to be visually apparent.
 
-GeoJSON Export polylines are disjointed: As is, the export simply mirrors the internal construction of the map, which tries to find adjoining links with the same service frequency and attach them to one continuous polyline. The logic reduces the number of objects, but does not find all logical links, nor does it necessarily links the paths taken by individual services.
-
 Multiple base maps can be added but only one may be displayed: A user selection and associated customisation was envisaged for the future.
 
 Circular services that constitute two routes in different directions, that share some stops but not all, display with the service in both directions serving the entire shared part of the loop: Circular services normally halve the total service to represent the journey possibilities either clockwise or counter-clockwise, without needing to decide which direction to travel in to reach any one stop. Circular services that take different routes depending on their direction cannot simply be halved in this manner, even over the common section, because the service level in each direction is not necessarily the same. Consequently Aquius would have to understand which direction to travel in order to reach each destination the fastest. That would be technically possible by calculating distance, but would remain prone to misiinterpretation, because a service with a significantly higher service frequency in one direction might reasonably be used to make journeys round almost the entire loop, regadless of distance. The safest assumption is that services can be ridden round the loop in either direction. In practice this issue only arises [in Parla](https://timhowgego.github.io/Aquius/live/es-rail-20-jul-2018/#x-3.76265/y40.23928/z14/c-3.7669/k40.2324/m10/s5/vlphn/n2).
@@ -200,12 +198,13 @@ linkColor|string|"#f00"|CSS Color for link (service) layer strokes
 linkScale|float|1.0|Scale factor for link (service) layer strokes: ceil( log( 1 + ( service * ( 1 / ( scale * 4 ) ) ) ) * scale * 4)
 nodeColor|string|"#000"|CSS Color for node (stop) layer circle strokes
 nodeScale|float|1.0|Scale factor for node (stop) layer circles: ceil( log( 1 + ( service * ( 1 / ( scale * 4) ) ) ) * scale * 2)
+panelOpacity|float|0.7|CSS Opacity for background of the bottom-left summary panel
 panelScale|float|1.0|Scale factor for text on the bottom-left summary panel
 placeColor|string|"#00f"|CSS Color of place (population) layer circle fill
 placeOpacity|float|0.5|CSS Opacity of place (population) layer circle fill: 0-1
 placeScale|float|1.0|Scale factor for place (population) layer circles: ceil( sqrt( people * scale / 666) )
 
-**Caution:** Colors accept any CSS format, but be wary of introducing transparency this way, because it tends to slow down rendering.
+**Caution:** Colors accept any CSS format, but be wary of introducing transparency this way, because it tends to slow down rendering. Transparent link lines will render with ugly joins.
 
 ### User Interface
 
@@ -231,7 +230,7 @@ c|float|-0.89|_Here_ click Longitude
 k|float|41.66|_Here_ click Latitude
 m|integer|11|_Here_ click zoom
 n|integer|0|User selected network filter: Must match range of networks in `dataset`
-v|string|"lph"|User selected map layers by first letter: here, link, node, place
+v|string|"hlp"|User selected map layers by first letter: here, link, node, place
 s|integer|5|User selected global scale factor: 0 to 10
 t|string|"en-US"|User selected locale: BCP 47-style
 x|float|-3.689|Map view Longitude
@@ -249,18 +248,23 @@ Aquius can also be used as a stand-alone library via `aquius.here()`, which acce
 * `y` - `float` latitude of _here_ in WGS 84.
 * `range` - `float` distance from _here_ to be searched for nodes, in metres.
 * `options` - optional `Object` of key:value pairs:
+
 ** `filter` - `integer` index of network line to filter by.
 ** `geoJSON` - `Array` of strings describing map layers to be outputted in GeoJSON format ("network", "link", "node" and/or "place").
 ** `sanitize` - `boolean` check data integrity. Checks occur unless set to `false`. Repeat queries with the same dataObject can safely set sanitize to false.
 
+**Caution:** Sanitize does not fix logical errors within the dataObject, and should not be used to check data quality. Sanitize merely replaces missing or incomplete structures with zero-value defaults, typically causing bad data to be ignored without throwing errors.
+
 Calls to `aquius.here()` return a JSON-like Object. On error, that Object contains one key `error`.
 
-Otherwise, if `geoJSON` is specified a GeoJSON-style Object is returned. In addition to the standard geometry data, each feature has two properties:
+Otherwise, if `geoJSON` is specified a GeoJSON-style Object with a `FeatureCollection` is returned. In addition to [the standard geometry data](https://tools.ietf.org/html/rfc7946), each `Feature` has two properties, which can be referenced when applying styling in your GIS application:
 
-* `type` - "link" (routes), "node" (stops), "place" (demographics)
+* `type` - "here", "link" (routes), "node" (stops), "place" (demographics)
 * `value` - numeric value associated with each (such as daily services or resident population)
 
-Otherwise the JSON-like Object will contain `summary`, is an Object containing link, node and place totals, and geometry for `here`, `link`, `node` and `place`. Each geometry key contains an Array of features, where each feature is an Object with a key `value` (the associated numeric value, such as number of services) and either `circle` (here, node, place) or `polyline` (link). Circles consist of an Array containing a single x, y pair of WGS 84 coordinates. Polylines consist of an Array of Arrays in route order, each child Array containing a similar pair of x, y coordinates.
+Otherwise the JSON-like Object will contain `summary`, is an Object containing link, node and place totals, and geometry for `here`, `link`, `node` and `place`. Each geometry key contains an Array of features, where each feature is an Object with a key `value` (the associated numeric value, such as number of services) and either `circle` (here, node, place) or `polyline` (link). Circles consist of an Array containing a single x, y pair of WGS 84 coordinates. Polylines consist of an Array of Arrays in route order, each child Array containing a similar pair of x, y coordinates. Unless `sanitize` is false, the sanitized `dataObject` will be returned as a key, allowing subsequent queries with the returned dataObject to be passed with `sanitize` false, which speeds up the query slighty.
+
+**Caution:** Both `link` outputs mirrors the internal construction of Aquius' map, which tries to find adjoining links with the same service frequency and attach them to one continuous polyline. The logic reduces the number of objects, but does not find all logical links, nor does it necessarily links the paths taken by individual services. If you need to map individual routes interrogate the original link in the original `dataObject`.
 
 ## Data Structure
 
@@ -316,7 +320,7 @@ An optional key `option` may contain an `Object` with the same structure as the 
 
 ### Network
 
-Each `link` (service, detailed below) is categorised with an `integer` product ID. The definition of a product is flexible: The network might be organised by different brands, operators, or vehicles - or potentially even hacked for broad time ranges. Beware that such a hack is likely to cause excessive duplication of similar links in the dataset, which could bloat file size and thus increase the initial load time, but subsequently should have minimal impact on computational performance. One or more products ID(s) are grouped into network filters, each network filter becoming an option for the user. Product can be added to more than one network filter, and there is no limit on the total number of filters, beyond practical usability: An interface with a hundred network filters would be hard to both digest and navigate.
+Each `link` (service, detailed below) is categorised with an `integer` product ID. The definition of a product is flexible: The network might be organised by different brands, operators, or vehicles - or potentially even hacked for broad time ranges. (Beware that such a hack is likely to cause excessive duplication of similar links in the dataset, which could bloat file size and thus increase the initial load time, but subsequently should have minimal impact on computational performance.) One or more products ID(s) are grouped into network filters, each network filter becoming an option for the user. Products can be added to more than one network filter, and there is no limit on the total number of filters, beyond practical usability: An interface with a hundred network filters would be hard to both digest and navigate.
 
 The dataset's `network` key consists of an `Array` of network filters, in the order they are to be presented in the User Interface. This order should be kept constant once the dataset is released, since each network filter is referenced in hashable options by its index in the `Array`. Each network filter itself consists of an `Array` of two parts:
 
