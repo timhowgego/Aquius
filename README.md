@@ -26,6 +26,7 @@ In this document:
 * [Limitations](#limitations)
 * [Known Issues](#known-issues)
 * [Configuration](#configuration)
+* [Here Queries](#here-queries)
 * [Data Structure](#data-structure)
 * [License](#license)
 * [Contributing](#contributing)
@@ -42,7 +43,7 @@ In this document:
 
 ## Quick Setup
 
-As is, Aquius simply builds into a specific `HTML` element on a web page, the most basic configuration placed in the document `body`:
+In its most basic form, Aquius simply builds into a specific `HTML` element on a web page, the most basic configuration placed in the document `body`:
 
 ```html
 <div id="aquius-div-id" style="height:100%;"></div>
@@ -52,11 +53,11 @@ As is, Aquius simply builds into a specific `HTML` element on a web page, the mo
 });</script>
 ```
 
-Older browsers also require the `html` and `body` elements to be styled with a `height` of 100% before correctly displaying the `div` at 100%. Absolute paths are recommended to produce portable embedded code, but not enforced.
+Note older browsers also require the `html` and `body` elements to be styled with a `height` of 100% before correctly displaying the `div` at 100%. Absolute paths are recommended to produce portable embedded code, but not enforced.
 
 The first argument of the function `aquius.init()` requires a valid `id` refering to an empty element on the page. The second optional argument is an `Object` containing keyed options which override the default configuration. Three option keys are worth introducing here:
 
-* `dataset`: `String` (quoted) of the full path and filename of the JSON file containing the network data (the default.json dataset is empty).
+* `dataset`: `String` (quoted) of the full path and filename of the JSON file containing the network data (the default is empty).
 * `locale`: `String` (quoted) of the initial [BCP 47-style](https://en.wikipedia.org/wiki/IETF_language_tag) locale, currently `en-US` or `es-ES`. Users may choose their language - this option simply defines the initial state.
 * `uiHash`: `Boolean` (true or false, no quotes) indicating whether Aquius records its current state as a hash in the browser's URL bar (great for sharing, but may interfere with other elements of web page design).
 
@@ -75,19 +76,19 @@ Others options are documented in the [Configuration](#configuration) section bel
 });</script>
 ```
 
-**Caution:** The only function guaranteed to remain accessible is `aquius.init()`. The current externally exposed function structure is a work in progress.
+*Tip:* Aquius can also be [used as a stand-alone library](#here-queries): `aquius.here()` accepts and returns data objects without script loading or user interface. Alternatively, Aquius can be built into an existing Leaflet map object by sending that object to `aquius.init()` as the value of [Configuration](#configuration) key `map`.
 
 ## Limitations
 
 * Aquius is conceptually inaccessible to those with severe visual impairment ("blind people"), with no non-visual alternative available.
 * Internet Explorer 9 is the oldest vintage of browser theoretically supported, although a modern browser will be faster (both in use of `Promise` to load data and `Canvas` to render data). Mobile and tablet devices are supported, although older devices may lag when interacting with the map interface.
-* Aquius is written in pure Javascript, automatically loading its one dependency at runtime, [leaflet](https://github.com/Leaflet/Leaflet). Aquius can produce graphically intensive results, so be cautious before embedding multiple instances in the same page, or adding Aquius to pages that are already cluttered.
+* Aquius is written in pure Javascript, automatically loading its one dependency at runtime, [Leaflet](https://github.com/Leaflet/Leaflet). Aquius can produce graphically intensive results, so be cautious before embedding multiple instances in the same page, or adding Aquius to pages that are already cluttered.
 * For now, there is no automated method of constructing Aquius' datasets: Aquius was built to understand Spain, which is still largely devoid of [electronic interchangeable data](https://transit.land/feed-registry/?country=ES). The current dataset format is described in the [Data Structure](#data-structure) section below, and eventually a GTFS converter might get written.
 * What works in Spain might become more technically problematic should the whole of Europe be deposited into one unfiltered dataset. As is, a 2010-era computer mapping every rail service from Madrid takes about 50ms to do the calculations and another 50ms to map the result, which can then lag slightly when moved.
 
 ## Known Issues
 
-Aquius is a work in progress, especially in the (dis)organisation of its code. Some issues may be fixed, others are likely to remain as is. This section tries to explain the reasoning behind particular quirks.
+This section tries to explain the reasoning behind particular quirks.
 
 ### General
 
@@ -95,11 +96,7 @@ Aquius is fundamentally inaccessible to those with severe visual impairment: The
 
 Tooltips may display in haphazard positions: Tooltips display in the middle of the visual element plotted, however multiple links are often draw as multiple elements (with the same service value) connected together, so _the middle_ ceases to be visually apparent.
 
-GeoJSON Export has no service or population data. The polylines are disjointed: As is, the export simply mirrors the internal construction of the map, which tries to find adjoining links with the same service frequency and attach them to one continuous polyline. The logic simply reduces the number of objects substantially (by about 90% on the Spanish Railway dataset) as efficiently as possible, but is not guaranteed to find all, nor necessarily link the paths taken by individual services. Exactly how to assign data properties to features in [Leaflet](https://github.com/Leaflet/Leaflet)'s `toGeoJSON()` method was also unclear, and currently the numeric data displayed is only attached as a tooltip. The GeoJSON Export feature is strictly marginal, and serious analysis or alternative presentation is probably better working with an original dataset.
-
-Localisation user interface selector will explode with many languages: Radio buttons were used because these are easier for mobile/tablet. In future a `select` element will be needed if more than 3 locales are included.
-
-Localisation of numbers in the bottom-left panel requires a map redraw. And the order of the numbers and words cannot be localised: This panel was originally intended to be animated rather than numeric, and consequently the associated localisation had to be retrofitted, rendering an array of minor problems that aren't yet serious enough to rewrite.
+GeoJSON Export polylines are disjointed: As is, the export simply mirrors the internal construction of the map, which tries to find adjoining links with the same service frequency and attach them to one continuous polyline. The logic reduces the number of objects, but does not find all logical links, nor does it necessarily links the paths taken by individual services.
 
 Multiple base maps can be added but only one may be displayed: A user selection and associated customisation was envisaged for the future.
 
@@ -117,7 +114,7 @@ Spanish Railway dataset summarises certain circular service incorrectly: Madrid'
 
 As described in the [Quick Setup](#quick-setup) section, the second optional argument of `aquius.init()` takes an `Object` containing keys and respective values. Any key not specified will use the default. Bespoke options must conform to the expected data `type`.
 
-*Tip*: Clicking the `Embed` link on the bottom of the Layer Control will produce a dummy HTML file containing all the current settings. This sets the initial map and layer view to match those at the moment the Embed was produced, and generates a full list of options which includes those options that can only be set via `aquius.init()`.
+*Tip*: Clicking the `Embed` link on the bottom of the Layer Control will produce a dummy HTML file containing the configuration at the time the Embed was produced.
 
 ### Data Sources
 
@@ -126,8 +123,11 @@ All except `dataset`, introduced in the [Quick Setup](#quick-setup) section, can
 Key|Type|Default|Description
 ---|----|-------|-----------
 base|Array|See below|Array of objects containing base layer tile maps, described below
-dataset|string|"default.json"|JSON file containing network data: Recommended full URL, not just filename
+dataObject|Object|{}|JSON-like [network data](#data-structure) as an Object: Used in preference to dataset
+dataset|string|""|JSON file containing network data: Recommended full URL, not just filename
+leaflet|Object|{}|Active Leaflet library Object L: Used in preference to loading own library
 locale|string|"en-US"|Default locale, BCP 47-style. Not to be confused with user selection, `t`
+map|Object|{}|Active Leaflet map Object: Used in preference to own map
 network|Array|[]|Extension of `network`: Array of products, Object of locale keyed names
 translation|Object|{}|Custom translations: Format matching `aquius.LOC`
 
@@ -141,9 +141,7 @@ For base mapping, `base` is a complex `Array` containing one or more tile layers
       // Optional, if WMS: "wms"
     "options": {
       // Optional, but attribution is always advisable
-      "attribution": "&copy;
-        <a href='http://www.openstreetmap.org/copyright'>OpenStreetMap</a>
-        contributors"
+      "attribution": "&copy; OpenStreetMap contributors"
     }
   }
     // Extendable for multiple maps
@@ -172,13 +170,15 @@ The `translation` `Object` allows bespoke locales to be hacked in. Bespoke trans
 "translation": {
   "xx-XX": {
     // BCP 47-style locale
-    "language": "X-ish",
+    "lang": "X-ish",
       // Required language name in that locale
     "embed": "Embed",
       // Translate values into locale, leave keys alone
     "export": "Export",
     "here": "Location",
+    "language": "Language",
     "link": "Services",
+    "network": "Network",
     "node": "Stops",
     "place": "People",
     "scale": "Scale"
@@ -195,21 +195,21 @@ Formatting of visual elements, mostly on the map.
 
 Key|Type|Default|Description
 ---|----|-------|-----------
-hereColor|string|"green"|CSS Color for here layer circle strokes
-linkColor|string|"red"|CSS Color for link (service) layer strokes
+hereColor|string|"#080"|CSS Color for here layer circle strokes
+linkColor|string|"#f00"|CSS Color for link (service) layer strokes
 linkScale|float|1.0|Scale factor for link (service) layer strokes: ceil( log( 1 + ( service * ( 1 / ( scale * 4 ) ) ) ) * scale * 4)
-nodeColor|string|"black"|CSS Color for node (stop) layer circle strokes
+nodeColor|string|"#000"|CSS Color for node (stop) layer circle strokes
 nodeScale|float|1.0|Scale factor for node (stop) layer circles: ceil( log( 1 + ( service * ( 1 / ( scale * 4) ) ) ) * scale * 2)
 panelScale|float|1.0|Scale factor for text on the bottom-left summary panel
-placeColor|string|"blue"|CSS Color of place (population) layer circle fill
+placeColor|string|"#00f"|CSS Color of place (population) layer circle fill
 placeOpacity|float|0.5|CSS Opacity of place (population) layer circle fill: 0-1
-placeScale|float|1.0|Scale factor for place (population) layer circles: ceil( sqrt( people * scale / 666)
+placeScale|float|1.0|Scale factor for place (population) layer circles: ceil( sqrt( people * scale / 666) )
 
 **Caution:** Colors accept any CSS format, but be wary of introducing transparency this way, because it tends to slow down rendering.
 
 ### User Interface
 
-Enable or disable User Interface components.
+Enable or disable User Interface components. These won't necessarily block the associated code if it can be entered by an alternative means, such as the hash.
 
 Key|Type|Default|Description
 ---|----|-------|-----------
@@ -219,8 +219,7 @@ uiNetwork|boolean|true|Enables network selector
 uiPanel|boolean|true|Enables summary statistic panel
 uiScale|boolean|true|Enables scale selector
 uiShare|boolean|true|Enables embed and export
-
-**Caution:** This won't block the associated code if it can be entered by an alternative means, such as the hash.
+uiStore|boolean|true|Enables browser session storage of user state
 
 ### User State
 
@@ -233,13 +232,35 @@ k|float|41.66|_Here_ click Latitude
 m|integer|11|_Here_ click zoom
 n|integer|0|User selected network filter: Must match range of networks in `dataset`
 v|string|"lph"|User selected map layers by first letter: here, link, node, place
-s|integer|5|User selected global scale factor: 1,3,5,7,9
+s|integer|5|User selected global scale factor: 0 to 10
 t|string|"en-US"|User selected locale: BCP 47-style
 x|float|-3.689|Map view Longitude
 y|float|40.405|Map view Latitude
 z|integer|6|Map view zoom
 
-*Tip:* Instead of specify `s`, alter the corresponding `linkScale`, `nodeScale`, and/or `placeScale`. Instead of specifying `t`, alter the default `locale`.
+*Tip:* Instead of specifying `s`, consider altering the corresponding `linkScale`, `nodeScale`, and/or `placeScale`. Instead of specifying `t`, consider altering the default `locale`.
+
+## Here Queries
+
+Aquius can also be used as a stand-alone library via `aquius.here()`, which accepts and returns data Objects without script loading or user interface. Arguments, in order:
+
+* `dataObject` - `Object` containing a [Data Structure](#data-structure). Requires at least keys meta.schema, network, link, node and place.
+* `x` - `float` longitude of _here_ in WGS 84.
+* `y` - `float` latitude of _here_ in WGS 84.
+* `range` - `float` distance from _here_ to be searched for nodes, in metres.
+* `options` - optional `Object` of key:value pairs:
+** `filter` - `integer` index of network line to filter by.
+** `geoJSON` - `Array` of strings describing map layers to be outputted in GeoJSON format ("network", "link", "node" and/or "place").
+** `sanitize` - `boolean` check data integrity. Checks occur unless set to `false`. Repeat queries with the same dataObject can safely set sanitize to false.
+
+Calls to `aquius.here()` return a JSON-like Object. On error, that Object contains one key `error`.
+
+Otherwise, if `geoJSON` is specified a GeoJSON-style Object is returned. In addition to the standard geometry data, each feature has two properties:
+
+* `type` - "link" (routes), "node" (stops), "place" (demographics)
+* `value` - numeric value associated with each (such as daily services or resident population)
+
+Otherwise the JSON-like Object will contain `summary`, is an Object containing link, node and place totals, and geometry for `here`, `link`, `node` and `place`. Each geometry key contains an Array of features, where each feature is an Object with a key `value` (the associated numeric value, such as number of services) and either `circle` (here, node, place) or `polyline` (link). Circles consist of an Array containing a single x, y pair of WGS 84 coordinates. Polylines consist of an Array of Arrays in route order, each child Array containing a similar pair of x, y coordinates.
 
 ## Data Structure
 
@@ -254,11 +275,12 @@ The most basic dataset is a `Object` with a key "meta", that key containing anot
   "meta": {
     "attribution": {
       "en-US": "Copyright and attribution",
-        // Short, with basic HTML markup allowed
+        // Short, text only
       "es-ES": "Derechos"
     },
     "description": {
       "en-US": "Human readable description"
+        // For future use
     },
     "name": {
       "en-US": "Human readable name",
@@ -364,4 +386,4 @@ The Spanish Railway dataset is a creative work of academic curiosity, a limited 
 
 ## Contributing
 
-Are most welcome. Be warned that the current code looks like it is written by a toddler. Check the [Known Issues](#known-issues) before making suggestions. Try to establish a consensus before augmenting data structures.
+Contributors are most welcome. Check the [Known Issues](#known-issues) before making suggestions. Try to establish a consensus before augmenting data structures.

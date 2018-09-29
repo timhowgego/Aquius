@@ -2,6 +2,7 @@
 /*global L*/
 /*global Promise*/
 
+
 var aquius = aquius || {
 /**
  * @namespace Aquius (Here+Us)
@@ -9,1302 +10,2027 @@ var aquius = aquius || {
  * @copyright MIT License
  */
 
-"LOC": {
-  /**
-   * Default locale translations: Each xx-XX BCP 47-style locale matches en-US keys
-   * "language" is of this language in that language, with other strings translated directed
-   * Runtime localisation is via this.localise()
-   */
-  "en-US": {
-    "language": "English",
-    "embed": "Embed",
-    "export": "Export",
-    "here": "Here",
-    "link": "Services",
-    "node": "Stops",
-    "place": "People",
-    "scale": "Scale"
-  },
-  "es-ES": {
-    "language": "Español",
-    "embed": "Insertar",
-    "export": "Exportar",
-    "here": "Aquí",
-    "link": "Servicios",
-    "node": "Paradas",
-    "place": "Personas",
-    "scale": "Escala"
-  }
-},
 
-"OPT": {
+"init": function init(configId, configOptions) {
   /**
-   * Default options. Initialisation managed by this.parseOption()
-   */
-  "base": [{
-    "options": {
-      "attribution": "&copy; <a href='http://www.openstreetmap.org/copyright'>OpenStreetMap</a> contributors",
-      "maxZoom": 18
-    },
-    "type": "",
-    "url": "http://{s}.tiles.wmflabs.org/bw-mapnik/{z}/{x}/{y}.png"
-  }],
-    // Base mapping (WMS tiles supported with type: wms)
-  "c": -1.43,
-    // Here click Longitude
-  "dataset": "",
-    // JSON file containing network data: Recommended full URL, not just filename
-  "id": "",
-    // Internal: ID DOM div in which to build (specified as 1st argument of init, then stored here)
-  "hereColor": "green",
-    // CSS Color for here layer circle strokes
-  "k": 54.54,
-    // Here click Latitude
-  "linkColor": "red",
-    // CSS Color for link (service) layer strokes
-  "linkScale": 1.0,
-    // Scale factor for link (service) layer strokes: ceil(log(1+(service*(1/(scale*4))))*scale*2)
-  "locale": "en-US",
-    // Default locale, BCP 47-style: User selection is t
-  "m": 9,
-    // Here click zoom
-  "n": 0,
-    // User selected network filter
-  "network": [],
-    // Extension of network: Array of products, Object of locale keyed names
-  "nodeColor": "black",
-    // CSS Color for node (stop) layer circle strokes
-  "nodeScale": 1.0,
-    // Scale factor for node (stop) layer circles: ceil(log(1+(service*(1/(scale*2))))*scale)
-  "panelScale": 1.0,
-    // Scale factor for text on the bottom-left summary panel
-  "placeColor": "blue",
-    // CSS Color of place (population) layer circle fill
-  "placeOpacity": 0.5,
-    // CSS Opacity of place (population) layer circle fill: 0-1
-  "placeScale": 1.0,
-    // Scale factor for place (population) layer circles: ceil(sqrt(people*scale/666)
-  "v": "lph",
-    // Displayed map layers by first letter: here, link, node, place
-  "s": 5,
-    // User selected global scale factor: 1,3,5,7,9
-  "uiHash": false,
-    // Enables recording of the user state in the URL's hash
-  "uiLocale": true,
-    // Enables locale selector
-  "uiNetwork": true,
-    // Enables network selector
-  "uiPanel": true,
-    // Enables summary statistic panel
-  "uiScale": true,
-    // Enables scale selector
-  "uiShare": true,
-    // Enables embed and export
-  "t": "en-US",
-    // User selected locale: BCP 47-style)
-  "translation": {},
-    // Custom translations: Format matching aquius.LOC
-  "x": 10.35,
-    // Map view Longitude
-  "y": 50.03,
-    // Map view Latitude
-  "z": 4
-    // Map view zoom
-},
-
-"init": function init(id, option) {
-  /**
-   * Initialises app
-   * @param {string} id - ID of DOM element in which to build app
-   * @param {Object} option - Dictionary of options, optional
-   * @param {return} boolean - Runtime success
+   * Initialisation
+   * @param {string} configId - Id of DOM element within which to build
+   * @param {Object} configOptions - Optional, object with key:value configurations
    */
   "use strict";
-  var dataset, css, js, self, arg, callback, loaded, recall, urls, i;
-  
-  if (!document.getElementById(id)) {
-    return false;
+
+  var hereFunction = this.here;
+  var defaultLocale = "en-US";
+  var defaultTranslation = {
+    // Default locale translations: Each custom BCP 47-style locale matches en-US keys
+    "en-US": {
+      "lang": "English",
+        // The "language" is of this language in that language
+      "embed": "Embed",
+        // Other strings are to be translated directed
+      "export": "Export",
+      "here": "Here",
+      "language": "Language",
+      "link": "Services",
+      "network": "Network",
+      "node": "Stops",
+      "place": "People",
+      "scale": "Scale"
+        // Expandable, but new keys should not start _ unless specially coded
+    },
+    "es-ES": {
+      "lang": "Español",
+      "embed": "Insertar",
+      "export": "Exportar",
+      "here": "Aquí",
+      "language": "Idioma",
+      "link": "Servicios",
+      "network": "Red",
+      "node": "Paradas",
+      "place": "Personas",
+      "scale": "Escala"
+    }
+  };
+  var defaultOptions = {
+    "base": [
+      {
+        "options": {
+          // May contain any option accepted by Leaflet's TileLayer
+          "attribution":
+            "&copy; <a href='https://www.openstreetmap.org/copyright'>OpenStreetMap</a> contributors",
+          "maxZoom": 18
+        },
+        "type": "",
+          // For WMS maps, type: "wms"
+        "url": "http://{s}.tiles.wmflabs.org/bw-mapnik/{z}/{x}/{y}.png"
+          // Without https likely to trigger mixed content warnings
+      }
+        // Multiple bases supported but only first can be solid, while others must be transparent
+    ],
+      // Base mapping (WMS tiles supported with type: wms)
+    "c": -1.43,
+      // Here click Longitude
+    "dataObject": {},
+      // JSON network data object: Used in preference to dataset
+    "dataset": "",
+      // JSON file containing network data: Recommended full URL, not just filename
+    "hereColor": "#080",
+      // CSS Color for here layer circle strokes
+    "k": 54.54,
+      // Here click Latitude
+    "leaflet": {},
+      // Active Leaflet library object L: Used in preference to loading own library
+    "linkColor": "#f00",
+      // CSS Color for link (service) layer strokes
+    "linkScale": 1.0,
+      // Scale factor for link (service) layer strokes: ceil(log(1+(service*(1/(scale*4))))*scale*2)
+    "locale": defaultLocale,
+      // Default locale, BCP 47-style: User selection is t
+    "m": 9,
+      // Here click zoom
+    "map": {},
+      // Active Leaflet map object: Used in preference to own map
+    "n": 0,
+      // User selected network filter
+    "network": [],
+      // Extension of network: Array of products, Object of locale keyed names
+    "nodeColor": "#000",
+      // CSS Color for node (stop) layer circle strokes
+    "nodeScale": 1.0,
+      // Scale factor for node (stop) layer circles: ceil(log(1+(service*(1/(scale*2))))*scale)
+    "panelScale": 1.0,
+      // Scale factor for text on the bottom-left summary panel
+    "placeColor": "#00f",
+      // CSS Color of place (population) layer circle fill
+    "placeOpacity": 0.5,
+      // CSS Opacity of place (population) layer circle fill: 0-1
+    "placeScale": 1.0,
+      // Scale factor for place (population) layer circles: ceil(sqrt(people*scale/666)
+    "v": "lph",
+      // Displayed map layers by first letter: here, link, node, place
+    "s": 5,
+      // User selected global scale factor: 0 to 10
+    "uiHash": false,
+      // Enables recording of the user state in the URL's hash
+    "uiLocale": true,
+      // Enables locale selector
+    "uiNetwork": true,
+      // Enables network selector
+    "uiPanel": true,
+      // Enables summary statistic panel
+    "uiScale": true,
+      // Enables scale selector
+    "uiShare": true,
+      // Enables embed and export
+    "uiStore": true,
+      // Enables browser session storage of user state
+    "t": defaultLocale,
+      // User selected locale: BCP 47-style)
+    "translation": {},
+      // Custom translations: Format matching aquius.LOC
+    "x": 10.35,
+      // Map view Longitude
+    "y": 50.03,
+      // Map view Latitude
+    "z": 4
+      // Map view zoom
+  };
+  var scriptURLs = [
+    "https://unpkg.com/leaflet@1.3.4/dist/leaflet.css",
+    "https://unpkg.com/leaflet@1.3.4/dist/leaflet.js"
+  ];
+    // Default Leaflet library CSS and JS
+  var layerNames = ["place", "link", "node", "here"];
+    // In order of map layer display, bottom to top. Char 0 unique. Has translation
+  var layerSummaryNames = ["link", "place", "node"];
+    // In order of display in panel, left to right
+
+  function loadStatus(configId, configOptions, error) {
+    // Error param optional
+
+    var homeDomId = document.getElementById(configId);
+
+    function toDiv(homeDomId, textContent, textScale) {
+      var elementDiv = document.createElement("div");
+      elementDiv.textContent = textContent;
+      elementDiv.style["text-align"] = "center";
+      if (typeof textScale !== "undefined" &&
+        textScale > 0
+      ) {
+        elementDiv.style["font-size"] = parseInt(textScale * 100, 10) + "%";
+      }
+      homeDomId.appendChild(elementDiv);
+    }
+
+    while (homeDomId.firstChild) {
+      homeDomId.removeChild(homeDomId.firstChild);
+    }
+
+    if (typeof error === "undefined") {
+      toDiv(homeDomId, "\uD83C\uDF0D", 10);
+        // Globe icon indicates a map of the globe to come. @future Animation of 3 globe views
+      return true;
+    } else {
+      toDiv(homeDomId, "\uD83D\uDEAB", 10);
+        // No entry icon indicates failure to load. @future re-init, would need all arguments
+      if("message" in error) {
+        toDiv(homeDomId, "( " + error.message + " )");
+          // No localisation of errors
+      }
+      return false;
+    }
   }
-  this.OPT.id = id;
-    // id de facto valid if exists on page. Other options handled later
-  if (!Object.keys || ![].indexOf || typeof JSON !== "object") {
+
+
+  function emptyNetworkJSON() {
+    // Dummy dataset, to be used if no or bad dataset supplied
+
+    return {
+      "meta": {
+        "schema": "0",
+        "name": {
+          "en-US": "Empty Dataset"
+        }
+      }
+    };
+  }
+
+
+  function loadWithPromise(configId, configOptions, scriptURLs) {
+    // Modern Promise is truly asynchronous, hence faster
+
+    var i;
+    var promiseArray = [];
+
+    function promiseScript(url) {
+      // Return Promise of url
+      return new Promise(function (resolve, reject) {
+        var element;
+        if (url.split(".").pop() === "css") {
+          element = document.createElement("link");
+          element.rel = "stylesheet";
+          element.href = url;
+        } else {
+          element = document.createElement("script");
+          element.src = url;
+        }
+        element.onload = resolve;
+        element.onerror = reject;
+        document.head.appendChild(element);
+      });
+    }
+
+    for (i = 0; i < scriptURLs.length; i += 1) {
+      promiseArray.push(promiseScript(scriptURLs[i]));
+    }
+
+    if ("dataset" in configOptions &&
+      typeof configOptions.dataset === "string"
+    ) {
+      promiseArray.push(fetch(configOptions.dataset));
+    }
+
+    if (promiseArray.length === 0) {
+
+      postLoad(configId, configOptions);
+        // Skip loading
+
+    } else {
+
+      Promise.all(promiseArray)
+      .then(function (responseObject) {
+        if ("dataset" in configOptions &&
+          typeof configOptions.dataset === "string"
+        ) {
+          return responseObject[promiseArray.length - 1].json();
+        } else {
+          return configOptions.dataObject;
+        }
+      })
+      .then(function (responseJSON) {
+        configOptions.dataObject = responseJSON;
+        postLoad(configId, configOptions);
+      })
+      .catch(function (error) {
+        // Script failure creates error event, while Fetch creates an error message
+          return loadStatus(configId, configOptions, error);
+      });
+    }
+  }
+
+
+  function loadWithClassic(configId, configOptions, scriptURLs) {
+    // Fallback is ordered, not so asynchronous
+
+    var recallArguments, callbackLoadDataset, loadedScriptCount, recallScript, i;
+
+    function loadScriptClassic(url, callback) {
+      // Classic JS/CSS load, based on file extension
+
+      var element;
+
+      if (url.split(".").pop() === "css") {
+        element = document.createElement("link");
+        element.rel = "stylesheet";
+        element.href = url;
+      } else {
+        element = document.createElement("script");
+        element.type = "text/javascript";
+        element.src = url;
+      }
+      element.onreadystatechange = callback;
+      element.onload = callback;
+      element.onerror = (function() {
+        return loadStatus(configId, configOptions, {"message": "Could not load " + url});
+      });
+      document.head.appendChild(element);
+    }
+
+    function fetchJson(url, callback) {
+      // Classic JSON load
+
+      var http = new XMLHttpRequest();
+
+      http.onreadystatechange = (function() {
+        if (http.readyState === 4) {
+          if (http.status === 200) {
+            var response = JSON.parse(http.responseText);
+            if (callback) {
+              callback(response);
+            }
+          } else {
+            return loadStatus(configId, configOptions,
+              {"message": http.status + ": Could not load "+ url});
+          }
+        }
+      });
+      http.open("GET", url);
+      http.send();
+    }
+
+    callbackLoadDataset = function () {
+      if ("dataset" in configOptions &&
+        typeof configOptions.dataset === "string"
+      ) { 
+        fetchJson(configOptions.dataset, function(responseJSON) {
+          configOptions.dataObject = responseJSON;
+          return postLoad(configId, configOptions);
+        });
+      } else {
+        postLoad(configId, configOptions);
+      }
+    };
+
+    if (scriptURLs.length === 0) {
+
+      callbackLoadDataset();
+        // Skip Leaflet
+
+    } else {
+
+      loadedScriptCount = 0;
+      recallScript = function recallScript() {
+        loadedScriptCount += 1;
+        recallArguments = arguments;
+        if (loadedScriptCount >= scriptURLs.length) {
+          callbackLoadDataset.call(this, recallArguments);
+        }
+      };
+
+      for (i = 0; i < scriptURLs.length; i += 1) {
+        if (i >= scriptURLs.length) {
+          break;
+        }
+        loadScriptClassic(scriptURLs[i], recallScript);
+      }
+
+    }
+  }
+
+
+  function store(configId, configOptions, setObject) {
+    // Returns URL hash if enabled, else session storage, as object, optionally setting setObject
+
+    var storeObject = {};
+
+    function getHash() {
+
+      var i;
+      var content = {};
+      var hash = decodeURIComponent(document.location.hash.trim()).slice(1).split("/");
+
+      for (i = 0; i < hash.length; i += 1) {
+        if (hash[i].length >= 2 &&
+          (/^[a-z\-()]$/.test(hash[i][0]))
+        ) {
+          content[hash[i][0]] = hash[i].slice(1);
+        }
+      }
+
+      return content;
+    }
+
+    function setHash(configOptions, setObject) {
+
+      var hashNames, urlHash, i;
+      var content = getHash();
+      var setNames = Object.keys(setObject);
+
+      for (i = 0; i < setNames.length; i += 1) {
+        if (setNames[i].length === 1 &&
+          (/^[a-z\-()]$/.test(setNames[i]))
+        ) {
+          // Hash key names are a single alpha character
+          content[setNames[i]] = setObject[setNames[i]];
+        }
+      }
+
+      hashNames = Object.keys(content);
+      urlHash = [];
+
+      for (i = 0; i < hashNames.length; i += 1) {
+        urlHash.push(hashNames[i] + encodeURIComponent(content[hashNames[i]]));
+      }
+
+      location.hash = "#" + urlHash.join("/");
+      return content;
+    }
+
+    function getStore(configId) {
+
+      try {
+        // Support of sessionStorage does not automatically make it useable
+        if (sessionStorage.getItem(configId) !== null) {
+          return JSON.parse(sessionStorage.getItem(configId));
+        } else {
+          return {};
+        }
+          // Keyed by Id to allow multiple instances on the same HTML page
+      } catch(e) {
+        return {};
+      }
+    }
+
+    function setStore(configId, configOptions, setObject) {
+
+      var i;
+      var theStore = getStore(configId);
+      var setNames = Object.keys(setObject);
+
+      for (i = 0; i < setNames.length; i += 1) {
+        theStore[setNames[i]] = setObject[setNames[i]];
+      }
+
+      try {
+        sessionStorage.setItem(configId, JSON.stringify(theStore));
+      } catch(e) {
+        // Pass
+      }
+
+      return theStore;
+    }
+
+    if (sessionStorage &&
+      ("uiStore" in configOptions === false ||
+      configOptions.uiStore === true)
+    ) {
+      // Store is opted out
+      if (typeof setObject === "object") {
+        storeObject = setStore(configId, configOptions, setObject);
+      } else {
+        storeObject = getStore(configId);
+      }
+    }
+
+    if ("uiHash" in configOptions === true &&
+      configOptions.uiHash === true
+    ) {
+      // Hash is opted in. Hash takes precedence over store for return object
+      if (typeof setObject === "object") {
+        storeObject = setHash(configOptions, setObject);
+      } else {
+        storeObject = getHash();
+      }
+    }
+
+    return storeObject;
+  }
+
+
+  function parseconfigOptions(configId, configOptions) {
+    // Reconcile configOptions with storage and defaults
+
+    function networkTranslation(configOptions) {
+      // Returns dummy translation block containing _networkI, where I is index position
+
+      var networkTranslationNames, i, j;
+      var networkTranslationObject = {};
+
+      for (i = 0; i < configOptions.dataObject.network.length; i += 1) {
+        if (configOptions.dataObject.network[i].length > 1 &&
+          typeof configOptions.dataObject.network[i][1] === "object"
+        ) {
+          networkTranslationNames = Object.keys(configOptions.dataObject.network[i][1]);
+          for (j = 0; j < networkTranslationNames.length; j += 1) {
+            if (networkTranslationNames[j] in networkTranslationObject === false) {
+              networkTranslationObject[networkTranslationNames[j]] = {};
+            }
+            networkTranslationObject[networkTranslationNames[j]]["_network" + i] =
+              configOptions.dataObject.network[i][1][networkTranslationNames[j]];
+          }
+        }
+      }
+
+      return networkTranslationObject;
+    }
+
+    function attributionTranslation(configOptions) {
+      // Returns dummy translation block containing _datasetName/Attribution
+
+      var theseTranslationNames, i;
+      var attributionTranslationObject = {};
+
+      if ("meta" in configOptions.dataObject &&
+        "name" in configOptions.dataObject.meta &&
+        typeof configOptions.dataObject.meta.name === "object"
+      ) {
+        theseTranslationNames = Object.keys(configOptions.dataObject.meta.name);
+        for (i = 0; i < theseTranslationNames.length; i += 1) {
+
+          if (theseTranslationNames[i] in attributionTranslationObject === false) {
+            attributionTranslationObject[theseTranslationNames[i]] = {};
+          }
+
+          attributionTranslationObject[theseTranslationNames[i]]._datasetName =
+            configOptions.dataObject.meta.name[theseTranslationNames[i]].toString();
+
+        }
+      }
+
+      if ("meta" in configOptions.dataObject &&
+        "attribution" in configOptions.dataObject.meta &&
+        typeof configOptions.dataObject.meta.attribution === "object"
+      ) {
+        theseTranslationNames = Object.keys(configOptions.dataObject.meta.attribution);
+        for (i = 0; i < theseTranslationNames.length; i += 1) {
+
+          if (theseTranslationNames[i] in attributionTranslationObject === false) {
+            attributionTranslationObject[theseTranslationNames[i]] = {};
+          }
+
+          attributionTranslationObject[theseTranslationNames[i]]._datasetAttribution =
+            configOptions.dataObject.meta.attribution[theseTranslationNames[i]].toString();
+
+        }
+      }
+
+      return attributionTranslationObject;
+    }
+
+    var storeObject, storeNames, translationObjects, translationLocales, translationNames, i, j, k;
+    var defaultNames = Object.keys(defaultOptions);
+    var localeNames = [];
+
+    if (typeof configOptions.dataObject !== "object") {
+      configOptions.dataObject = {};
+    }
+
+    // Option precedence = store, configuration, dataset, default
+
+    for (i = 0; i < defaultNames.length; i += 1) {
+
+      if (defaultOptions[defaultNames[i]] === defaultLocale) {
+        localeNames.push(defaultNames[i]);
+      }
+
+      if (defaultNames[i] in configOptions === false ||
+        typeof configOptions[defaultNames[i]] !== typeof defaultOptions[defaultNames[i]]
+      ) {
+
+        if ("option" in configOptions.dataObject &&
+          defaultNames[i] in configOptions.dataObject.option &&
+          typeof configOptions.dataObject.option[defaultNames[i]] ===
+          typeof defaultOptions[defaultNames[i]]
+        ) {
+          configOptions[defaultNames[i]] = configOptions.dataObject.option[defaultNames[i]];
+        } else {
+          configOptions[defaultNames[i]] = defaultOptions[defaultNames[i]];
+        }
+
+      }
+
+    }
+
+    storeObject = store(configId, configOptions);
+    storeNames = Object.keys(storeObject);
+    for (i = 0; i < storeNames.length; i += 1) {
+      if (defaultNames.indexOf(storeNames[i]) !== -1) {
+
+        if (typeof configOptions[storeNames[i]] === "number") {
+          if (Number.isNaN(parseFloat(storeObject[storeNames[i]])) === false) {
+            configOptions[storeNames[i]] = parseFloat(storeObject[storeNames[i]]);
+          }
+            // Else bad data
+        } else {
+          if (typeof configOptions[storeNames[i]] === "string") {
+            configOptions[storeNames[i]] = storeObject[storeNames[i]].toString();
+          }
+            // Else unsupported: Objects cannot be held in the store, since cannot easily be hashed
+        }
+
+      }
+    }
+
+    // Extend network
+    if (configOptions.network.length > 0) {
+      if ("network" in configOptions.dataObject &&
+        Array.isArray(configOptions.dataObject.network)
+      ) {
+        // Append bespoke network filters
+        configOptions.dataObject.network =
+          configOptions.dataObject.network.concat(configOptions.network);
+      } else {
+        configOptions.dataObject.network = configOptions.network;
+      }
+    }
+
+    // Force n to be a valid network index
+    configOptions.n = parseInt(configOptions.n, 10);
+    if (configOptions.n < 0) {
+      configOptions.n = 0;
+    } else {
+      if ("network" in configOptions.dataObject &&
+        Array.isArray(configOptions.dataObject.network) &&
+        configOptions.n >= configOptions.dataObject.network.length
+      ) {
+        configOptions.n = configOptions.dataObject.network.length - 1;
+      }
+    }
+
+    // Translation precedence = configOptions, dataObject, default
+    translationObjects = [];
+    if ("translation" in configOptions.dataObject) {
+      translationObjects.push(configOptions.dataObject.translation);
+    }
+    if ("network" in configOptions.dataObject &&
+      Array.isArray(configOptions.dataObject.network)
+    ) {
+      translationObjects.push(networkTranslation(configOptions));
+    }
+    if ("meta" in configOptions.dataObject &&
+      ("name" in configOptions.dataObject.meta ||
+      "attribution" in configOptions.dataObject.meta)
+    ) {
+      translationObjects.push(attributionTranslation(configOptions));
+    }
+    translationObjects.push(defaultTranslation);
+
+    for (i = 0; i < translationObjects.length; i += 1) {
+      translationLocales = Object.keys(translationObjects[i]);
+       for (j = 0; j < translationLocales.length; j += 1) {
+         if (translationLocales[j] in configOptions.translation === false) {
+           configOptions.translation[translationLocales[j]] = {};
+         }
+         translationNames = Object.keys(translationObjects[i][translationLocales[j]]);
+         for (k = 0; k < translationNames.length; k += 1) {
+           if (translationNames[k] in configOptions.translation[translationLocales[j]] === false) {
+             configOptions.translation[translationLocales[j]][translationNames[k]] =
+               translationObjects[i][translationLocales[j]][translationNames[k]];
+           }
+         }
+      }
+    }
+
+    // Force locales to have at least some support. Entirely lowercase hashes get dropped here
+    for (i = 0; i < localeNames.length; i += 1) {
+      if (configOptions[localeNames[i]] in configOptions.translation === false) {
+        configOptions[localeNames[i]] = defaultOptions[localeNames[i]];
+      }
+    }
+
+    return configOptions;
+  }
+
+
+  function buildMap(configId, configOptions) {
+    // Map and events, all non-localised, with no bespoke layers or controls
+
+    var i;
+
+    if ("setView" in configOptions.map === false ||
+      "on" in configOptions.map === false ||
+      "getCenter" in configOptions.map === false ||
+      "getZoom" in configOptions.map === false ||
+      "attributionControl" in configOptions.map === false
+    ) {
+        // Create map
+        while (document.getElementById(configId).firstChild) {
+          document.getElementById(configId).removeChild(document.getElementById(configId).firstChild);
+        }
+        configOptions.map = configOptions.leaflet.map(configId, {preferCanvas: true});
+          // Canvas renderer is faster. IE8 not supported anyway
+    }
+
+    configOptions.map.attributionControl.addAttribution(
+      "<a href=\"https://timhowgego.github.io/Aquius/\">Aquius</a>");
+
+    configOptions.map.setView([configOptions.y, configOptions.x], configOptions.z);
+
+    configOptions.map.on("moveend", function () {
+
+      var accuracy;
+      var center = configOptions.map.getCenter();
+      configOptions.z = configOptions.map.getZoom();
+      accuracy = Math.ceil(configOptions.z / 3);
+      configOptions.x = parseFloat(center.lng.toFixed(accuracy));
+      configOptions.y = parseFloat(center.lat.toFixed(accuracy));
+
+      store(configId, configOptions, {
+        "x": configOptions.x,
+        "y": configOptions.y,
+        "z": configOptions.z
+      });
+
+    });
+
+    configOptions.map.on("click", function (evt) {
+
+      var accuracy = Math.ceil(configOptions.z / 3);
+      var center = evt.latlng;
+      configOptions.c = parseFloat(center.lng.toFixed(accuracy));
+      configOptions.k = parseFloat(center.lat.toFixed(accuracy));
+      configOptions.m = configOptions.z;
+
+      store(configId, configOptions, {
+        "c": configOptions.c,
+        "k": configOptions.k,
+        "m": configOptions.m
+      });
+
+      configOptions = goHere(configId, configOptions);
+    });
+
+    for (i = 0; i < configOptions.base.length; i += 1) {
+      if ("url" in configOptions.base[i]) {
+
+        if ("options" in configOptions.base[i] === false) {
+          configOptions.base[i].options = {};
+        }
+
+        if ("type" in configOptions.base[i] &&
+          configOptions.base[i].type === "wms"
+        ) {
+          configOptions.leaflet.tileLayer.wms(
+            configOptions.base[i].url, configOptions.base[i].options
+            ).addTo(configOptions.map);
+        } else {
+          configOptions.leaflet.tileLayer(
+            configOptions.base[i].url, configOptions.base[i].options
+          ).addTo(configOptions.map);
+        }
+
+      }
+    }
+
+    return configOptions;
+  }
+
+
+  function buildUI(configId, configOptions) {
+    // Bespoke layers and controls, all localisable
+
+    var keyName, selection, element, parent, child, control, controlForm,
+      embedElement, exportElement, geoJSON, supportsPassiveOptions, i;
+    var supportsPassive = false;
+    var toLocalise = {};
+      // DOM Id: translation key
+
+    function localise(configOptions, toLocalise, rerender) {
+      // Apply translation to localised DOM items
+
+      var i;
+      var toLocaliseNames = Object.keys(toLocalise);
+      for (i = 0; i < toLocaliseNames.length; i += 1) {
+        if (document.getElementById(toLocaliseNames[i])) {
+
+          if (configOptions.t in configOptions.translation &&
+            toLocalise[toLocaliseNames[i]] in configOptions.translation[configOptions.t]
+          ) {
+            // Available in user locale
+            document.getElementById(toLocaliseNames[i]).textContent =
+              configOptions.translation[configOptions.t][toLocalise[toLocaliseNames[i]]];
+          } else {
+            if (configOptions.locale in configOptions.translation &&
+              toLocalise[toLocaliseNames[i]] in configOptions.translation[configOptions.locale]
+            ) {
+              // Available in default locale
+              document.getElementById(toLocaliseNames[i]).textContent =
+                configOptions.translation[configOptions.locale][toLocalise[toLocaliseNames[i]]];
+            } else {
+              // Error fallback to key name
+              document.getElementById(toLocaliseNames[i]).textContent = toLocalise[toLocaliseNames[i]];
+            }
+          }
+
+        }
+      }
+
+      if (typeof rerender !== "undefined" &&
+        rerender === true
+      ) {
+        configOptions = goHere(configId, configOptions, true);
+      }
+    }
+
+    function layerEvents(configOptions, layerName) {
+      // Adds events to _layer layers
+
+      configOptions._layer[layerName].on("add", function () {
+        if (configOptions.v.indexOf(layerName.charAt(0)) === -1) {
+          configOptions.v += layerName.charAt(0);
+          store(configId, configOptions, {
+            "v": configOptions.v
+          });
+        }
+      });
+
+      configOptions._layer[layerName].on("remove", function () {
+        configOptions.v = configOptions.v.replace(layerName.charAt(0), "");
+        store(configId, configOptions, {
+          "v": configOptions.v
+        });
+      });
+
+      return configOptions;
+    }
+
+    function getControlForm(control) {
+      // Returns DOM of form in control, to allow other elements to be hacked in
+
+      var i;
+      var controlForm = false;
+      var nodes = control.getContainer().childNodes;
+
+      for (i = 0; i < nodes.length; i += 1) {
+        if (nodes[i].tagName === "FORM") {
+          controlForm = nodes[i];
+          break;
+        }
+      }
+
+      return controlForm;
+    }
+
+    function getEmbed(configId, configOptions) {
+      // Return embed blob
+
+      var i;
+      var lines = [];
+      var script = "<!--Script URL-->";
+      var scripts = document.getElementsByTagName("script");
+      var ownOptions = {};
+      var optionsNames = Object.keys(configOptions);
+      var excludedOptions = ["dataObject", "leaflet", "map", "translation", "uiHash"];
+        // Options begining _ automatically excluded
+
+      for (i = 0; i < scripts.length; i += 1) {
+        if (scripts[i].src.indexOf("aquius") !== -1) {
+          // Script name must includes aquius. Crude
+          script = scripts[i].src;
+          break;
+        }
+      }
+
+      for (i = 0; i < optionsNames.length; i += 1) {
+        if (optionsNames[i].charAt(0) !== "_" &&
+          excludedOptions.indexOf(optionsNames[i]) === -1 &&
+          configOptions[optionsNames[i]] !== defaultOptions[optionsNames[i]]
+        ) {
+           ownOptions[optionsNames[i]] = configOptions[optionsNames[i]];
+        }
+      }
+
+      lines.push(createElement("div", {
+        "id": configId
+      }, {
+        "height": "100%"
+      }).outerHTML);
+
+      lines.push(createElement("script", {
+        "src": script
+      }).outerHTML);
+
+      lines.push(createElement("script", {
+        "textContent": "window.addEventListener(\"load\",function(){aquius.init(\"" +
+          configId + "\"," + JSON.stringify(ownOptions) + ")});"
+      }).outerHTML);
+
+      return new Blob([lines.join("\n")], {type: "text/plain;charset=utf-8"});
+    }
+
+    function getSelect(selection, rootId, selected) {
+      // Returns select DOM, for selection array of keys:
+      // value (returned on selection), label (not localised), id (localisation referenced)
+
+      var theChild, i;
+      var theParent = createElement("select", {
+        "id": rootId
+      }, {
+        "background-color": "#fff",
+        "color": "#000",
+        "font": "12px/1.5 \"Helvetica Neue\", Arial, Helvetica, sans-serif"
+          // Leaflet font not inherented by Select
+      });
+
+      for (i = 0; i < selection.length; i += 1) {
+        theChild = createElement("option");
+        if ("value" in selection[i]) {
+          theChild.value = selection[i].value;
+          if (selection[i].value === selected) {
+            theChild.selected = "selected";
+          }
+        }
+        if ("label" in selection[i]) {
+          theChild.textContent = selection[i].label;
+        }
+        if ("id" in selection[i]) {
+          theChild.id = selection[i].id;
+        }
+        theParent.appendChild(theChild);
+      }
+
+      return theParent;
+    }
+
+    function getRadio(selection, rootId, selected) {
+      // Returns radio DOM, for selection array of keys:
+      // value (returned on selection), label (not localised), id (localisation referenced)
+
+      var theChild, theElement, i;
+      var theParent = createElement("div", {
+        "id": rootId
+      });
+
+      for (i = 0; i < selection.length; i += 1) {
+        theChild = createElement("label");
+
+        theElement = createElement("input", {
+          "type": "radio",
+          "name": rootId
+        });
+        if ("value" in selection[i]) {
+          theElement.value = selection[i].value;
+          if (selection[i].value === selected) {
+            theElement.checked = "checked";
+          }
+        }
+        theChild.appendChild(theElement);
+
+        theElement = createElement("span");
+        if ("id" in selection[i]) {
+          theElement.id = selection[i].id;
+        }
+        if ("label" in selection[i]) {
+          theElement.textContent = selection[i].label;
+        }
+        theChild.appendChild(theElement);
+
+        theParent.appendChild(theChild);
+      }
+
+      return theParent;
+    }
+
+    function createElement(elementType, value, style) {
+      // Returns DOM. Value and style key:value objects optional. Events not handled
+
+      var theseValues, v;
+      var thisElement = document.createElement(elementType);
+
+      if (typeof value !== "undefined") {
+        theseValues = Object.keys(value);
+        for (v = 0; v < theseValues.length; v += 1) {
+          thisElement[theseValues[v]] = value[theseValues[v]];
+        }
+      }
+
+      if (typeof style !== "undefined") {
+        theseValues = Object.keys(style);
+        for (v = 0; v < theseValues.length; v += 1) {
+          thisElement.style[theseValues[v]] = style[theseValues[v]];
+        }
+      }
+
+      return thisElement;
+    }
+
+    try {
+      supportsPassiveOptions = Object.defineProperty({}, "passive", {
+        get: function() {
+          supportsPassive = true;
+          return true;
+        }
+      });
+      window.addEventListener("test", null, supportsPassiveOptions);
+      window.removeEventListener("test", null, supportsPassiveOptions);
+    } catch (e) {
+      // Pass
+    }
+
+    keyName = ["_datasetName", "_datasetAttribution"];
+    for (i = 0; i < keyName.length; i += 1) {
+      toLocalise[configId + keyName[i]] = keyName[i];
+      keyName[i] = configId + keyName[i];
+    }
+    element = createElement("span");
+    if ("meta" in configOptions.dataObject &&
+      "url" in configOptions.dataObject.meta &&
+      typeof configOptions.dataObject.meta.url === "string"
+    ) {
+      element.appendChild(createElement("a", {
+        "href": configOptions.dataObject.meta.url,
+        "id": keyName[0]
+      }));
+    } else {
+      element.appendChild(createElement("span", {
+        "id": keyName[0]
+      }));
+    }
+    element.appendChild(document.createTextNode(" "));
+    element.appendChild(createElement("span", {
+      "id": keyName[1]
+    }));
+    configOptions.map.attributionControl.addAttribution(element.outerHTML);
+
+    if (configOptions.uiLocale === true) {
+      keyName = Object.keys(configOptions.translation);
+      if (keyName.length > 1) {
+
+        control = configOptions.leaflet.control({position: "topright"});
+        control.onAdd = function () {
+
+          parent = createElement("div", {
+            "className": "aquius-locale",
+            "id": configId + "locale"
+          }, {
+            "background-color": "#fff",
+            "border-bottom": "2px solid rgba(0,0,0,0.3)",
+            "border-left": "2px solid rgba(0,0,0,0.3)",
+            "border-radius": "0 0 0 5px",
+            "margin": 0,
+            "padding": "0 0 1px 1px"
+          });
+          configOptions.leaflet.DomEvent.disableClickPropagation(parent);
+
+          element = createElement("label", {
+            "id": configId + "langname",
+            "for": configId + "lang"
+          } , {
+            "display": "none"
+          });
+            // Label improves web accessibility, but is self-evident to most users
+          toLocalise[configId + "langname"] = "language";
+          parent.appendChild(element);
+
+          selection = [];
+          for (i = 0; i < keyName.length; i += 1) {
+            selection.push({
+              "value": keyName[i],
+              "label": ("lang" in configOptions.translation[keyName[i]]) ?
+                configOptions.translation[keyName[i]].lang : keyName[i]
+            });
+          }
+
+          element = getSelect(selection, configId + "lang", configOptions.t);
+          element.style.border = "none";
+          element.addEventListener("change", function () {
+            configOptions.t = document.getElementById(configId + "lang").value;
+            store(configId, configOptions, {
+              "t": configOptions.t
+            });
+            localise(configOptions, toLocalise, true);
+          }, supportsPassive ? { "passive": true } : false);
+          parent.appendChild(element);
+
+          return parent;
+        };
+        control.addTo(configOptions.map);
+
+      }
+    }
+
+    if (configOptions.uiPanel === true) {
+      control = configOptions.leaflet.control({position: "bottomleft"});
+      control.onAdd = function () {
+
+        parent = createElement("div", {
+          "className": "aquius-panel",
+          "id": configId + "panel"
+        }, {
+          "background-color": "rgba(255,255,255,0.7)",
+          "font-weight": "bold",
+          "padding": "0 3px",
+          "border-radius": "5px"
+        });
+        configOptions.leaflet.DomEvent.disableClickPropagation(parent);
+
+        for (i = 0; i < layerSummaryNames.length; i += 1) {
+
+          child = createElement("span", {}, {
+            "color": configOptions[layerSummaryNames[i] + "Color"],
+            "margin": "0 0.1em"
+          });
+          element = createElement("span", {
+            "id": configId + layerSummaryNames[i] + "value",
+            "textContent": "0"
+          }, {
+            "font-size": Math.round(200 * configOptions.panelScale).toString() + "%",
+            "margin": "0 0.1em"
+          });
+          child.appendChild(element);
+          element = createElement("span", {
+            "id": configId + layerSummaryNames[i] + "label",
+          }, {
+            "font-size": Math.round(100 * configOptions.panelScale).toString() + "%",
+            "margin": "0 0.1em",
+            "vertical-align": "20%"
+          });
+          toLocalise[element.id] = layerSummaryNames[i];
+          child.appendChild(element);
+          parent.appendChild(child);
+          parent.appendChild(document.createTextNode(" "));
+
+        }
+
+        return parent;
+      };
+      control.addTo(configOptions.map);
+    }
+
+    configOptions._layer = {};
+    selection = layerNames.reverse();
+
+    control = configOptions.leaflet.control.layers();
+    for (i = 0; i < selection.length; i += 1) {
+
+      configOptions._layer[selection[i]] = configOptions.leaflet.layerGroup();
+      configOptions = layerEvents(configOptions, selection[i]);
+      if (configOptions.v.indexOf(selection[i].charAt(0)) !== -1) {
+        configOptions._layer[selection[i]].addTo(configOptions.map);
+      }
+
+      element = createElement("span", {
+        "id": configId + selection[i] + "name"
+      }, {
+        "color": configOptions[selection[i] + "Color"]
+      });
+      toLocalise[element.id] = selection[i];
+      control.addOverlay(configOptions._layer[selection[i]], element.outerHTML);
+
+    }
+    control.addTo(configOptions.map);
+
+    controlForm = getControlForm(control);
+    if (!controlForm) {
+      // Error, escape with partial UI
+      localise(configOptions, toLocalise);
+      return configOptions;
+    }
+
+    if ("network" in configOptions.dataObject &&
+      Array.isArray(configOptions.dataObject.network) &&
+      configOptions.dataObject.network.length > 1
+    ) {
+
+      selection = [];
+      for (i = 0; i < configOptions.dataObject.network.length; i += 1) {
+        selection.push({
+          "value": i,
+          "id": configId + "network" + i
+          });
+        toLocalise[configId + "network" + i] = "_network" + i;
+      }
+
+      element = getRadio(selection, configId + "network", configOptions.n);
+      element.addEventListener("change", function () {
+        configOptions.n = parseInt(document.querySelector("input[name='" +
+          configId + "network']:checked").value, 10);
+        store(configId, configOptions, {
+          "n": configOptions.n
+        });
+        configOptions = goHere(configId, configOptions);
+      }, supportsPassive ? { "passive": true } : false);
+      controlForm.appendChild(element);
+
+    }
+
+    if (configOptions.uiScale === true) {
+      parent = createElement("label");
+
+      child = createElement("div", {
+        "id": configId + "scalename"
+      }, {
+        "text-align": "center"
+      });
+      toLocalise[child.id] = "scale";
+      parent.appendChild(child);
+
+      child = createElement("input", {
+        "id": configId + "scale",
+        "type": "range",
+          // Range not supported by IE9, but should default to text
+        "min": 0,
+        "max": 10,
+        "value": configOptions.s
+      });
+      child.addEventListener("change", function () {
+        configOptions.s = parseInt(document.getElementById(configId + "scale").value, 10);
+        store(configId, configOptions, {
+          "s": configOptions.s
+        });
+        configOptions = goHere(configId, configOptions, true);
+      }, supportsPassive ? { "passive": true } : false);
+      parent.appendChild(child);
+
+      controlForm.appendChild(parent);
+    }
+
+    if (configOptions.uiShare === true &&
+      Blob
+    ) {
+      // IE<10 has no Blob support
+      parent = createElement("div", {}, {
+        "text-align": "center"
+      });
+
+      if (configOptions.dataset !== "") {
+        // Data supplied direct to dataObject cannot sensibly be embedded
+        embedElement = createElement("a", {
+          "id": configId + "embed",
+          "download": configId + ".txt",
+          "role": "button"
+            // Actual buttons would look like like form submit thus too important
+        }, {
+          "cursor": "pointer"
+        });
+        embedElement.addEventListener("click", function () {
+          embedElement.href = window.URL.createObjectURL(getEmbed(configId, configOptions));
+            // Hack imposing href on own caller to trigger download. Requires embedElement persist
+        }, supportsPassive ? { "passive": true } : false);
+        toLocalise[embedElement.id] = "embed";
+        parent.appendChild(embedElement);
+        parent.appendChild(document.createTextNode(" | "));
+      }
+
+      exportElement = createElement("a", {
+        "id": configId + "export",
+        "download": configId + ".json",
+        "role": "button"
+        }, {
+          "cursor": "pointer"
+        });
+      exportElement.addEventListener("click", function () {
+        geoJSON = [];
+        for (i = 0; i < layerNames.length; i += 1) {
+          if (configOptions.v.indexOf(layerNames[i].charAt(0)) !== -1) {
+            geoJSON.push(layerNames[i]);
+          }
+        }
+        exportElement.href = window.URL.createObjectURL(
+          new Blob([JSON.stringify(hereFunction(
+            configOptions.dataObject,
+            configOptions.c,
+            configOptions.k,
+            5e6 / Math.pow(2, configOptions.m),
+            {
+              "filter": configOptions.n,
+              "geoJSON": geoJSON,
+              "sanitize": false
+            }
+          ))],
+          {type: "application/json;charset=utf-8"})
+        );
+      }, supportsPassive ? { "passive": true } : false);
+      toLocalise[exportElement.id] = "export";
+      parent.appendChild(exportElement);
+
+      controlForm.appendChild(parent);
+    }
+
+    localise(configOptions, toLocalise);
+    return configOptions;
+  }
+
+
+  function postLoad(configId, configOptions) {
+    // Post-load object and data checks, map and UI build, and initial here query
+
+    if (typeof L !== "object" ||
+      "version" in L === false
+    ) {
+      return loadStatus(configId, configOptions, {"message": "Leaflet failed to load"});
+    } else {
+      configOptions.leaflet = L;
+    }
+
+    configOptions = parseconfigOptions(configId, configOptions);
+    configOptions = buildMap(configId, configOptions);
+    configOptions = buildUI(configId, configOptions);
+
+    configOptions = goHere(configId, configOptions, false, true);
+  }
+
+
+  function goHere(configId, configOptions, rerender, runonce) {
+    // Requests and here and processes result. Rerender refreshes UI only. Runonce initial only
+
+    var id, geometry, keyName, options, scale, i, j;
+
+    for (i = 0; i < layerNames.length; i += 1) {
+      if (layerNames[i] in configOptions._layer) {
+        configOptions._layer[layerNames[i]].clearLayers();
+      }
+    }
+
+    if (typeof rerender === "undefined" ||
+      rerender !== true ||
+      "_here" in configOptions === false
+    ) {
+      options = {
+        "filter": configOptions.n
+      };
+      if (typeof runonce !== "undefined" &&
+        runonce === true
+      ) {
+        options.sanitize = true;
+      } else {
+        options.sanitize = false;
+      }
+      configOptions._here = hereFunction(
+        configOptions.dataObject,
+        configOptions.c,
+        configOptions.k,
+        5e6 / Math.pow(2, configOptions.m),
+          // Range factor duplicated in export
+        options
+      );
+    }
+
+    if ("dataObject" in configOptions._here) {
+      configOptions.dataObject = configOptions._here.dataObject;
+    }
+
+    if (configOptions.uiPanel === true &&
+      "summary" in configOptions._here
+    ) {
+      keyName = Object.keys(configOptions._here.summary);
+      for (i = 0; i < keyName.length; i += 1) {
+        id = configId + keyName[i] + "value";
+        if (document.getElementById(id)) {
+          try {
+            document.getElementById(id).textContent =
+              new Intl.NumberFormat(configOptions.t)
+                .format(configOptions._here.summary[keyName[i]]);
+          } catch (e) {
+            // Unsupported feature or locale
+            document.getElementById(id).textContent =
+              configOptions._here.summary[keyName[i]].toString();
+          }
+        }
+      }
+    }
+
+    if ("place" in configOptions._here) {
+      scale = Math.exp((configOptions.s - 5) / 2) * configOptions.placeScale / 666;
+      for (i = 0; i < configOptions._here.place.length; i += 1) {
+        if ("circle" in configOptions._here.place[i] &&
+          "value" in configOptions._here.place[i] &&
+          configOptions._here.place[i].circle.length > 1
+        ) {
+          configOptions.leaflet.circleMarker(
+            configOptions.leaflet.latLng([
+              configOptions._here.place[i].circle[1],
+              configOptions._here.place[i].circle[0]
+            ]), {
+              "fill": true,
+              "fillColor": configOptions.placeColor,
+              "fillOpacity": configOptions.placeOpacity,
+              "radius": Math.ceil(Math.sqrt( configOptions._here.place[i].value * scale)),
+              "stroke": false
+            }
+          ).bindTooltip(configOptions._here.place[i].value.toString()).addTo(configOptions._layer.place);
+        }
+      }
+    }
+
+    if ("link" in configOptions._here) {
+      scale = Math.exp((configOptions.s - 5) / 2) * configOptions.linkScale * 4;
+      for (i = 0; i < configOptions._here.link.length; i += 1) {
+        if ("polyline" in configOptions._here.link[i] &&
+          "value" in configOptions._here.link[i]
+        ) {
+          geometry = [];
+          for (j = 0; j < configOptions._here.link[i].polyline.length; j += 1) {
+            if (configOptions._here.link[i].polyline[j].length > 1) {
+              geometry.push([
+                configOptions._here.link[i].polyline[j][1],
+                configOptions._here.link[i].polyline[j][0]
+              ]);
+            }
+          }
+          configOptions.leaflet.polyline(geometry, {
+              "color": configOptions.linkColor,
+              "weight": Math.ceil(Math.log(1 + (configOptions._here.link[i].value * (1 / scale))) * scale)
+            }
+          ).bindTooltip(configOptions._here.link[i].value.toString()).addTo(configOptions._layer.link);
+        }
+      }
+    }
+
+    if ("node" in configOptions._here) {
+      scale = Math.exp((configOptions.s - 5) / 2) * configOptions.nodeScale * 2;
+      for (i = 0; i < configOptions._here.node.length; i += 1) {
+        if ("circle" in configOptions._here.node[i] &&
+          "value" in configOptions._here.node[i] &&
+          configOptions._here.node[i].circle.length > 1
+        ) {
+          configOptions.leaflet.circleMarker(
+            configOptions.leaflet.latLng([
+              configOptions._here.node[i].circle[1],
+              configOptions._here.node[i].circle[0]
+            ]), {
+              "color": configOptions.nodeColor,
+              "fill": false,
+              "radius": Math.ceil(Math.log(1 + (configOptions._here.node[i].value * (1 / (scale * 2)))) * scale),
+              "weight": 1
+            }
+          ).bindTooltip(configOptions._here.node[i].value.toString()).addTo(configOptions._layer.node);
+        }
+      }
+    }
+
+    if ("here" in configOptions._here &&
+      configOptions._here.here.length > 0 &&
+      "circle" in configOptions._here.here[0] &&
+      "value" in configOptions._here.here[0] &&
+      configOptions._here.here[0].circle.length > 1
+    ) {
+      configOptions.leaflet.circle(
+        configOptions.leaflet.latLng([
+          configOptions._here.here[0].circle[1],
+          configOptions._here.here[0].circle[0]
+        ]), {
+          "color": configOptions.hereColor,
+          "fill": false,
+          "interactive": false,
+          "radius": configOptions._here.here[0].value,
+          "weight": 2
+        }
+      ).addTo(configOptions._layer.here);
+    }
+
+    return configOptions;
+  }
+
+
+  if (!document.getElementById(configId)) {
+    return false;
+      // Exit stage left. Nowhere to report failure gracefully
+  }
+
+  if (!Object.keys ||
+    ![].indexOf ||
+    typeof JSON !== "object"
+  ) {
     // Arcane pre-IE9 browser
-    document.getElementById(id).appendChild(
-      document.createTextNode("Browser not supported: Try a modern browser")
-    );
-    document.getElementById(id).style.height = "auto";
+    document.getElementById(configId).appendChild(
+      document.createTextNode("Browser not supported: Try a modern browser"));
+      // There is no localisation of errors
+    document.getElementById(configId).style.height = "auto";
       // Prevents unusable embed areas being filled with whitespace
     return false;
   }
 
-  this.statusIcon("\uD83C\uDF0D");
+  loadStatus(configId, configOptions);
+    // Visual indicator to manage expectations
 
-  dataset = (typeof option === "object" && "dataset" in option && typeof option.dataset === "string") ?
-    option.dataset : "https://timhowgego.github.io/Aquius/dist/default.json";
-    // Default is a valid but empty dataset. @todo Should be internal to script
-  css = "https://unpkg.com/leaflet@1.3.4/dist/leaflet.css";
-  js = "https://unpkg.com/leaflet@1.3.4/dist/leaflet.js";
-  self = this;
+  if (typeof configOptions !== "object") {
+    configOptions = {};
+  }
+
+  if ("dataObject" in configOptions === false ||
+    typeof configOptions.dataObject !== "object"
+  ) {
+    configOptions.dataObject = emptyNetworkJSON();
+  }
+
+  if ("leaflet" in configOptions &&
+    typeof configOptions.leaflet === "object" &&
+    "version" in configOptions.leaflet &&
+    Number.isNaN(parseInt(configOptions.leaflet.version.split(".")[0], 10)) === false &&
+    parseInt(configOptions.leaflet.version.split(".")[0], 10) >= 1
+  ) {
+    // Leaflet version 1+, so no new load
+    scriptURLs = [];
+      // ScriptURLs are not in configOptions - would allow random script insertion
+  }
 
   if (typeof Promise !== "undefined") {
-    // Modern Promise is truly asynchronous, hence faster
-
-    Promise.all([
-      fetch(dataset),
-      self.promiseMe(css),
-      self.promiseMe(js)
-    ])
-    .then(function (response) {
-      return response[0].json();
-    })
-    .catch(function (error) {
-      return self.statusIcon("\uD83D\uDEAB", error);
-    })
-    .then(function (response) {
-      return self.postInit(response, option);
-    });
-
+    loadWithPromise(configId, configOptions, scriptURLs);
   } else {
-    // Fallback is ordered, not so asynchronous
+    loadWithClassic(configId, configOptions, scriptURLs);
+  }
+},
 
-    callback = function () {
-      self.fetchJson(dataset, function(response) { self.postInit(response, option); });
-    };
 
-    loaded = 0;
-    recall = function recall() {
-      loaded += 1;
-      arg = arguments;
-      if (loaded >= urls.length) {
-        callback.call(self, arg);
+"here": function here(dataObject, x, y, range, options) {
+  /**
+   * Raw Here Query
+   * @param {Object} dataObject - as init() option dataObject
+   * @param {number} x - longitude
+   * @param {number} y - latitude
+   * @param {number} range - metres from lat,lng
+   * @param {Object} options - filter:network index, geoJSON:array of string layernames, sanitize:boolean, 
+   * @return {Object} key:values - error:description on failure
+   */
+  "use strict";
+
+  var raw;
+
+
+  function parseDataObject(dataObject) {
+    // Check and fix network data. Fix sufficiently not to break code, not fix to produce accurate results
+
+    var keyName, i, j, k, l;
+    var networkObjects = {
+      // Minimum default structure of each "line" (array) for non-header data structures
+      "0": {
+        // By schema ID, extendable for future schema
+        "link": [0, 0, [0], {}],
+        "network": [[0], {"en-US": "Unknown"}],
+        "node": [0, 0, 0],
+        "place": [0, 0, 0]
       }
     };
+      // In practice 0 equates to null, while avoiding dataset rejection or variable checking during draw
 
-    urls = [css, js];
-    for (i = 0; i < urls.length; i += 1) {
-      if (i >= urls.length) {
-        break;
-      }
-      self.loadMe(urls[i], recall);
+    if (typeof dataObject !== "object") {
+      dataObject = {};
     }
-  }
-},
-
-"statusIcon": function statusIcon(character, error) {
-  /**
-   * Fullview status icon
-   * @param {string} character - icon illustration
-   * @param {object} error - optional
-   * @param {return} boolean - Failure if error
-   */
-  "use strict";
-  var home = document.getElementById(this.OPT.id);
-  
-  function div(home, text, size) {
-    var elem = document.createElement("div");
-    elem.textContent = text;
-    elem.style["text-align"] = "center";
-    if (typeof size !== "undefined") {
-      elem.style["font-size"] = size;
+    if ("meta" in dataObject === false) {
+      dataObject.meta = {};
     }
-    home.appendChild(elem);
-  }
+    if ("schema" in dataObject.meta === false ||
+      dataObject.meta.schema in networkObjects === false
+    ) {
+      dataObject.meta.schema = "0";
+    }
+      // Other translation, option, and meta keys not used here, so ignored
 
-  while (home.firstChild) {
-    home.removeChild(home.firstChild);
-  }
-  div(home, character, "1000%");
-  if (typeof error === "object" && "message" in error) {
-    div(home, "( " + error.message + " )");
-    //console.error(error); // Development only
-    return false;
-  }
-
-  return true;
-},
-
-"fetchJson": function fetchJson (url, callback) {
-  /**
-   * Classic JSON load
-   * @param {string} url - URL to load
-   * @param {Object} callback - Post-load function, non-Promise only
-   */
-  "use strict";
-  var self = this;
-  var http = new XMLHttpRequest();
-
-  http.onreadystatechange = (function() {
-    if (http.readyState === 4) {
-      if (http.status === 200) {
-        var response = JSON.parse(http.responseText);
-        if (callback) {
-          callback(response);
-        }
-      } else {
-        self.statusIcon("\uD83D\uDEAB", {message: http.status + ": Could not load "+ url});
+    keyName = Object.keys(networkObjects[dataObject.meta.schema]);
+    for (i = 0; i < keyName.length; i += 1) {
+      if (keyName[i] in dataObject &&
+        typeof dataObject[keyName[i]] !== "object"
+      ) {
+        delete dataObject[keyName[i]];
       }
     }
-  });
-  http.open("GET", url);
-  http.send();
-},
 
-"loadMe": function loadMe (url, callback) {
-  /**
-   * Classic JS/CSS load, based on file extension
-   * @param {string} url - URL to load
-   * @param {Object} callback - Post-load function, non-Promise only
-   */
-  "use strict";
-  var self = this;
-  var element;
+    for (i = 0; i < keyName.length; i += 1) {
 
-  if (url.split(".").pop() === "css") {
-    element = document.createElement("link");
-    element.rel = "stylesheet";
-    element.href = url;
-  } else {
-    element = document.createElement("script");
-    element.type = "text/javascript";
-    element.src = url;
-  }
-  element.onreadystatechange = callback;
-  element.onload = callback;
-  element.onerror = (function() {
-    self.statusIcon("\uD83D\uDEAB", {message: "Could not load " + url});
-  });
-  document.head.appendChild(element);
-},
+      if (keyName[i] in dataObject === false ||
+        Array.isArray(dataObject[keyName[i]]) == false ||
+        dataObject[keyName[i]].length === 0
+      ) {
+        // Set whole key to default, with one dummy entry
+        dataObject[keyName[i]] =
+          [networkObjects[dataObject.meta.schema][keyName[i]]];
+      }
 
-"promiseMe": function promiseMe(url) {
-  /**
-   * Modern JS/CSS load, based on file extension
-   * @param {string} url - URL to load
-   * @param {return} promise
-   */
-  "use strict";
-  return new Promise(function (resolve, reject) {
-    var element;
-    if (url.split(".").pop() === "css") {
-      element = document.createElement("link");
-      element.rel = "stylesheet";
-      element.href = url;
-    } else {
-      element = document.createElement("script");
-      element.src = url;
-    }
-    element.onload = resolve;
-    element.onerror = reject;
-    document.head.appendChild(element);
-  });
-},
+      for (j = 0; j < dataObject[keyName[i]].length; j += 1) {
 
-"postInit": function postInit(response, option) {
-  /**
-   * After script and data load, before UI
-   * @param {object} response - Json response
-   * @param {Object} option - Dictionary of options, may be undefined
-   * @param {return} boolean - Runtime success
-   */
-  "use strict";
-  var scripts, i;
-
-  try {
-    if (typeof L === "undefined") {
-      throw new Error("Could not find Leaflet");
-    } else {
-      if (typeof response !== "object") {
-        throw new Error("Could not find dataset network");
-      } else {
-
-        this.MEM = {};
-          // Internal memory object
-        this.MEM.text = {};
-          // text holds localisation references
-        this.MEM.net = this.parseNetwork(response);
-        this.parseOption(option);
-
-        scripts = document.getElementsByTagName("script");
-          // scriptUrl used for embed, so risky method acceptable
-        for (i = 0; i < scripts.length; i += 1) {
-          if (scripts[i].src.indexOf("aquius") !== -1) {
-            // Script name must includes aquius
-            this.MEM.scriptUrl = scripts[i].src;
-            break;
+        if (dataObject[keyName[i]][j].length <
+          networkObjects[dataObject.meta.schema][keyName[i]].length
+        ) {
+          for (k = dataObject[keyName[i]][j].length - 1; k <
+            networkObjects[dataObject.meta.schema][keyName[i]].length; k += 1) {
+            // Append defaults to short lines
+            dataObject[keyName[i]][j].push(
+              networkObjects[dataObject.meta.schema][keyName[i]][k]);
           }
         }
 
-        if (this.ui()) {
-          return this.draw();
+        for (k = 0; k <
+          networkObjects[dataObject.meta.schema][keyName[i]].length; k += 1) {
+
+          if (typeof dataObject[keyName[i]][j][k] !==
+            typeof networkObjects[dataObject.meta.schema][keyName[i]][k]
+          ) {
+            // Replace specific data item with default
+            dataObject[keyName[i]][j][k] =
+              networkObjects[dataObject.meta.schema][keyName[i]][k];
+          }
+
+          if (Array.isArray(dataObject[keyName[i]][j][k])) {
+            for (l = 0; l < dataObject[keyName[i]][j][k].length; l += 1) {
+              if (typeof dataObject[keyName[i]][j][k][l] !==
+                typeof networkObjects[dataObject.meta.schema][keyName[i]][k][0]
+              ) {
+                // Replace specific data item within array with default
+                dataObject[keyName[i]][j][k][l] =
+                  networkObjects[dataObject.meta.schema][keyName[i]][k][0];
+              }
+            }
+          }
+
+        }
+
+      }
+
+    }
+
+    return dataObject;
+  }
+
+  function findHereNodes(raw, dataObject, x, y, range) {
+    // Adds all nodes within range of lng,lat to raw.hereNodes
+
+    var i;
+
+    function haversine(lat1, lng1, lat2, lng2) {
+      // Earth distance, modified from Leaflet CRS.Earth.js
+
+      var rad = Math.PI / 180;
+      var sinDLat = Math.sin((lat2 - lat1) * rad / 2);
+      var sinDLon = Math.sin((lng2 - lng1) * rad / 2);
+      var a = sinDLat * sinDLat + Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * sinDLon * sinDLon;
+      var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+      return 6371000 * c;
+    }
+
+    for (i = 0; i < dataObject.node.length; i += 1) {
+      if (dataObject.node[i].length > 1 &&
+        range >= haversine(y, x, dataObject.node[i][1], dataObject.node[i][0])
+      ) {
+        raw.hereNodes.push(i);
+      }
+    }
+
+    return raw;
+  }
+
+  function walkRoutes(raw, dataObject, options) {
+    // Adds serviceLink and serviceNode matrices to raw, filtered for here and product
+
+    var caveats, originDest, products, route, serviceLevel, i, j, k;
+
+    if ("filter" in options &&
+      typeof options.filter === "number" &&
+      options.filter >= 0 && options.filter < dataObject.network.length
+    ) {
+      products = dataObject.network[options.filter][0];
+    } else {
+      products = [];
+        // Zero length means all products
+    }
+
+    for (i = 0; i < dataObject.link.length; i += 1) {
+
+      if ((products.length === 0 || products.indexOf(dataObject.link[i][0]) !== -1) &&
+          // Product included
+        ("shared" in dataObject.link[i][3] === false ||
+          products.indexOf(dataObject.link[i][3].shared) === -1) &&
+          // Share not included as parent
+        (dataObject.link[i][2].filter( function (value) {
+          return raw.hereNodes.indexOf(value) !== -1;
+        })).length > 0
+          // Node within here
+      ) {
+        // Process this link line, otherwise ignore
+
+        caveats = {};
+        route = [];
+
+        if ("split" in dataObject.link[i][3] &&
+          Array.isArray(dataObject.link[i][3].split)
+        ) {
+          /**
+           * splits (split === 1) only contributes to service count at nodes within unique sections,
+           * unless (split === 2) fromNodes contains no common sections.
+           * splits (split === 1) only plotted in unique sections,
+           * unless (split === 2) fromNodes contains no common sections
+           */
+          if (
+            (dataObject.link[i][2].filter( function (value) {
+            return dataObject.link[i][3].split.indexOf(value) === -1;
+            }))
+            .filter( function (value) {
+              return raw.hereNodes.indexOf(value) !== -1;
+            }).length > 0
+          ) {
+            // Splits, including within common sections
+            caveats.split = 1;
+          } else {
+            // Splits, containing no common sections
+            caveats.split = 2;
+            raw.summary.link += dataObject.link[i][1];
+          }
         } else {
-          return false;
+          raw.summary.link += dataObject.link[i][1];
+        }
+
+        if ("circular" in dataObject.link[i][3] &&
+          dataObject.link[i][3].circular === true
+        ) {
+          caveats.circular = dataObject.link[i][2].length - 1;
+            // Exclude the final node on a circular
+        }
+
+        if ("direction" in dataObject.link[i][3] &&
+          dataObject.link[i][3].direction === true
+        ) {
+          caveats.direction = 1;
+
+          for (j = 0; j < dataObject.link[i][2].length; j += 1) {
+            if (raw.hereNodes.indexOf(dataObject.link[i][2][j]) !== -1 ) {
+              if ("circular" in caveats) {
+                route = dataObject.link[i][2].slice(0, -1);
+                  // Come friendly bombs and fall on Parla
+                route = route.slice(j).concat(route.slice(0, j));
+                  // Its circular uni-directional tram is nodal nightmare
+                route.push(route[0]);
+                  /**
+                   * Still not perfect: Counts the whole service round the loop
+                   * Considered defering these service till they can be summarised at the end
+                   * However Parla has unequal frequencies in each direction,
+                   * so halving (as other circulars) over common sections is still wrong
+                   * Would need to calculate which direction is the fastest to each node
+                   */
+              } else {
+                route = dataObject.link[i][2].slice(j);
+                  // Route ignores nodes before the 1st found in hereNodes
+              }
+              break;
+            }
+          }
+
+        } else {
+          route = dataObject.link[i][2];
+        }
+
+        for (j = 0; j < route.length; j += 1) {
+
+          if ((("split" in caveats === false || caveats.split !== 1) ||
+            dataObject.link[i][3].split.indexOf(route[j]) !== -1) &&
+            ("circular" in caveats === false || caveats.circular !== j)
+          ) {
+
+            if ("direction" in caveats ||
+              raw.hereNodes.indexOf(route[j]) !== -1
+            ) {
+              serviceLevel = dataObject.link[i][1];
+            } else {
+              serviceLevel = dataObject.link[i][1] / 2;
+            }
+            if (typeof raw.serviceNode[route[j]] !== "undefined") {
+              raw.serviceNode[route[j]] = raw.serviceNode[route[j]] + serviceLevel;
+            } else {
+              raw.serviceNode[route[j]] = serviceLevel;
+            }
+
+          }
+
+          if (route.length - 1 > j &&
+            (("split" in caveats === false || caveats.split !== 1) ||
+            dataObject.link[i][3].split.indexOf(route[j]) !== -1 ||
+            dataObject.link[i][3].split.indexOf(route[j + 1]) !== -1)
+          ) {
+
+            if ("direction" in caveats ||
+              (raw.hereNodes.indexOf(route[j]) !== -1 && raw.hereNodes.indexOf(route[j + 1]) !== -1)
+            ) {
+              serviceLevel = dataObject.link[i][1];
+            } else {
+              serviceLevel = dataObject.link[i][1] / 2;
+            }
+
+            originDest = [
+              [route[j], route[j + 1]],
+              [route[j + 1], route[j]]
+            ];
+
+            for (k = 0; k < originDest.length; k += 1) {
+              // serviceLink mirrored in both directions. Once summed, processing ignores reverse
+
+              if (typeof raw.serviceLink[originDest[k][0]] === "undefined") {
+                raw.serviceLink[originDest[k][0]] = [];
+              }
+              if (typeof raw.serviceLink[originDest[k][0]][originDest[k][1]] ===
+                "undefined"
+              ) {
+                raw.serviceLink[originDest[k][0]][originDest[k][1]] = serviceLevel;
+              } else {
+                raw.serviceLink[originDest[k][0]][originDest[k][1]] += serviceLevel;
+              }
+
+            }
+
+          }
+
         }
       }
+
     }
 
-  } catch (error) {
-    return this.statusIcon("\uD83D\uDEAB", error);
-  }
-},
-
-"getHash": function getHash() {
-  /**
-   * Get content of hash, with minimal integrity checks
-   * @return {Object} dictionary of raw hash data as key:string
-   */
-  "use strict";
-  var hashData = {};
-  var hash = decodeURIComponent(document.location.hash.trim());
-  var splitHash, i;
-
-  if (hash.length === 0 || hash[0] !== "#") {
-    return hashData;
-  }
-  splitHash = hash.slice(1).split("/");
-  for (i = 0; i < splitHash.length; i += 1) {
-    if (splitHash[i].length >= 2 && (/^[a-z\-()]$/.test(splitHash[i][0]))) {
-      hashData[splitHash[i][0]] = splitHash[i].slice(1);
-    }
-  }
-  return hashData;
-},
-
-"setHash": function setHash(setData) {
-  /**
-   * Sets one or more values in the url hash, retaining other valid hash data
-   * @param {Object} setData - dictionary of key:data pairs to set. keys must be single alpha characters
-   * @param {return} boolean - Runtime success
-   */
-  "use strict";
-  var hashStrings = [];
-  var hash = this.getHash();
-  var keys = Object.keys(setData);
-  var i;
-
-  for (i = 0; i < keys.length; i += 1) {
-    if (/^[a-z\-()]$/.test(keys[i])) {
-      hash[keys[i]] = setData[keys[i]];
-    }
-  }
-  keys = Object.keys(hash);
-  for (i = 0; i < keys.length; i += 1) {
-     hashStrings.push(keys[i] + encodeURIComponent(hash[keys[i]]));
-  }
-  location.hash = "#" + hashStrings.join("/");
-  return true;
-},
-
-"parseOption": function parseOption(option) {
-  /**
-   * Type checks of options and addition of missing with defaults
-   * @param {Object} option - Dictionary of options, optional
-   * @param {return} boolean - Runtime success
-   */
-  "use strict";
-  var hash, localeCheck, isLocale, keys, i, c;
-
-  if (typeof option !== "object") {
-    option = {};
+    return raw;
   }
 
-  hash = ("uiHash" in option && option.uiHash === true) ? this.getHash() : {};
-    // Hash has to be opted in, since confuses embedded
+  function indexRoutes(raw) {
+    // Adds serviceIndex and serviceOD to raw
 
-  localeCheck = {};
-    // Holds hashed locales huntil they can be checked against supported locales.
-  isLocale = ["locale", "t"];
-    // Options that require a supported locale
-  keys = Object.keys(this.OPT);
-  parent: for (i = 0; i < keys.length; i += 1) {
-    if (keys[i] === "id") {
-      continue;
-        // Correct id was added at start of init()
-    }
-    if (keys[i] in hash) {
-      // Hash takes precedence if valid. Only single character keys can be returned from the hash
-      if (typeof this.OPT[keys[i]] === "string") {
-        if (isLocale.indexOf(keys[i]) !== -1) {
-          localeCheck[keys[i]] = hash[keys[i]].toString();
-          continue;
+    var destination, destinationNum, id, originNum, i, j;
+    var origin = Object.keys(raw.serviceLink);
+
+    for (i = 0; i < origin.length; i += 1) {
+
+      originNum = origin[i] - 0;
+        // Numeric of origin
+      destination = Object.keys(raw.serviceLink[originNum]);
+
+      for (j = 0; j < destination.length; j += 1) {
+
+        if (destination[j] + "-" + origin[i] in raw.serviceOD === false) {
+
+          destinationNum = destination[j] - 0;
+            // Numeric of destination
+          raw.serviceOD[origin[i] + "-" + destination[j]] =
+            [originNum, destinationNum, raw.serviceLink[originNum][destinationNum]];
+          id = raw.serviceLink[originNum][destinationNum] + "-" + origin[i];
+
+          if (id in raw.serviceIndex) {
+            raw.serviceIndex[id].push(origin[i] + "-" + destination[j]);
+          } else {
+            raw.serviceIndex[id] = [origin[i] + "-" + destination[j]];
+          }
+
         }
-        this.OPT[keys[i]] = hash[keys[i]].toString();
-        continue;
-      } else {
-        if (typeof this.OPT[keys[i]] === "number" && !Number.isNaN(parseFloat(hash[keys[i]]))) {
-          this.OPT[keys[i]] = parseFloat(hash[keys[i]]);
-          continue;
+
+      }
+
+    }
+
+    return raw;
+  }
+
+  function conjureGeometry(raw, dataObject, options) {
+    // Convert matrices into geospatial structures
+
+    var dummy, geojson, geometry, id, keyNames, maxIndex, placeList, polyPoints,
+      serviceLevel, shifted, i, j, k;
+    var result = {};
+
+    function makePolyline(polyPoints, node) {
+      // Return polyline of polyPoints
+
+      var i;
+      var maxIndex = node.length - 1;
+      var polyline = [];
+
+      for (i = 0; i < polyPoints.length; i += 1) {
+        if (polyPoints[i] <= maxIndex) {
+          polyline.push([node[polyPoints[i]][0], node[polyPoints[i]][1]]);
         }
       }
+
+      return polyline;
     }
-    // Then configuration option if valid. Bad optional configuration fails silently
-    if (keys[i] in option && typeof option[keys[i]] === typeof this.OPT[keys[i]]) {
-      if (keys[i] === "base" && Array.isArray(option[keys[i]]) === false) {
-        // Baselayers no iterable, so pass. Condition also applies to JSON configuration below
-        continue;
-      }
-      if (keys[i] === "network" && Array.isArray(option[keys[i]])) {
-         for (c = 0; c < option[keys[i]].length; c += 1) {
-           if (option[keys[i]][c].length < 2 || typeof option[keys[i]][c][0] !== "object"  ||
-             typeof option[keys[i]][c][1] !== "object") {
-             continue parent;
-           }
-         }
-         if ("MEM" in this && "net" in this.MEM) {
-           if ("network" in this.MEM.net) {
-             this.MEM.net.network = this.MEM.net.network.concat(option[keys[i]]);
-           } else {
-             this.MEM.net.network = option[keys[i]];
-           }
-           continue;
-         }
-      }
-      this.OPT[keys[i]] = option[keys[i]];
-      continue;
-    }
-    // Then JSON configuration option if available
-    if ("MEM" in this && "net" in this.MEM && "option" in this.MEM.net && keys[i] in this.MEM.net.option &&
-      typeof this.MEM.net.option[keys[i]] === typeof this.OPT[keys[i]]) {
-      if (keys[i] === ("network" || "translation") || (keys[i] === "base" && Array.isArray(option[keys[i]]) === false)) {
-        // network and translation already have dataset provisions, baselayers must be iterable
-        continue;
-      }
-      this.OPT[keys[i]] = this.MEM.net.option[keys[i]];
-      continue;
-    }
-    // Else original OPT remains
-  }
 
-  this.OPT.n = parseInt(this.OPT.n, 10);
-    // Is index, thus must be integer
-  if (this.OPT.n >= this.MEM.net.network.length || this.OPT.n < 0) {
-    // And must be in range of its index
-    this.OPT.n = 0;
-  }
+    result.summary = raw.summary;
+    result.here = raw.here;
+    result.link = [];
 
-  keys = Object.keys(localeCheck);
-  for (i = 0; i < keys.length; i += 1) {
-    if (keys[keys[i]] in this.LOC || keys[keys[i]] in this.OPT.translation || ("MEM" in this &&
-      "net" in this.MEM && "translation" in this.MEM.net && keys[keys[i]] in this.MEM.net.translation)) {
-      // Key has at least some support. Lowercase locales arriving in the hash will fail here silently
-      this.OPT[keys[i]] = keys[keys[i]];
-    }
-  }
+    keyNames = Object.keys(raw.serviceOD);
 
-  return true;
-},
+    while (keyNames.length > 0) {
+      shifted = keyNames.shift();
+      polyPoints = [
+        raw.serviceOD[shifted][1],
+        raw.serviceOD[shifted][0]
+      ];
+      serviceLevel = raw.serviceOD[shifted][2];
+      dummy = 0;
 
-"parseNetwork": function parseNetwork(response) {
-  /**
-   * Basic structural checks for JSON network object
-   * @param {Object} response - JSON containing hopefully network data
-   * @param {return} response
-   */
-  "use strict";
-  var errorText = "Malformed JSON dataset: ";
-  var objs, i, type, schema, keys, l;
-
-    // JSON dataset is aggressively parsed because checking/fixing on use slows draw() dramatically
-  if (typeof response !== "object") {
-    throw new Error(errorText + "json");
-  }
-
-  objs = ["meta", "translation", "option"];
-    // Object in schema
-  for (i = 0; i < objs.length; i += 1) {
-    if (objs[i] in response && typeof response[objs[i]] !== "object") {
-      throw new Error(errorText + objs[i]);
-    }
-  }
-    // All but meta optional and may continue not to exist
-  if ("meta" in response === false || "schema" in response.meta === false) {
-    throw new Error(errorText + "meta.schema");
-      // Future datastructure will reference meta.schema (does not yet matter what it is)
-  }
-
-  type = ["object", "number"];
-  schema = {
-    // Node and Place reference positions on their respective arrays
-    "network": [0, 0],
-      // Product array, Name dictionary. Caution: If extending also extend network in parseOption()
-    "link": [1, 1, 0, 0],
-      // Product, Service, Node array, Caveat dictionary: split:[Nodes], shared:Product, direction:true, circular:true
-    "node": [1, 1, 1],
-      // X, Y, Place
-    "place": [1, 1, 1]
-      // X, Y, Demographic
-  };
-
-  keys = Object.keys(schema);
-  for (i = 0; i < keys.length; i += 1) {
-    if (keys[i] in response === false || Array.isArray(response[keys[i]]) === false) {
-      response[keys[i]] = [];
-    }
-    for (l = 0; l < response[keys[i]].length; l += 1) {
-      if (Array.isArray(response[keys[i]][l]) === false) {
-        throw new Error(errorText + keys[i] + "[" + (l + 1) + "] not iterable");
-      }
-      if (response[keys[i]][l].length < schema[keys[i]].length) {
-        throw new Error(errorText + keys[i] + "[" + (l + 1) +
-          "] length < " + schema[keys[i]].length +")");
-      }
-      for (var t = 0; t < schema[keys[i]].length; t += 1) {
-        if (typeof response[keys[i]][l][t] !== type[schema[keys[i]][t]]) {
-          throw new Error(errorText + keys[i] + "[" + (l + 1) +
-            "][" + t + "] not type " + type[schema[keys[i]][t]]);
+      while (dummy < 1) {
+        // Condition broken from within
+        id = serviceLevel + "-" + polyPoints[polyPoints.length - 1];
+        if (id in raw.serviceIndex &&
+          raw.serviceIndex[id].length > 0
+        ) {
+          polyPoints.push(raw.serviceOD[raw.serviceIndex[id].pop()][1]);
+        } else{
+          break;
+            // Write polyline and reset loop
         }
       }
-    }
-  }
-  return response;
-},
 
-"ui": function ui() {
-  /**
-   * Initiates user interface. At runtime only
-   * @param {return} boolean success
-   */
-  "use strict";
-   var self = this;
-     // Lazy, but many closures and much juggling of values herein...
-   var i, layers, set, input, label, span, div, name, text, layerLoop, controlNodes, controlForm, locales,
-     lname, emb, exp, numeric, optionLocales;
-     // Extremely messy code, every idea on its own, a lot of duplication of element-building
-
-  if (typeof L === "undefined") {
-    throw new Error("Could not find Leaflet");
-  }
-  if ("MEM" in this === false) {
-    return false;
-  }
-
-  while (document.getElementById(self.OPT.id).firstChild) {
-    document.getElementById(self.OPT.id).removeChild(document.getElementById(self.OPT.id).firstChild);
-  }
-
-  self.MEM.map = L.map(self.OPT.id, {preferCanvas: true})
-    .setView([self.OPT.y, self.OPT.x], self.OPT.z);
-    // Canvas renderer is faster. IE8 not supported anyway
-  self.MEM.map.on("moveend", function () {
-    var center = self.MEM.map.getCenter();
-    self.OPT.x = center.lng;
-    self.OPT.y = center.lat;
-    self.OPT.z = self.MEM.map.getZoom();
-    if (self.OPT.uiHash === true) {
-      self.setHash({
-        "x": center.lng.toFixed(Math.ceil(self.OPT.z/3)),
-        "y": center.lat.toFixed(Math.ceil(self.OPT.z/3)),
-        "z": self.OPT.z
+      result.link.push({
+        "polyline": makePolyline(polyPoints, dataObject.node),
+        "value": serviceLevel
       });
+
     }
-  });
 
-  self.MEM.map.on("click", function (evt) {
-    self.OPT.c = evt.latlng.lng;
-    self.OPT.k = evt.latlng.lat;
-    self.OPT.m = self.OPT.z;
-    if (self.OPT.uiHash === true) {
-      self.setHash({
-        "c": self.OPT.c.toFixed(Math.ceil(self.OPT.z/3)),
-        "k": self.OPT.k.toFixed(Math.ceil(self.OPT.z/3)),
-        "m": self.OPT.m
-      });
-    }
-    self.draw();
-  });
+    result.node = [];
+    maxIndex = dataObject.node.length - 1;
+    placeList = [];
 
-  self.MEM.map.attributionControl.addAttribution("<a href='https://timhowgego.github.io/Aquius/'>Aquius</a>");
-    // Not localised
+    for (i = 0; i < raw.serviceNode.length; i += 1) {
+      if (typeof raw.serviceNode[i] !== "undefined" &&
+        i <= maxIndex
+      ) {
+        result.summary.node += 1;
+        result.node.push({
+          "circle": [
+            dataObject.node[i][0],
+            dataObject.node[i][1]
+          ],
+          "value": raw.serviceNode[i]
+        });
 
-  for (i = 0; i < self.OPT.base.length; i += 1) {
-    if ("url" in self.OPT.base[i]) {
-      if ("options" in self.OPT.base[i] === false) {
-        self.OPT.base[i].options = {};
-      }
-      if ("type" in self.OPT.base[i] && self.OPT.base[i].type === "wms") {
-        L.tileLayer.wms(self.OPT.base[i].url, self.OPT.base[i].options).addTo(self.MEM.map);
-      } else {
-        L.tileLayer(self.OPT.base[i].url, self.OPT.base[i].options).addTo(self.MEM.map);
-      }
-    }
-  }
-
-  self.MEM.control = L.control.layers();
-
-  layers = ["here", "link", "place", "node"];
-    // First letter must be unique
-
-  layerLoop = function layerLoop(i) {
-    self.MEM[layers[i]] = L.layerGroup();
-
-    self.MEM[layers[i]].on("add", function () {
-      if (self.OPT.v.indexOf(layers[i][0]) === -1) {
-        self.OPT.v += layers[i][0];
-        if (self.OPT.uiHash === true) {
-          self.setHash({
-            "v": self.OPT.v
-          });
+        if (placeList.indexOf(dataObject.node[i][2]) === -1) {
+          placeList.push(dataObject.node[i][2]);
         }
       }
-    });
+    }
 
-    self.MEM[layers[i]].on("remove", function () {
-      self.OPT.v = self.OPT.v.replace(layers[i][0], "");
-      if (self.OPT.uiHash === true) {
-        self.setHash({
-          "v": self.OPT.v
+    result.place = [];
+    maxIndex = dataObject.place.length - 1;
+
+    for (i = 0; i < placeList.length; i += 1) {
+      if (i <= maxIndex) {
+        result.summary.place += dataObject.place[placeList[i]][2];
+        result.place.push({
+          "circle": [
+            dataObject.place[placeList[i]][0],
+            dataObject.place[placeList[i]][1]
+          ],
+          "value": dataObject.place[placeList[i]][2]
         });
       }
-    });
-
-    if (self.OPT.v.indexOf(layers[i][0]) !== -1) {
-      self.MEM[layers[i]].addTo(self.MEM.map);
     }
 
-    span = L.DomUtil.create("span");
-    span.style.color = self.OPT[layers[i] + "Color"];
-    span.id = self.OPT.id + "-layercontrol-" + layers[i];
-    self.MEM.text[span.id] = layers[i];
-    self.MEM.control.addOverlay(self.MEM[layers[i]], span.outerHTML);
-  };
+    if ("geoJSON" in options === false || !Array.isArray(options.geoJSON)) {
 
-  for (i = 0;i < layers.length; i += 1) {
-    layerLoop(i);
-  }
+      return result;
 
-  self.MEM.control.addTo(self.MEM.map);
-
-  controlNodes = self.MEM.control.getContainer().childNodes;
-  controlForm = null;
-  for (i = 0; i < controlNodes.length; i += 1) {
-    if (controlNodes[i].tagName === ("FORM" || "form")) {
-      controlForm = controlNodes[i];
-      break;
-    }
-  }
-
-  if (controlForm !== null && self.OPT.uiLocale === true) {
-    locales = Object.keys(self.LOC);
-    optionLocales = Object.keys(self.OPT.translation);
-    for (i = 0; i < optionLocales.length; i += 1) {
-      if (locales.indexOf(optionLocales[i]) === -1) {
-        locales.push(optionLocales[i]);
-      }
-    }
-    if (locales.length > 1) {
-      set = document.createElement("div");
-      set.id = self.OPT.id + "-language";
-      lname = set.id + "-radio";
-      set.addEventListener("change", function () {
-        self.OPT.t = document.querySelector("input[name='" + lname + "']:checked").value;
-        if (self.OPT.uiHash === true) {
-          self.setHash({"t": self.OPT.t});
-        }
-        self.localise();
-      });
-      for (i = 0; i < locales.length; i += 1) {
-        input = document.createElement("input");
-        input.value = locales[i];
-        input.type = "radio";
-        input.name = lname;
-        if (self.OPT.t === locales[i]) {
-          input.checked = "checked";
-        }
-        label = document.createElement("label");
-        label.appendChild(input);
-        if (locales[i] in self.OPT.translation && "language" in self.OPT.translation[locales[i]]) {
-          text = self.OPT.translation[locales[i]].language;
-        } else {
-          if (locales[i] in self.LOC && "language" in self.LOC[locales[i]]) {
-            text = self.LOC[locales[i]].language;
-          } else {
-            text = locales[i];
-          }
-        }
-        label.appendChild(document.createTextNode(text));
-          // Not localised
-        set.appendChild(label);
-      }
-    controlForm.insertBefore(set, controlForm.childNodes[0]);
-    }
-  }
-
-  if (controlForm !== null && self.OPT.uiNetwork === true && self.MEM.net.network.length > 1) {
-    set = document.createElement("div");
-    set.id = self.OPT.id + "-network";
-    name = set.id + "-radio";
-    set.addEventListener("change", function () {
-      self.OPT.n = document.querySelector("input[name='" + name + "']:checked").value - 0;
-      if (self.OPT.uiHash === true) {
-        self.setHash({"n": self.OPT.n});
-      }
-      self.draw();
-    });
-    for (i = 0; i < self.MEM.net.network.length; i += 1) {
-      input = document.createElement("input");
-      input.value = i;
-      input.type = "radio";
-      input.name = name;
-      if (i === self.OPT.n) {
-        input.checked = "checked";
-      }
-      span = document.createElement("span");
-      span.id = set.id + i;
-      self.MEM.text[span.id] = "network" + i;
-      label = document.createElement("label");
-      label.appendChild(input);
-      label.appendChild(span);
-      set.appendChild(label);
-    }
-    controlForm.appendChild(set);
-  }
-
-  if (controlForm !== null && self.OPT.uiScale === true) {
-    label = document.createElement("label");
-    input = document.createElement("input");
-    input.id = self.OPT.id + "-scale";
-    input.type = "range";
-      // Range not supported by IE9, but should default to text
-    input.min = 1;
-    input.value = self.OPT.s;
-    input.max = 9;
-    input.step = 2;
-    input.addEventListener("change", function () {
-      self.OPT.s = parseInt(document.getElementById(input.id).value, 10);
-      if (self.OPT.uiHash === true) {
-          self.setHash({"s": self.OPT.s});
-        }
-        self.draw();
-    });
-    div = document.createElement("div");
-    div.id = input.id + "-text";
-    div.style["text-align"] = "center";
-    self.MEM.text[div.id] = "scale";
-    label.appendChild(div);
-    label.appendChild(input);
-    controlForm.appendChild(label);
-  }
-
-  if (controlForm !== null && self.OPT.uiShare === true && Blob) {
-    // IE<10 has no Blob support. Marginal feature omitted
-    div = document.createElement("div");
-    div.style["text-align"] = "center";
-    emb = document.createElement("a");
-    emb.id = self.OPT.id + "-embed";
-    self.MEM.text[emb.id] = "embed";
-    emb.style.cursor = "pointer";
-    emb.download = self.OPT.id + ".html";
-    emb.addEventListener("click", function () {
-      var script = ("scriptUrl" in self.MEM) ? self.MEM.scriptUrl : "<!-- Add Script URL -->";
-      var keys = Object.keys(self.OPT);
-      var opt = {};
-      var i, blob;
-      for (i = 0; i < keys.length; i += 1) {
-        if (keys[i] !== "id") {
-          // ID is internal, instead specified as 1st argument of init()
-          opt[keys[i]] = self.OPT[keys[i]];
-        }
-      }
-      opt.uiHash = false;
-        // Hash dangerous for embeds, so set false to ensure opt-in
-      opt.locale = self.OPT.t;
-        // User's language becomes default
-      blob = new Blob(["<!DOCTYPE html><html style=\"height:100%;\" lang=\"" + opt.t +
-        "\"><head><meta charset=\"utf-8\" /><meta name=\"viewport\" content=\"width=device-width\" />" +
-        "</head><body style=\"height:100%;margin:0;\">\n\n\n<div id=\"" +
-        self.OPT.id + "\" style=\"height:100%;\"></div><script src=\"" + script +
-        "\" async></script><script>window.addEventListener(\"load\",function(){aquius.init(\"" +
-        self.OPT.id + "\"," + JSON.stringify(opt) +
-        ")});</script>\n\n\n</body></html>"], {type: "text/html;charset=utf-8"});
-        // Caution: If opt.dataset is local, embed will also be local
-      emb.href = window.URL.createObjectURL(blob);
-      // Hack imposing href on own caller to trigger download. Does this work everywhere?
-    });
-    div.appendChild(emb);
-    div.appendChild(document.createTextNode(" | "));
-    exp = document.createElement("a");
-    exp.id = self.OPT.id + "-export";
-    self.MEM.text[exp.id] = "export";
-    exp.style.cursor = "pointer";
-    exp.download = self.OPT.id + ".geojson";
-    exp.addEventListener("click", function () {
-      var outputMap = [],
-        keys = Object.keys(self.MEM.outputMap);
-      for (var i = 0; i < keys.length; i += 1) {
-        if (self.OPT.v.indexOf(keys[i]) !== -1) {
-          outputMap = outputMap.concat(self.MEM.outputMap[keys[i]]);
-        }
-      }
-      // Missing all properties, but shapes and points may be useful
-      var blob = new Blob([JSON.stringify(L.featureGroup(outputMap).toGeoJSON())],
-        {type: "application/json;charset=utf-8"});
-      exp.href = window.URL.createObjectURL(blob);
-    });
-    div.appendChild(exp);
-    controlForm.appendChild(div);
-  }
-
-  var stats = ["link", "place", "node"];
-
-  if (self.OPT.uiPanel === true) {
-    self.MEM.panel = L.control({position: "bottomleft"});
-    self.MEM.panel.onAdd = function () {
-      div = document.createElement("div");
-      L.DomEvent.disableClickPropagation(div);
-      div.id = self.OPT.id + "-panel";
-      div.style["font-weight"] = "bold";
-      div.style.padding = "0.1em 0.6em";
-      div.style["border-radius"] = "2em";
-      div.style["background-color"] = "rgba(255, 255, 255, 0.7)";
-      for (i = 0; i < stats.length; i += 1) {
-        span = document.createElement("span");
-        span.id = div.id + "-" + stats[i];
-        span.style.color = self.OPT[stats[i] + "Color"];
-        span.appendChild(document.createTextNode(" "));
-        numeric = document.createElement("span");
-        numeric.id =  span.id + "-value";
-        numeric.style["font-size"] = Math.round(200 * self.OPT.panelScale) + "%";
-        numeric.textContent = "0";
-        span.appendChild(numeric);
-        span.appendChild(document.createTextNode(" "));
-        label = document.createElement("span");
-        label.id = span.id + "-label";
-        label.style["font-size"] = Math.round(100 * self.OPT.panelScale) + "%";
-        label.style["vertical-align"] = Math.round(20 * self.OPT.panelScale) + "%";
-        self.MEM.text[label.id] = stats[i];
-        span.appendChild(label);
-          // Order of number-label not (yet) localisable
-        span.appendChild(document.createTextNode(" "));
-        div.appendChild(span);
-      }
-      return div;
-    };
-    self.MEM.panel.addTo(self.MEM.map);
-  }
-
-  return self.localise();
-},
-
-"localise": function localise() {
-  /**
-   * Applies localized text
-   * Precedence: option.translation, json.meta, json.network, these translations
-   * First user locale, then default locale, else tag
-   * @param {return} boolean success
-   */
-  "use strict";
-  var keys, lang, tag, i, l, pos, attrib, anchor;
-
-  function update(id, translation) {
-    if (typeof translation !== "string") {
-      translation = translation.toString();
-    }
-    if (document.getElementById(id)) {
-      document.getElementById(id).textContent = translation;
-    }
-  }
-
-  if ("MEM" in this === false) {
-    return false;
-  }
-
-  keys = Object.keys(this.MEM.text);
-  lang = [this.OPT.t, this.OPT.locale];
-  parent: for (i = 0; i < keys.length; i += 1) {
-    // Keys are document IDs with value tag
-    for (l = 0; l < lang.length; l += 1) {
-      tag = this.MEM.text[keys[i]];
-      if (lang[l] in this.OPT.translation && tag in this.OPT.translation[lang[l]]) {
-        update(keys[i], this.OPT.translation[lang[l]][tag]);
-        continue parent;
-      }
-      if ("translation" in this.MEM.net && lang[l] in this.MEM.net.translation && tag in this.MEM.net.translation[lang[l]]) {
-        update(keys[i], this.MEM.net.translation[lang[l]][tag]);
-        continue parent;
-      }
-      if((/^network\d+/).test(tag)) {
-        // Network psuedo tags = "network" + line number
-        pos = tag.slice(7) - 0;
-        if (pos >= 0 && pos < this.MEM.net.network.length && lang[l] in this.MEM.net.network[pos][1]) {
-          update(keys[i], this.MEM.net.network[pos][1][lang[l]]);
-          continue parent;
-        }
-      }
-      if (lang[l] in this.LOC && tag in this.LOC[lang[l]]) {
-        update(keys[i], this.LOC[lang[l]][tag]);
-        continue parent;
-      }
-    }
-    update(keys[i], tag);
-      // Ergo needs translation
-  }
-
-  if ("attribution" in this.MEM) {
-    this.MEM.map.attributionControl.removeAttribution(this.MEM.attribution);
-  }
-
-  if ("name" in this.MEM.net.meta) {
-    if (this.OPT.t in this.MEM.net.meta.name &&
-      typeof this.MEM.net.meta.name[this.OPT.t] === "string") {
-      attrib = this.MEM.net.meta.name[this.OPT.t];
     } else {
-      if (this.OPT.locale in this.MEM.net.meta.name &&
-        typeof this.MEM.net.meta.name[this.OPT.locale] === "string") {
-        attrib = this.MEM.net.meta.name[this.OPT.locale];
-      }
-    }
-    if (typeof attrib === "string") {
-      if ("url" in this.MEM.net.meta &&  typeof this.MEM.net.meta.url === "string") {
-        anchor = document.createElement("a");
-        anchor.href = this.MEM.net.meta.url;
-        anchor.textContent = attrib;
-        attrib = anchor.outerHTML;
-      }
-      if ("attribution" in this.MEM.net.meta && typeof this.MEM.net.meta.attribution === "object") {
-        if (this.OPT.t in this.MEM.net.meta.attribution &&
-          typeof this.MEM.net.meta.attribution[this.OPT.t] === "string") {
-          attrib += " " + this.MEM.net.meta.attribution[this.OPT.t];
-        } else {
-          if (this.OPT.locale in this.MEM.net.meta.name &&
-            typeof this.MEM.net.meta.name[this.OPT.locale] === "string") {
-            attrib += " " + this.MEM.net.meta.attribution[this.OPT.locale];
+
+      geojson = {
+        "type": "FeatureCollection",
+        "features": []
+      };
+
+      for (i = 0; i < options.geoJSON.length; i += 1) {
+        if (options.geoJSON[i] in result) {
+          for (j = 0; j < result[options.geoJSON[i]].length; j += 1) {
+            if ("value" in result[options.geoJSON[i]][j] &&
+            ("circle" in result[options.geoJSON[i]][j] ||
+            "polyline" in result[options.geoJSON[i]][j])
+            ) {
+              if ("circle" in result[options.geoJSON[i]][j]) {
+                geometry = {
+                  "type": "Point",
+                  "coordinates": result[options.geoJSON[i]][j].circle
+                };
+              } else {
+                geometry = {
+                  "type": "LineString",
+                  "coordinates": []
+                };
+                //
+                for (k = 0; k <  result[options.geoJSON[i]][j].polyline.length; k += 1) {
+                  geometry.coordinates.push(result[options.geoJSON[i]][j].polyline[k]);
+                }
+              }
+              geojson.features.push({
+                "type": "Feature",
+                "geometry": geometry,
+                "properties": {
+                  "type": options.geoJSON[i],
+                  "value": result[options.geoJSON[i]][j].value
+                }
+              });
+            }
           }
         }
       }
-      this.MEM.attribution = attrib;
-      this.MEM.map.attributionControl.addAttribution(this.MEM.attribution);
+
+      return geojson;
+
     }
   }
 
-  return true;
+
+  if (!Object.keys ||
+    ![].indexOf ||
+    typeof JSON !== "object"
+  ) {
+    return {"error": "Unsupported browser"};
+  }
+  if (typeof (x || y || range) !== "number") {
+    return {"error": "Here parameters not numeric"};
+  }
+  if (typeof options !== "object") {
+    options = {};
+  }
+
+  raw = {
+    // Working data depository
+    "hereNodes": [],
+      // Nodes in range of lng,lat
+    "here": [{
+      "circle": [x, y],
+      "value": range
+    }],
+    "serviceIndex": {},
+      // serv-from [keys] - greatly speeds search of serviceOD
+    "serviceLink": [],
+      // Service by link [from[to[service]]] - with voids undefined
+    "serviceNode": [],
+      // Service by node [node[service]] - with voids undefined
+    "serviceOD": {},
+      // from, to, service - listed twice, once in each direction
+    "summary": {
+      "link": 0,
+        // Count of services (eg daily trains)
+      "node": 0,
+        // Count of nodes (eg stations)
+      "place": 0
+        // Count of demography (eg people)
+    }
+  };
+
+  if ("sanitize" in options === false ||
+    options.sanitize !== false
+  ) {
+    dataObject = parseDataObject(dataObject);
+    raw.dataObject = dataObject;
+  }
+
+  try {
+
+    raw = findHereNodes(raw, dataObject, x, y, range);
+    raw = walkRoutes(raw, dataObject, options);
+    raw = indexRoutes(raw);
+    return conjureGeometry(raw, dataObject, options);
+
+  } catch (e) {
+
+    return {"error": e};
+
+  }
 },
-
-"draw": function draw() {
-  /**
-   * Draws map content based on MEM and OPT. The main action
-   * @param {return} boolean success
-   */
-  "use strict";
-  var layers, i, searchRadius, searchCenter, fNode, stats, scale, link, net, node, place,
-    hereMap, sLink, sNode, sFrom, split, common, circular, route, service, direction, r, pairs,
-    p, placeMap, nodeMap, linkMap, uPlace, nodeOpt, placeOpt, linkOpt, from, matrix, index,
-    to, id, fNum, tNum, f, t, keys, dummy, polyline, pop, shift, poly, serv;
-    // That list is scary, viewed from up here, and half not needed like that
-
-  function updatePanel (stats, option) {
-    var keys = Object.keys(stats);
-    var id, text;
-    for (var s = 0; s < keys.length; s += 1) {
-      id = option.id + "-panel-" + keys[s] + "-value";
-      text = stats[keys[s]].toString();
-      if (document.getElementById(id)) {
-        if (typeof Intl.NumberFormat === "function") {
-          try {
-            text = new Intl.NumberFormat(option.t).format(stats[keys[s]]);
-          } catch (e) {
-            // Unsupported locale
-          }
-        }
-        document.getElementById(id).textContent = text;
-      }
-    }
-  }
-
-  if (typeof L === "undefined") {
-    throw new Error("Could not find Leaflet");
-  }
-  if ("MEM" in this === false) {
-    return false;
-  }
-  if ("map" in this.MEM === false) {
-    return this.ui();
-  }
-
-  layers = ["link", "place", "here", "node"];
-
-  for (i = 0; i < layers.length; i += 1) {
-    if (layers[i] in this.MEM === false) {
-      return false;
-    }
-    this.MEM[layers[i]].clearLayers();
-  }
-
-  searchRadius = 5e6 / Math.pow(2, this.OPT.m);
-    // Radius relates to zoom
-  searchCenter = L.latLng(this.OPT.k, this.OPT.c);
-  fNode = [];
-  stats = {
-    "link": 0,
-      // Count of services (eg daily trains)
-    "place": 0,
-      // Count of demography (eg people)
-    "node": 0
-      // Count of nodes (eg stations)
-  };
-  scale = Math.exp((this.OPT.s-5)/2);
-    // user scale factor
-  link = this.MEM.net.link;
-  net = this.MEM.net.network;
-  node = this.MEM.net.node;
-  place = this.MEM.net.place;
-    // For readability
-
-  hereMap = L.circle(searchCenter, {
-    color: this.OPT.hereColor,
-    weight: 2,
-    fill: false,
-    radius: searchRadius
-  });
-  hereMap.addTo(this.MEM.here);
-
-  for (i = 0; i < node.length; i += 1) {
-    if (node[i].length > 1 && searchRadius >=
-      searchCenter.distanceTo(L.latLng(node[i][1], node[i][0]))) {
-      fNode.push(i);
-    }
-  }
-
-  if (fNode.length === 0) {
-    if (this.OPT.uiPanel === true) {
-      updatePanel(stats, this.OPT);
-    }
-    return true;
-  }
-
-  sLink = [];
-    // Service by link [from[to[service]]] voids undefined
-  sNode = [];
-    // Service by node [node[service]] voids undefined
-
-  for (i = 0; i < link.length; i += 1) {
-
-    if (net[this.OPT.n][0].indexOf(link[i][0]) === -1) {
-      // Product excluded
-      continue;
-    }
-    if (link[i][2].length < 2) {
-      // Erroneous route
-      continue;
-    }
-    if ("shared" in link[i][3] && net[this.OPT.n][0].indexOf(link[i][3].shared) !== -1) {
-      // Share included as parent
-      continue;
-    }
-    sFrom = link[i][2].filter(function(value) {return fNode.indexOf(value) !== -1;});
-      // Nodes both in this service and in fromNodes
-    if (sFrom.length === 0) {
-      // All nodes excluded
-      continue;
-    }
-
-    split = 0;
-    if ("split" in link[i][3] && Array.isArray(link[i][3].split)) {
-      /**
-       * splits (split === 1) only contributes to service count at nodes within unique sections,
-       * unless (split === 2) fromNodes contains no common sections.
-       * splits (split === 1) only plotted in unique sections,
-       * unless (split === 2) fromNodes contains no common sections
-       */
-      common = link[i][2].filter(function(value) {return link[i][3].split.indexOf(value) === -1;});
-      if (common.filter(function(value) {return fNode.indexOf(value) !== -1;}).length > 0) {
-        split = 1;
-          // Splits, including within common sections
-      } else {
-        split = 2;
-          // Splits, containing no common sections
-      }
-    }
-    circular = ("circular" in link[i][3] && link[i][3].circular === true) ?
-      link[i][2].length - 1 : null;
-      // Exclude the final node on a circular
-    route = [];
-    direction = ("direction" in link[i][3] && link[i][3].direction === true) ? 1 : 0;
-    if (direction === 1) {
-      for (r = 0; r < link[i][2].length; r += 1) {
-        if (fNode.indexOf(link[i][2][r]) !== -1 ) {
-          if (circular !== null) {
-            route = link[i][2].slice(0, -1);
-              // Come friendly bombs and fall on Parla
-            route = route.slice(r).concat(route.slice(0, r));
-              // Its circular uni-directional tram is nodal nightmare
-            route.push(route[0]);
-              /**
-               * Still not perfect: Counts the whole service round the loop
-               * Considered defering these service till they can be summarised at the end
-               * However Parla has unequal frequencies in each direction,
-               * so halving (as other circulars) over common sections is still wrong
-               * Would need to calculate which direction is the fastest to each node
-               */
-          } else {
-            route = link[i][2].slice(r);
-              // Route ignores nodes before the 1st found in fNode
-          }
-          break;
-        }
-      }
-    } else {
-      route = link[i][2];
-    }
-    if (split !== 1) {
-      stats.link += link[i][1];
-    }
-
-    for (r = 0; r < route.length; r += 1) {
-      if ((split !== 1 || link[i][3].split.indexOf(route[r]) !== -1) && (circular !== r)) {
-        service = (direction === 1 || fNode.indexOf(route[r]) !== -1) ? link[i][1] : link[i][1] / 2;
-        sNode[route[r]] = (typeof sNode[route[r]] !== "undefined") ? sNode[route[r]] + service : service;
-      }
-      if (route.length-1 > r && (split !== 1 ||
-        link[i][3].split.indexOf(route[r]) !== -1 || link[i][3].split.indexOf(route[r + 1]) !== -1)) {
-        pairs = [
-          [route[r], route[r + 1]],
-          [route[r + 1], route[r]]
-        ];
-        service = (direction === 1 || (fNode.indexOf(route[r]) !== -1 && fNode.indexOf(route[r + 1]) !== -1)) ?
-          link[i][1] : link[i][1] / 2;
-        // sLink mirrored in both directions. once summed here, subsequently processing ignores the reverse
-        for (p = 0; p < pairs.length; p += 1) {
-          if (typeof sLink[pairs[p][0]] === "undefined") {
-             sLink[pairs[p][0]] = [];
-          }
-          if (typeof sLink[pairs[p][0]][pairs[p][1]] === "undefined") {
-            sLink[pairs[p][0]][pairs[p][1]] = service;
-          } else {
-          sLink[pairs[p][0]][pairs[p][1]] += service;
-          }
-        }
-      }
-    }
-  }
-
-  if (sLink.length === 0) {
-    if (this.OPT.uiPanel === true) {
-      updatePanel(stats, this.OPT);
-    }
-    return true;
-  }
-
-  placeMap = [];
-  nodeMap = [];
-  linkMap = [];
-    // Layer content
-  uPlace = [];
-    // Unique places served
-  nodeOpt = {
-    weight: 1,
-    color: this.OPT.nodeColor,
-    fill: false
-  };
-  placeOpt = {
-    stroke: false,
-    fill: true,
-    fillColor: this.OPT.placeColor,
-    fillOpacity: this.OPT.placeOpacity
-  };
-  linkOpt = {
-    color: this.OPT.linkColor
-  };
-  from = Object.keys(sLink);
-  matrix = {};
-    // from, to, service (listed twice, once in each direction)
-  index = {};
-    // serv-from [keys] (greatly speeds subsequent search of matrix)
-
-  for (f = 0; f < from.length; f += 1) {
-    fNum = from[f] - 0;
-    to = Object.keys(sLink[fNum]);
-    for (t = 0; t < to.length; t += 1) {
-      if (to[t]+"-"+from[f] in matrix === false) {
-        tNum = to[t] - 0;
-        matrix[from[f]+"-"+to[t]] = [fNum, tNum, sLink[fNum][tNum]];
-        id = sLink[fNum][tNum]+"-"+from[f];
-        if (id in index) {
-          index[id].push(from[f]+"-"+to[t]);
-        } else {
-          index[id] = [from[f]+"-"+to[t]];
-        }
-      }
-    }
-  }
-
-  keys = Object.keys(matrix);
-  dummy = 0;
-
-  while (dummy < 1) {
-    // Nonsense condition broken from within
-    shift = keys.shift();
-    poly = [matrix[shift][0], matrix[shift][1]];
-    serv = matrix[shift][2];
-    while (dummy < 1) {
-      id = serv+"-"+poly[poly.length - 1];
-      if (id in index && index[id].length > 0) {
-        pop = index[id].pop();
-        poly.push(matrix[pop][1]);
-      } else{
-        break;
-        // Exit write polyline and reset loop
-      }
-    }
-    polyline = [];
-    for (i = 0; i < poly.length; i += 1) {
-      polyline.push([node[poly[i]][1], node[poly[i]][0]]);
-    }
-    linkOpt.weight = Math.ceil(Math.log(1 + (serv *
-      (1 / (this.OPT.linkScale * 4 * scale)))) * this.OPT.linkScale * 4 * scale);
-      // Log factoring emphasised at higher scales
-    linkMap.push(L.polyline(polyline, linkOpt)
-      .bindTooltip(serv.toString()));
-    if (keys.length === 0) {
-      break;
-      // All done
-    }
-  }
-
-  for (i = 0; i < sNode.length; i += 1) {
-    if (typeof sNode[i] !== "undefined" && node.length - 1 >= i) {
-      stats.node += 1;
-      nodeOpt.radius = Math.ceil(Math.log(1 + (sNode[i] *
-      (1 / (this.OPT.nodeScale * 4 * scale)))) * this.OPT.nodeScale * 2 * scale);
-        // If nodeScale=linkScale node radius is half link line width, so most nodes fit routes
-      nodeMap.push(L.circleMarker([node[i][1], node[i][0]], nodeOpt)
-        .bindTooltip(sNode[i].toString()));
-      if(uPlace.indexOf(node[i][2]) === -1) {
-        uPlace.push(node[i][2]);
-      }
-    }
-  }
-
-  for (i = 0; i < uPlace.length; i += 1) {
-    if (place.length - 1 >= i) {
-      stats.place += place[uPlace[i]][2];
-      placeOpt.radius = Math.ceil(Math.sqrt(place[uPlace[i]][2] * this.OPT.placeScale * scale / 666));
-        // Area in proportion to population
-      placeMap.push(L.circleMarker([place[uPlace[i]][1], place[uPlace[i]][0]], placeOpt)
-        .bindTooltip(place[uPlace[i]][2].toString()));
-    }
-  }
-
-  L.layerGroup(placeMap).addTo(this.MEM.place);
-  L.layerGroup(linkMap).addTo(this.MEM.link);
-  L.layerGroup(nodeMap).addTo(this.MEM.node);
-    /**
-     * Layer order is initial visibility, bottom to top
-     * These 3 lines account for almost half of draw() runtime
-     * Heavier use may require limits, such as redrawing only to map bounds
-     * and storing the nodeMap array in the meantime
-     */
-  this.MEM.outputMap = {
-    "p": placeMap,
-    "l": linkMap,
-    "n": nodeMap,
-    "h": hereMap
-  };
-    // Stored for geoJSON output
-
-  if (this.OPT.uiPanel === true) {
-    updatePanel(stats, this.OPT);
-  }
-  return true;
-}
 
 };
 // EoF
