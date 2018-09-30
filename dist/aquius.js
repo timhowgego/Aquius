@@ -94,6 +94,8 @@ var aquius = aquius || {
       // User selected network filter
     "network": [],
       // Extension of network: Array of products, Object of locale keyed names
+    "networkAdd": true,
+      // Append this network extension to dataset defaults. Set false to replace defaults
     "nodeColor": "#000",
       // CSS Color for node (stop) layer circle strokes
     "nodeScale": 1.0,
@@ -588,9 +590,15 @@ var aquius = aquius || {
       if ("network" in configOptions.dataObject &&
         Array.isArray(configOptions.dataObject.network)
       ) {
-        // Append bespoke network filters
-        configOptions.dataObject.network =
-          configOptions.dataObject.network.concat(configOptions.network);
+        if ("networkAdd" in configOptions &&
+          configOptions.networkAdd === false
+        ) {
+          configOptions.dataObject.network = configOptions.network;
+        } else {
+          // Append bespoke network filters
+          configOptions.dataObject.network =
+            configOptions.dataObject.network.concat(configOptions.network);
+        }
       } else {
         configOptions.dataObject.network = configOptions.network;
       }

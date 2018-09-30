@@ -6,15 +6,17 @@
 
 [![Aquius at Ciudad Real](static/aquius-ciudad-real.jpg)](https://timhowgego.github.io/Aquius/live/es-rail-20-jul-2018/#x-3.296/y39.092/z7/c-3.966/k38.955/m8/s7/vlphn)
 
-Aquius visualises the links between people that are made possible by transport networks. The user clicks once on a location, and near-instantly all the routes, stops, services, and connected populations are summarised visually. Aquius answers the question, what services are available _here_? And to a degree, who am I connected to by those services? Population is a proxy for all manner of socio-economic activity and facilities, measured both in utility and in perception. This approach differs from most conventional public transport network mapping:
+Aquius visualises the links between people that are made possible by transport networks. The user clicks once on a location, and near-instantly all the routes, stops, services, and connected populations are summarised visually. Aquius answers the question, what services are available _here_? And to a degree, who am I connected to by those services? Population is a proxy for all manner of socio-economic activity and facilities, measured both in utility and in perception. Conceptually Aquius is half-way between the two common approaches to public transport information:
 
-1. Aquius calculates frequencies, not detailed schedules. Conventional journey planners are aimed at users that already have some understanding of what routes exist. 
-1. Aquius relates to a bespoke location, not an entire network. Most network maps are pre-defined and necessarily simplified, typically showing an entire city or territory.
+1. Conventional journey planners are aimed at users that already have some understanding of what routes exist. Aquius summarises overall service patterns.
+1. Most network maps are pre-defined and necessarily simplified, typically showing an entire city or territory. Aquius relates to a bespoke location.
 
-Conceptually Aquius is half-way between those two. The application makes no server queries (once the initial dataset has been loaded), so responds near-instantly. That speed allows network discovery by trial and error, which changes the user dynamic from _being told_, to playful learning. Those advantages cannot maintain all the features of existing approaches to public transport information, notably:
+The application makes no server queries (once the initial dataset has been loaded), so responds near-instantly. That speed allows network discovery by trial and error, which changes the user dynamic from _being told_, to playful learning.
 
-* Aquius maps links, not routes. Straight-line links are shown between defined service stops, not drawn along the precise geographic route taken. This allows services that do not stop at all intermediate stops to be clearly differentiated. It also makes it technically possible for an internet client to work with a large transport network. However Aquius is limited to displaying conventional scheduled public transport, and perhaps not display information in the manner users have come to expect.
-* The project was initially developed for network analysis, where a snapshot of the entire network is taken as a proxy for all days. More specific filters (for example, before 10:00, or on Sunday) could be crudely hacked in as separate products (detailed in Data Structure), however to handle this optimally Aquius would need some modest code and data structure rewrites.
+Those advantages cannot maintain all the features of existing approaches to public transport information, notably:
+
+* Aquius maps links, not routes. Straight-line links are shown between defined service stops, not drawn along the precise geographic route taken. This allows services that do not stop at all intermediate stops to be clearly differentiated. It also makes it technically possible for an internet client to work with a large transport network. Aquius is however limited to displaying conventional scheduled public transport, and perhaps does not display information in the manner users have come to expect.
+* The project was initially developed for network analysis, where a snapshot of the entire network is taken as a proxy for all days. More specific filters (for example, before 10:00, or on Sunday) could be crudely hacked in as separate products (detailed in [Data Structure](#data-structure)), however to handle this optimally Aquius would need some modest code and data structure rewrites. Aquius presumes a degree of network stability over time, and cannot sensibly be used to describe a transport network that is in constant flux.
 * Only the direct service from _here_ is shown, not journeys affected by interchange. Certain networks (especially urban) may presume interchange at key points in the network. It is theoretically possible to define such interchange from one service to one other service of the same type within the network dataset by mimicking a service which splits into two porions part-way through its journey. However if the desire is to show all possible interchanges withut letting users explore the possibilities for themselves, then Aquius is not the logical platform to use: Displaying all possible interchanges quickly results in a map of every service, that then fails to convey what is genuinely local to _here_.
 
 Ready to explore? [Try a live demonstration](https://timhowgego.github.io/Aquius/live/)!
@@ -127,6 +129,7 @@ leaflet|Object|{}|Active Leaflet library Object L: Used in preference to loading
 locale|string|"en-US"|Default locale, BCP 47-style. Not to be confused with user selection, `t`
 map|Object|{}|Active Leaflet map Object: Used in preference to own map
 network|Array|[]|Extension of `network`: Array of products, Object of locale keyed names
+networkAdd|boolean|true|Append this network extension to dataset defaults. Set false to replace defaults
 translation|Object|{}|Custom translations: Format matching `aquius.LOC`
 
 For base mapping, `base` is a complex `Array` containing one or more tile layers, each represented as an `Object`. Within, the key `url` contains a `string` URI of the resource, potentially formatted as [described by Leaflet](https://leafletjs.com/reference-1.3.4.html#tilelayer). WMS layers require a specific key `type`: "wms". Finally a key called `options` may be provided, itself containing an `Object` of keys and values, matching Leaflet's options. Or in summary:
@@ -148,7 +151,7 @@ For base mapping, `base` is a complex `Array` containing one or more tile layers
 
 The default `locale` needs to be fully translated, since it becomes the default should any other language choice not be translated.
 
-The extension of `network` allow extra network filters to be appended to the defaults provided in the JSON `dataset`. For example, in the Spanish Railways dataset a separate network filter for [FEVE](https://en.wikipedia.org/wiki/Renfe_Feve) could be created using the product's ID, here 14, and its name. Multiple products or networks can be added in this way. See the [Data Structure](#data-structure) section for more details.
+The extension of `network` allow extra network filters to be appended to the defaults provided in the JSON `dataset`. For example, in the Spanish Railways dataset a separate network filter for [FEVE](https://en.wikipedia.org/wiki/Renfe_Feve) could be created using the product's ID, here 14, and its name. Multiple products or networks can be added in this way. See the [Data Structure](#data-structure) section for more details. To replace the defaults in the dataset, set configuration `networkAdd` to `false`.
 
 ```javascript
 "network": [ 
@@ -159,7 +162,9 @@ The extension of `network` allow extra network filters to be appended to the def
       // Locale:Name, must include the default locale
   ] 
   // Extendable for multiple networks
-]
+],
+"networkAdd": false
+  // Replace dataset defaults with this network selection
 ```
 
 The `translation` `Object` allows bespoke locales to be hacked in. Bespoke translations take precedence over everything else. Even network names can be hacked by referencing key `network0`, where the final `integer` is the index position in the network `Array`. While this is not the optimal way to perform proper translation, it may prove convenient. The structure of `translation` matches that of Aquius' LOC global. Currently translatable strings are listed below. Missing translations default to `locale`, else are rendered blank. 
