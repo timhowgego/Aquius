@@ -1636,7 +1636,13 @@ var aquius = aquius || {
   function walkRoutes(raw, dataObject, options) {
     // Adds serviceLink and serviceNode matrices to raw, filtered for here and product
 
-    var caveats, originDest, products, route, serviceLevel, i, j, k;
+    var destination, origin, products, route, serviceCircular, serviceDirection,
+      serviceLevel, serviceSplit, i, j;
+    
+    raw.serviceLink = [];
+      // Service by link [from[to[service]]] - with voids undefined
+    raw.serviceNode = [];
+      // Service by node [node[service]] - with voids undefined
 
     if ("filter" in options &&
       typeof options.filter === "number" &&
@@ -1662,11 +1668,13 @@ var aquius = aquius || {
       ) {
         // Process this link line, otherwise ignore
 
-        caveats = {};
         route = [];
+        serviceCircular = null;
+        serviceDirection = null;
+        serviceSplit = null;
 
         if ("split" in dataObject.link[i][3] &&
-          Array.isArray(dataObject.link[i][3].split)
+          Array.isArray(dataObject.link[i][3]["split"])
         ) {
           /**
            * splits (split === 1) only contributes to service count at nodes within unique sections,
@@ -1676,17 +1684,17 @@ var aquius = aquius || {
            */
           if (
             (dataObject.link[i][2].filter( function (value) {
-            return dataObject.link[i][3].split.indexOf(value) === -1;
+            return dataObject.link[i][3]["split"].indexOf(value) === -1;
             }))
             .filter( function (value) {
               return raw.hereNodes.indexOf(value) !== -1;
             }).length > 0
           ) {
             // Splits, including within common sections
-            caveats.split = 1;
+            serviceSplit = 1;
           } else {
             // Splits, containing no common sections
-            caveats.split = 2;
+            serviceSplit = 2;
             raw.summary.link += dataObject.link[i][1];
           }
         } else {
@@ -1696,18 +1704,18 @@ var aquius = aquius || {
         if ("circular" in dataObject.link[i][3] &&
           dataObject.link[i][3].circular === true
         ) {
-          caveats.circular = dataObject.link[i][2].length - 1;
+          serviceCircular = dataObject.link[i][2].length - 1;
             // Exclude the final node on a circular
         }
 
         if ("direction" in dataObject.link[i][3] &&
           dataObject.link[i][3].direction === true
         ) {
-          caveats.direction = 1;
+          serviceDirection = 1;
 
           for (j = 0; j < dataObject.link[i][2].length; j += 1) {
             if (raw.hereNodes.indexOf(dataObject.link[i][2][j]) !== -1 ) {
-              if ("circular" in caveats) {
+              if (serviceCircular !== null) {
                 route = dataObject.link[i][2].slice(0, -1);
                   // Come friendly bombs and fall on Parla
                 route = route.slice(j).concat(route.slice(0, j));
@@ -1734,12 +1742,12 @@ var aquius = aquius || {
 
         for (j = 0; j < route.length; j += 1) {
 
-          if ((("split" in caveats === false || caveats.split !== 1) ||
-            dataObject.link[i][3].split.indexOf(route[j]) !== -1) &&
-            ("circular" in caveats === false || caveats.circular !== j)
+          if ((serviceSplit !== 1 ||
+            dataObject.link[i][3]["split"].indexOf(route[j]) !== -1) &&
+            (serviceCircular !== j)
           ) {
 
-            if ("direction" in caveats ||
+            if (serviceDirection === 1 ||
               raw.hereNodes.indexOf(route[j]) !== -1
             ) {
               serviceLevel = dataObject.link[i][1];
@@ -1755,12 +1763,12 @@ var aquius = aquius || {
           }
 
           if (route.length - 1 > j &&
-            (("split" in caveats === false || caveats.split !== 1) ||
-            dataObject.link[i][3].split.indexOf(route[j]) !== -1 ||
-            dataObject.link[i][3].split.indexOf(route[j + 1]) !== -1)
+            (serviceSplit !== 1 ||
+            dataObject.link[i][3]["split"].indexOf(route[j]) !== -1 ||
+            dataObject.link[i][3]["split"].indexOf(route[j + 1]) !== -1)
           ) {
 
-            if ("direction" in caveats ||
+            if (serviceDirection === 1 ||
               (raw.hereNodes.indexOf(route[j]) !== -1 && raw.hereNodes.indexOf(route[j + 1]) !== -1)
             ) {
               serviceLevel = dataObject.link[i][1];
@@ -1768,25 +1776,24 @@ var aquius = aquius || {
               serviceLevel = dataObject.link[i][1] / 2;
             }
 
-            originDest = [
-              [route[j], route[j + 1]],
-              [route[j + 1], route[j]]
-            ];
-
-            for (k = 0; k < originDest.length; k += 1) {
-              // serviceLink mirrored in both directions. Once summed, processing ignores reverse
-
-              if (typeof raw.serviceLink[originDest[k][0]] === "undefined") {
-                raw.serviceLink[originDest[k][0]] = [];
-              }
-              if (typeof raw.serviceLink[originDest[k][0]][originDest[k][1]] ===
-                "undefined"
-              ) {
-                raw.serviceLink[originDest[k][0]][originDest[k][1]] = serviceLevel;
-              } else {
-                raw.serviceLink[originDest[k][0]][originDest[k][1]] += serviceLevel;
-              }
-
+            if (route[j] < route[j + 1]) {
+              // Origin is largest node first. Skips reverse. Subsequent pop rather than shift
+              origin = route[j + 1];
+              destination = route[j];
+            } else {
+              origin = route[j];
+              destination = route[j + 1];
+            }
+            
+            if (typeof raw.serviceLink[origin] === "undefined") {
+              raw.serviceLink[origin] = [];
+            }
+            if (typeof raw.serviceLink[origin][destination] ===
+              "undefined"
+            ) {
+              raw.serviceLink[origin][destination] = serviceLevel;
+            } else {
+              raw.serviceLink[origin][destination] += serviceLevel;
             }
 
           }
@@ -1799,10 +1806,12 @@ var aquius = aquius || {
     return raw;
   }
 
-  function indexRoutes(raw) {
-    // Adds serviceIndex and serviceOD to raw
+  function pathRoutes(raw) {
+    // Converts OD matrix into raw.path's routes of the same service level
 
-    var destination, destinationNum, id, originNum, i, j;
+    var destination, destinationNum, link, originNum, service, serviceLevel, stack, i, j;
+    var serviceOD = {};
+      // service: [ [from, to] ]
     var origin = Object.keys(raw.serviceLink);
 
     for (i = 0; i < origin.length; i += 1) {
@@ -1813,22 +1822,60 @@ var aquius = aquius || {
 
       for (j = 0; j < destination.length; j += 1) {
 
-        if (destination[j] + "-" + origin[i] in raw.serviceOD === false) {
+        destinationNum = destination[j] - 0;
+          // Numeric of destination
+        serviceLevel = raw.serviceLink[originNum][destinationNum];
 
-          destinationNum = destination[j] - 0;
-            // Numeric of destination
-          raw.serviceOD[origin[i] + "-" + destination[j]] =
-            [originNum, destinationNum, raw.serviceLink[originNum][destinationNum]];
-          id = raw.serviceLink[originNum][destinationNum] + "-" + origin[i];
+        if (serviceLevel in serviceOD === false) {
+          serviceOD[serviceLevel] = [];
+        }
+        serviceOD[serviceLevel].push([originNum, destinationNum]);
 
-          if (id in raw.serviceIndex) {
-            raw.serviceIndex[id].push(origin[i] + "-" + destination[j]);
-          } else {
-            raw.serviceIndex[id] = [origin[i] + "-" + destination[j]];
+      }
+
+    }
+
+    raw.path = [];
+      // Path elements [service, [node, node, etc]]
+
+    service = Object.keys(serviceOD);
+    for (i = 0; i < service.length; i += 1) {
+      stack = [serviceOD[service[i]].pop()];
+      while (serviceOD[service[i]].length > 0) {
+
+        link = serviceOD[service[i]].pop();
+
+        for (j = 0; j < stack.length; j += 1) {
+
+          if (link[0] === stack[j][0]) {
+            stack[j].unshift(link[1]);
+            break;
+          }
+          if (link[1] === stack[j][0]) {
+            stack[j].unshift(link[0]);
+            break;
+          }
+          if (link[0] === stack[j][stack.length - 1]) {
+            stack[j].push(link[1]);
+            break;
+          }
+          if (link[1] === stack[j][stack.length - 1]) {
+            stack[j].push(link[0]);
+            break;
+          }
+
+          if (j === stack.length - 1) {
+            stack.push(link);
+            break;
           }
 
         }
 
+      }
+      // Further stack aggregation possible, but time-consuming vs resulting reduction in objects
+
+      for (j = 0; j < stack.length; j += 1) {
+        raw.path.push([service[i] - 0, stack[j]]);
       }
 
     }
@@ -1839,8 +1886,7 @@ var aquius = aquius || {
   function conjureGeometry(raw, dataObject, options) {
     // Convert matrices into geospatial structures
 
-    var dummy, geojson, geometry, id, keyNames, maxIndex, placeList, polyPoints,
-      serviceLevel, shifted, i, j, k;
+    var geojson, geometry, maxIndex, placeList, i, j, k;
     var result = {};
 
     function makePolyline(polyPoints, node) {
@@ -1863,35 +1909,11 @@ var aquius = aquius || {
     result.here = raw.here;
     result.link = [];
 
-    keyNames = Object.keys(raw.serviceOD);
-
-    while (keyNames.length > 0) {
-      shifted = keyNames.shift();
-      polyPoints = [
-        raw.serviceOD[shifted][1],
-        raw.serviceOD[shifted][0]
-      ];
-      serviceLevel = raw.serviceOD[shifted][2];
-      dummy = 0;
-
-      while (dummy < 1) {
-        // Condition broken from within
-        id = serviceLevel + "-" + polyPoints[polyPoints.length - 1];
-        if (id in raw.serviceIndex &&
-          raw.serviceIndex[id].length > 0
-        ) {
-          polyPoints.push(raw.serviceOD[raw.serviceIndex[id].pop()][1]);
-        } else{
-          break;
-            // Write polyline and reset loop
-        }
-      }
-
+    for (i = 0; i < raw.path.length; i += 1) {
       result.link.push({
-        "polyline": makePolyline(polyPoints, dataObject.node),
-        "value": serviceLevel
+        "polyline": makePolyline(raw.path[i][1], dataObject.node),
+        "value": raw.path[i][0]
       });
-
     }
 
     result.node = [];
@@ -2006,14 +2028,6 @@ var aquius = aquius || {
       "circle": [x, y],
       "value": range
     }],
-    "serviceIndex": {},
-      // serv-from [keys] - greatly speeds search of serviceOD
-    "serviceLink": [],
-      // Service by link [from[to[service]]] - with voids undefined
-    "serviceNode": [],
-      // Service by node [node[service]] - with voids undefined
-    "serviceOD": {},
-      // from, to, service - listed twice, once in each direction
     "summary": {
       "link": 0,
         // Count of services (eg daily trains)
@@ -2035,7 +2049,7 @@ var aquius = aquius || {
 
     raw = findHereNodes(raw, dataObject, x, y, range);
     raw = walkRoutes(raw, dataObject, options);
-    raw = indexRoutes(raw);
+    raw = pathRoutes(raw);
     return conjureGeometry(raw, dataObject, options);
 
   } catch (e) {

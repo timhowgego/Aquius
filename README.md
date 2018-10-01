@@ -86,7 +86,7 @@ Others options are documented in the [Configuration](#configuration) section bel
 * Internet Explorer 9 is the oldest vintage of browser theoretically supported, although a modern browser will be faster (both in use of `Promise` to load data and `Canvas` to render data). Mobile and tablet devices are supported, although older devices may lag when interacting with the map interface.
 * Aquius is written in pure Javascript, automatically loading its one dependency at runtime, [Leaflet](https://github.com/Leaflet/Leaflet). Aquius can produce graphically intensive results, so be cautious before embedding multiple instances in the same page, or adding Aquius to pages that are already cluttered.
 * For now, there is no automated method of constructing Aquius' datasets: Aquius was built to understand Spain, which is still largely devoid of [electronic interchangeable data](https://transit.land/feed-registry/?country=ES). The current dataset format is described in the [Data Structure](#data-structure) section below, and eventually a GTFS converter might get written.
-* What works in Spain might become more technically problematic should the whole of Europe be deposited into one unfiltered dataset. As is, a 2010-era computer mapping every rail service from Madrid takes about 50ms to do the calculations and another 50ms to map the result, which can then lag slightly when moved.
+* What works in Spain might become more technically problematic should the whole of Europe be deposited into one unfiltered dataset. As is, a 2010-era computer mapping every rail service from Madrid takes about 100ms to do the calculations and another 100ms to map the result, which can then lag slightly when moved.
 
 ## Known Issues
 
@@ -395,4 +395,4 @@ The Spanish Railway dataset is a creative work of academic curiosity, a limited 
 
 ## Contributing
 
-Contributors are most welcome. Check the [Known Issues](#known-issues) before making suggestions. Try to establish a consensus before augmenting data structures.
+[Contributors are most welcome](https://github.com/timhowgego/Aquius/). Check the [Known Issues](#known-issues) before making suggestions. Try to establish a consensus before augmenting data structures.
