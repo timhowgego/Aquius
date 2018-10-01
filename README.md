@@ -78,6 +78,8 @@ Others options are documented in the [Configuration](#configuration) section bel
 });</script>
 ```
 
+[Current script files can be found on Github](https://github.com/timhowgego/Aquius/tree/master/dist). [Sample datasets are also available](https://github.com/timhowgego/Aquius/tree/master/data).
+
 *Tip:* Aquius can also be [used as a stand-alone library](#here-queries): `aquius.here()` accepts and returns data objects without script loading or user interface. Alternatively, Aquius can be built into an existing Leaflet map object by sending that object to `aquius.init()` as the value of [Configuration](#configuration) key `map`.
 
 ## Limitations
@@ -100,7 +102,7 @@ Tooltips may display in haphazard positions: Tooltips display in the middle of t
 
 Multiple base maps can be added but only one may be displayed: A user selection and associated customisation was envisaged for the future.
 
-Circular services that constitute two routes in different directions, that share some stops but not all, display with the service in both directions serving the entire shared part of the loop: Circular services normally halve the total service to represent the journey possibilities either clockwise or counter-clockwise, without needing to decide which direction to travel in to reach any one stop. Circular services that take different routes depending on their direction cannot simply be halved in this manner, even over the common section, because the service level in each direction is not necessarily the same. Consequently Aquius would have to understand which direction to travel in order to reach each destination the fastest. That would be technically possible by calculating distance, but would remain prone to misiinterpretation, because a service with a significantly higher service frequency in one direction might reasonably be used to make journeys round almost the entire loop, regadless of distance. The safest assumption is that services can be ridden round the loop in either direction. In practice this issue only arises [in Parla](https://timhowgego.github.io/Aquius/live/es-rail-20-jul-2018/#x-3.76265/y40.23928/z14/c-3.7669/k40.2324/m10/s5/vlphn/n2).
+Circular services that constitute two routes in different directions, that share some stops but not all, display with the service in both directions serving the entire shared part of the loop: Circular services normally halve the total service to represent the journey possibilities either clockwise or counter-clockwise, without needing to decide which direction to travel in to reach any one stop. Circular services that take different routes depending on their direction cannot simply be halved in this manner, even over the common section, because the service level in each direction is not necessarily the same. Consequently Aquius would have to understand which direction to travel in order to reach each destination the fastest. That would be technically possible by calculating distance, but would remain prone to misinterpretation, because a service with a significantly higher service frequency in one direction might reasonably be used to make journeys round almost the entire loop, regadless of distance. The safest assumption is that services can be ridden round the loop in either direction. In practice this issue only arises [in Parla](https://timhowgego.github.io/Aquius/live/es-rail-20-jul-2018/#x-3.76265/y40.23928/z14/c-3.7669/k40.2324/m10/s5/vlphn/n2).
 
 ### Spain
 
@@ -252,11 +254,13 @@ Aquius can also be used as a stand-alone library via `aquius.here()`, which acce
 * `x` - `float` longitude of _here_ in WGS 84.
 * `y` - `float` latitude of _here_ in WGS 84.
 * `range` - `float` distance from _here_ to be searched for nodes, in metres.
-* `options` - optional `Object` of key:value pairs:
+* `options` - optional `Object` of key:value pairs.
 
-** `filter` - `integer` index of network line to filter by.
-** `geoJSON` - `Array` of strings describing map layers to be outputted in GeoJSON format ("network", "link", "node" and/or "place").
-** `sanitize` - `boolean` check data integrity. Checks occur unless set to `false`. Repeat queries with the same dataObject can safely set sanitize to false.
+Possible `options`:
+
+* `filter` - `integer` index of network line to filter by.
+* `geoJSON` - `Array` of strings describing map layers to be outputted in GeoJSON format ("network", "link", "node" and/or "place").
+* `sanitize` - `boolean` check data integrity. Checks occur unless set to `false`. Repeat queries with the same dataObject can safely set sanitize to false.
 
 **Caution:** Sanitize does not fix logical errors within the dataObject, and should not be used to check data quality. Sanitize merely replaces missing or incomplete structures with zero-value defaults, typically causing bad data to be ignored without throwing errors.
 
