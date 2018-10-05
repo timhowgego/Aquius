@@ -17,7 +17,7 @@ Those advantages cannot maintain all the features of existing approaches to publ
 
 * Aquius maps links, not routes. Straight-line links are shown between defined service stops, not drawn along the precise geographic route taken. This allows services that do not stop at all intermediate stops to be clearly differentiated. It also makes it technically possible for an internet client to work with a large transport network. Aquius is however limited to displaying conventional scheduled public transport, and perhaps does not display information in the manner users have come to expect.
 * The project was initially developed for network analysis, where a snapshot of the entire network is taken as a proxy for all days. More specific filters (for example, before 10:00, or on Sunday) could be crudely hacked in as separate products (detailed in [Data Structure](#data-structure)), however to handle this optimally Aquius would need some modest code and data structure rewrites. Aquius presumes a degree of network stability over time, and cannot sensibly be used to describe a transport network that is in constant flux.
-* Only the direct service from _here_ is shown, not journeys affected by interchange. Certain networks (especially urban) may presume interchange at key points in the network. It is theoretically possible to define such interchange from one service to one other service of the same type within the network dataset by mimicking a service which splits into two porions part-way through its journey. However if the desire is to show all possible interchanges withut letting users explore the possibilities for themselves, then Aquius is not the logical platform to use: Displaying all possible interchanges quickly results in a map of every service, that then fails to convey what is genuinely local to _here_.
+* Only the direct service from _here_ is shown, not journeys achieved by interchange. Certain networks (especially urban) may presume interchange at key points in the network. It is theoretically possible to define such interchange from one service to one other service of the same type within the network dataset by mimicking a service which splits into two porions part-way through its journey. However if the desire is to show all possible interchanges without letting users explore the possibilities for themselves, then Aquius is not the logical platform to use: Displaying all possible interchanges quickly results in a map of every service, that then fails to convey what is genuinely local to _here_.
 
 Ready to explore? [Try a live demonstration](https://timhowgego.github.io/Aquius/live/)!
 
@@ -132,7 +132,7 @@ locale|string|"en-US"|Default locale, BCP 47-style. Not to be confused with user
 map|Object|{}|Active Leaflet map Object: Used in preference to own map
 network|Array|[]|Extension of `network`: Array of products, Object of locale keyed names
 networkAdd|boolean|true|Append this network extension to dataset defaults. Set false to replace defaults
-translation|Object|{}|Custom translations: Format matching `aquius.LOC`
+translation|Object|{}|Custom translations: Format matching `defaultTranslation` within `aquius.init()`
 
 For base mapping, `base` is a complex `Array` containing one or more tile layers, each represented as an `Object`. Within, the key `url` contains a `string` URI of the resource, potentially formatted as [described by Leaflet](https://leafletjs.com/reference-1.3.4.html#tilelayer). WMS layers require a specific key `type`: "wms". Finally a key called `options` may be provided, itself containing an `Object` of keys and values, matching Leaflet's options. Or in summary:
 
@@ -169,7 +169,7 @@ The extension of `network` allow extra network filters to be appended to the def
   // Replace dataset defaults with this network selection
 ```
 
-The `translation` `Object` allows bespoke locales to be hacked in. Bespoke translations take precedence over everything else. Even network names can be hacked by referencing key `network0`, where the final `integer` is the index position in the network `Array`. While this is not the optimal way to perform proper translation, it may prove convenient. The structure of `translation` matches that of Aquius' LOC global. Currently translatable strings are listed below. Missing translations default to `locale`, else are rendered blank. 
+The `translation` `Object` allows bespoke locales to be hacked in. Bespoke translations take precedence over everything else. Even network names can be hacked by referencing key `network0`, where the final `integer` is the index position in the network `Array`. While this is not the optimal way to perform proper translation, it may prove convenient. The structure of `translation` matches that of `defaultTranslation` within `aquius.init()`. Currently translatable strings are listed below. Missing translations default to `locale`, else are rendered blank. 
 
 ```javascript
 "translation": {
