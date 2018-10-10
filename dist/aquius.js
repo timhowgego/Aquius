@@ -1935,8 +1935,7 @@ var aquius = aquius || {
 
     for (i = 0; i < raw.serviceNode.length; i += 1) {
       if (typeof raw.serviceNode[i] !== "undefined" &&
-        raw.serviceNode[i] <= maxIndex &&
-        raw.serviceNode[i] >= 0
+        i <= maxIndex
       ) {
         result.summary.node += 1;
         result.node.push({
