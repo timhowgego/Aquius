@@ -25,7 +25,7 @@ var aquius = aquius || {
     // Default locale translations: Each custom BCP 47-style locale matches en-US keys
     "en-US": {
       "lang": "English",
-        // The "language" is of this language in that language
+        // This language in that language
       "embed": "Embed",
         // Other strings are to be translated directed
       "export": "Export",
@@ -656,6 +656,12 @@ var aquius = aquius || {
       if (configOptions[localeNames[i]] in configOptions.translation === false) {
         configOptions[localeNames[i]] = defaultOptions[localeNames[i]];
       }
+    }
+
+    // Remove place if place data empty
+    if (configOptions.dataObject.place.length === 0) {
+      layerNames.splice(layerNames.indexOf("place"), 1);
+      layerSummaryNames.splice(layerSummaryNames.indexOf("place"), 1);
     }
 
     return configOptions;
@@ -1339,17 +1345,19 @@ var aquius = aquius || {
           try {
             document.getElementById(id).textContent =
               new Intl.NumberFormat(configOptions.t)
-                .format(configOptions._here.summary[keyName[i]]);
+                .format(Math.round(configOptions._here.summary[keyName[i]]));
           } catch (e) {
             // Unsupported feature or locale
             document.getElementById(id).textContent =
-              configOptions._here.summary[keyName[i]].toString();
+              Math.round(configOptions._here.summary[keyName[i]]).toString();
           }
         }
       }
     }
 
-    if ("place" in configOptions._here) {
+    if ("place" in configOptions._here &&
+      configOptions.dataObject.place.length > 0
+    ) {
       scale = Math.exp((configOptions.s - 5) / 2) * configOptions.placeScale / 666;
       for (i = 0; i < configOptions._here.place.length; i += 1) {
         if ("circle" in configOptions._here.place[i] &&
@@ -1364,10 +1372,11 @@ var aquius = aquius || {
               "fill": true,
               "fillColor": configOptions.placeColor,
               "fillOpacity": configOptions.placeOpacity,
-              "radius": Math.ceil(Math.sqrt( configOptions._here.place[i].value * scale)),
+              "radius": Math.ceil(Math.sqrt(configOptions._here.place[i].value * scale)),
               "stroke": false
             }
-          ).bindTooltip(configOptions._here.place[i].value.toString()).addTo(configOptions._layer.place);
+          ).bindTooltip(Math.round(configOptions._here.place[i].value).toString())
+          .addTo(configOptions._layer.place);
         }
       }
     }
@@ -1391,7 +1400,8 @@ var aquius = aquius || {
               "color": configOptions.linkColor,
               "weight": Math.ceil(Math.log(1 + (configOptions._here.link[i].value * (1 / scale))) * scale)
             }
-          ).bindTooltip(configOptions._here.link[i].value.toString()).addTo(configOptions._layer.link);
+          ).bindTooltip(Math.round(configOptions._here.link[i].value).toString())
+          .addTo(configOptions._layer.link);
         }
       }
     }
@@ -1413,7 +1423,8 @@ var aquius = aquius || {
               "radius": Math.ceil(Math.log(1 + (configOptions._here.node[i].value * (1 / (scale * 2)))) * scale),
               "weight": 1
             }
-          ).bindTooltip(configOptions._here.node[i].value.toString()).addTo(configOptions._layer.node);
+          ).bindTooltip(Math.round(configOptions._here.node[i].value).toString())
+          .addTo(configOptions._layer.node);
         }
       }
     }
@@ -1897,7 +1908,9 @@ var aquius = aquius || {
       var polyline = [];
 
       for (i = 0; i < polyPoints.length; i += 1) {
-        if (polyPoints[i] <= maxIndex) {
+        if (polyPoints[i] <= maxIndex &&
+          polyPoints[i] >= 0
+        ) {
           polyline.push([node[polyPoints[i]][0], node[polyPoints[i]][1]]);
         }
       }
@@ -1922,7 +1935,8 @@ var aquius = aquius || {
 
     for (i = 0; i < raw.serviceNode.length; i += 1) {
       if (typeof raw.serviceNode[i] !== "undefined" &&
-        i <= maxIndex
+        raw.serviceNode[i] <= maxIndex &&
+        raw.serviceNode[i] >= 0
       ) {
         result.summary.node += 1;
         result.node.push({
@@ -1943,7 +1957,9 @@ var aquius = aquius || {
     maxIndex = dataObject.place.length - 1;
 
     for (i = 0; i < placeList.length; i += 1) {
-      if (i <= maxIndex) {
+      if (placeList[i] <= maxIndex &&
+        placeList[i] >= 0
+      ) {
         result.summary.place += dataObject.place[placeList[i]][2];
         result.place.push({
           "circle": [
