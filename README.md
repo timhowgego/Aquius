@@ -16,10 +16,10 @@ The application makes no server queries (once the initial dataset has been loade
 Those advantages cannot maintain all the features of existing approaches to public transport information, notably:
 
 * Aquius maps links, not routes. Straight-line links are shown between defined service stops, not drawn along the precise geographic route taken. This allows services that do not stop at all intermediate stops to be clearly differentiated. It also makes it technically possible for an internet client to work with a large transport network. Aquius is however limited to displaying conventional scheduled public transport, and perhaps does not display information in the manner users have come to expect.
-* The project was initially developed for network analysis, where a snapshot of the entire network is taken as a proxy for all days. More specific filters (for example, before 10:00, or on Sunday) could be crudely hacked in as separate products (detailed in [Data Structure](#data-structure)), however to handle this optimally Aquius would need some modest code and data structure rewrites. Aquius presumes a degree of network stability over time, and cannot sensibly be used to describe a transport network that is in constant flux.
-* Only the direct service from _here_ is shown, not journeys achieved by interchange. Certain networks (especially urban) may presume interchange at key points in the network. It is theoretically possible to define such interchange from one service to one other service of the same type within the network dataset by mimicking a service which splits into two porions part-way through its journey. However if the desire is to show all possible interchanges without letting users explore the possibilities for themselves, then Aquius is not the logical platform to use: Displaying all possible interchanges quickly results in a map of every service, that then fails to convey what is genuinely local to _here_.
+* Aquius summarises the patterns of fixed public transport networks. It presumes a degree of network stability over time, and cannot sensibly be used to describe a transport network that is in constant flux. The Aquius data structure allows filtering by time period, but such periods must be pre-defined and cannot offer the same precision as schedule-based systems.
+* Aquius only shows the direct service from _here_, not journeys achieved by interchange. It is theoretically possible to define keys interchanges from one service to one other service of the same type within the network dataset by mimicking a service which splits into two porions part-way through its journey. However if the intention is to show all possible interchanges without letting users explore the possibilities for themselves, then Aquius is not the logical platform to use: Displaying all possible interchanges ultimately results in a map of every service which fails to convey what is genuinely local to _here_.
 
-Ready to explore? [Try a live demonstration](https://timhowgego.github.io/Aquius/live/)!
+> Ready to explore? [Try a live demonstration](https://timhowgego.github.io/Aquius/live/)!
 
 In this document:
 
@@ -87,8 +87,8 @@ Others options are documented in the [Configuration](#configuration) section bel
 * Aquius is conceptually inaccessible to those with severe visual impairment ("blind people"), with no non-visual alternative available.
 * Internet Explorer 9 is the oldest vintage of browser theoretically supported, although a modern browser will be faster (both in use of `Promise` to load data and `Canvas` to render data). Mobile and tablet devices are supported, although older devices may lag when interacting with the map interface.
 * Aquius is written in pure Javascript, automatically loading its one dependency at runtime, [Leaflet](https://github.com/Leaflet/Leaflet). Aquius can produce graphically intensive results, so be cautious before embedding multiple instances in the same page, or adding Aquius to pages that are already cluttered.
-* For now, there is no automated method of constructing Aquius' datasets: Aquius was built to understand Spain, which is still largely devoid of [electronic interchangeable data](https://transit.land/feed-registry/?country=ES). The current dataset format is described in the [Data Structure](#data-structure) section below, and eventually a GTFS converter might get written.
-* What works in Spain might become more technically problematic should the whole of Europe be deposited into one unfiltered dataset. As is, a 2010-era computer mapping every rail service from Madrid takes about 100ms to do the calculations and another 100ms to map the result, which can then lag slightly when moved.
+* Aquius works adequately within large conurbations, or for inter-regional networks, but might become more technically problematic should multiple large networks be deposited into one unfiltered dataset. As is, a 2010-era computer mapping every rail service from Madrid takes about 100ms to do the calculations and another 100ms to map the result, which can then lag slightly when moved.
+* A [GTFS](https://developers.google.com/transit/gtfs/reference/) converter is being written. In the meantime, the dataset format is described in the [Data Structure](#data-structure) section below.
 
 ## Known Issues
 
@@ -98,15 +98,13 @@ This section tries to explain the reasoning behind particular quirks.
 
 Aquius is fundamentally inaccessible to those with severe visual impairment: The limitation lay in the concept, not primarily the implementation. Aquius can't even read out the stop names, since it doesn't know anything about them except their coordinates. Genuine solutions are more radical than marginal, implying a quite separate application. For example, conversion of the map into a 3D soundscape, or allowing users to walk a route as if playing a [MUD](https://en.wikipedia.org/wiki/MUD).
 
-Tooltips may display in haphazard positions: Tooltips display in the middle of the visual element plotted, however multiple links are often draw as multiple elements (with the same service value) connected together, so _the middle_ ceases to be visually apparent.
-
 Multiple base maps can be added but only one may be displayed: A user selection and associated customisation was envisaged for the future.
+
+Population bubbles are not necessarily centered on towns: These are typically located at the centroid of the underlying administrative area, which does not necessary relate to the main settlement. Their purpose is simply to indicate the presence of people at a broad scale, not to map nuances in local population distribution.
 
 Circular services that constitute two routes in different directions, that share some stops but not all, display with the service in both directions serving the entire shared part of the loop: Circular services normally halve the total service to represent the journey possibilities either clockwise or counter-clockwise, without needing to decide which direction to travel in to reach any one stop. Circular services that take different routes depending on their direction cannot simply be halved in this manner, even over the common section, because the service level in each direction is not necessarily the same. Consequently Aquius would have to understand which direction to travel in order to reach each destination the fastest. That would be technically possible by calculating distance, but would remain prone to misinterpretation, because a service with a significantly higher service frequency in one direction might reasonably be used to make journeys round almost the entire loop, regadless of distance. The safest assumption is that services can be ridden round the loop in either direction. In practice this issue only arises [in Parla](https://timhowgego.github.io/Aquius/live/es-rail-20-jul-2018/#x-3.76265/y40.23928/z14/c-3.7669/k40.2324/m10/s5/vlphn/n2).
 
 ### Spain
-
-Spanish Railway dataset population bubbles are not centered on towns: These are located at the centroid of the municipality, which does not necessary relate to the main settlement. Their purpose is simply to indicate the presence of people at a broad scale, not to map nuances in local population distribution.
 
 Spanish Railway dataset services are not totally accurate: The network was research in one direction (away from Madrid), during academic holidays, and with a Cercanías journey planner that only showed origin/destination and not the stops inbetween. Likewise service totals for many city metros were calculated from average headways, so won't be perfectly accurate. Tourist-type services have been excluded. International services only within Spain. For an introduction to the dataset, see [Disassembling Trenes](https://timhowgego.wordpress.com/2018/09/04/disassembling-trenes/).
 
@@ -186,7 +184,8 @@ The `translation` `Object` allows bespoke locales to be hacked in. Bespoke trans
     "network": "Network",
     "node": "Stops",
     "place": "People",
-    "scale": "Scale"
+    "scale": "Scale",
+    "service": "Period"
   }
     // Extendable for multiple locales
 }
@@ -224,6 +223,7 @@ uiLocale|boolean|true|Enables locale selector
 uiNetwork|boolean|true|Enables network selector
 uiPanel|boolean|true|Enables summary statistic panel
 uiScale|boolean|true|Enables scale selector
+uiService|boolean|true|Enables service selector
 uiShare|boolean|true|Enables embed and export
 uiStore|boolean|true|Enables browser session storage of user state
 
@@ -236,8 +236,9 @@ Key|Type|Default|Description
 c|float|-0.89|_Here_ click Longitude
 k|float|41.66|_Here_ click Latitude
 m|integer|11|_Here_ click zoom
-n|integer|0|User selected network filter: Must match range of networks in `dataset`
-v|string|"hlp"|User selected map layers by first letter: here, link, node, place
+n|integer|0|User selected network filter: Must match range of network in `dataset`
+v|string|"hlnp"|User selected map layers by first letter: here, link, node, place
+r|integer|0|User selected service filter: Must match range of service in `dataset`
 s|integer|5|User selected global scale factor: 0 to 10
 t|string|"en-US"|User selected locale: BCP 47-style
 x|float|-3.689|Map view Longitude
@@ -250,7 +251,7 @@ z|integer|6|Map view zoom
 
 Aquius can also be used as a stand-alone library via `aquius.here()`, which accepts and returns data Objects without script loading or user interface. Arguments, in order:
 
-* `dataObject` - `Object` containing a [Data Structure](#data-structure). Requires at least keys meta.schema, network, link, node and place.
+* `dataObject` - `Object` containing a [Data Structure](#data-structure).
 * `x` - `float` longitude of _here_ in WGS 84.
 * `y` - `float` latitude of _here_ in WGS 84.
 * `range` - `float` distance from _here_ to be searched for nodes, in metres.
@@ -258,18 +259,23 @@ Aquius can also be used as a stand-alone library via `aquius.here()`, which acce
 
 Possible `options`:
 
-* `filter` - `integer` index of network line to filter by.
-* `geoJSON` - `Array` of strings describing map layers to be outputted in GeoJSON format ("network", "link", "node" and/or "place").
+* `filter` - `integer` index of network to filter by.
+* `geoJSON` - `Array` of strings describing map layers to be outputted in GeoJSON format ("here", "link", "node" and/or "place").
 * `sanitize` - `boolean` check data integrity. Checks occur unless set to `false`. Repeat queries with the same dataObject can safely set sanitize to false.
+* `service` - `integer` index of service to restrict by.
 
 **Caution:** Sanitize does not fix logical errors within the dataObject, and should not be used to check data quality. Sanitize merely replaces missing or incomplete structures with zero-value defaults, typically causing bad data to be ignored without throwing errors.
 
 Calls to `aquius.here()` return a JSON-like Object. On error, that Object contains one key `error`.
 
-Otherwise, if `geoJSON` is specified a GeoJSON-style Object with a `FeatureCollection` is returned. In addition to [the standard geometry data](https://tools.ietf.org/html/rfc7946), each `Feature` has two properties, which can be referenced when applying styling in your GIS application:
+Otherwise, if `geoJSON` is specified a GeoJSON-style Object with a `FeatureCollection` is returned. In addition to [the standard geometry data](https://tools.ietf.org/html/rfc7946), each `Feature` has two or more properties, which can be referenced when applying styling in your GIS application:
 
 * `type` - "here", "link" (routes), "node" (stops), "place" (demographics)
 * `value` - numeric value associated with each (such as daily services or resident population)
+* `node` - array of reference data objects relating to the node itself
+* `link` - array of reference data objects relating to the links at the node, or the links contained on the line
+
+The information conatined within keys `node` and `link` is that otherwise displayed in popup boxes when clicking on nodes or links in the map view. The existence of keys `node` and `link` will depend on the dataset. The potential format of the objects that described for the `reference` property of `node` and `link` in the [Data Structure](#data-structure).
 
 Otherwise the JSON-like Object will contain `summary`, is an Object containing link, node and place totals, and geometry for `here`, `link`, `node` and `place`. Each geometry key contains an Array of features, where each feature is an Object with a key `value` (the associated numeric value, such as number of services) and either `circle` (here, node, place) or `polyline` (link). Circles consist of an Array containing a single x, y pair of WGS 84 coordinates. Polylines consist of an Array of Arrays in route order, each child Array containing a similar pair of x, y coordinates. Unless `sanitize` is false, the sanitized `dataObject` will be returned as a key, allowing subsequent queries with the returned dataObject to be passed with `sanitize` false, which speeds up the query slighty.
 
@@ -329,7 +335,7 @@ An optional key `option` may contain an `Object` with the same structure as the 
 
 ### Network
 
-Each `link` (service, detailed below) is categorised with an `integer` product ID. The definition of a product is flexible: The network might be organised by different brands, operators, or vehicles - or potentially even hacked for broad time ranges. (Beware that such a hack is likely to cause excessive duplication of similar links in the dataset, which could bloat file size and thus increase the initial load time, but subsequently should have minimal impact on computational performance.) One or more products ID(s) are grouped into network filters, each network filter becoming an option for the user. Products can be added to more than one network filter, and there is no limit on the total number of filters, beyond practical usability: An interface with a hundred network filters would be hard to both digest and navigate.
+Each `link` (detailed below) is categorised with an `integer` product ID. The definition of a product is flexible: The network might be organised by different brands, operators, or vehicles. One or more products ID(s) are grouped into network filters, each network filter becoming an option for the user. Products can be added to more than one network filter, and there is no limit on the total number of filters, beyond practical usability: An interface with a hundred network filters would be hard to both digest and navigate.
 
 The dataset's `network` key consists of an `Array` of network filters, in the order they are to be presented in the User Interface. This order should be kept constant once the dataset is released, since each network filter is referenced in hashable options by its index in the `Array`. Each network filter itself consists of an `Array` of two parts:
 
@@ -349,23 +355,59 @@ The dataset's `network` key consists of an `Array` of network filters, in the or
 ]
 ```
 
+### Service
+
+Each `link` (detailed below) is categorised with one or more counts of the number of services (typically vehicle journeys) associated with the link. The precise variable is flexible - for example, it could be used to indicate total vehicle capacity - but ensure the `link` key in `translation` contains an appropriate description.
+
+Networks may be adequately described with just one service count per link. However `service` allows the same link to described for different time periods - for example, 2 journeys in the morning and 3 in the afternoon - especially important to differentiate services that are not provided at marginal times, such as evenings or weekends. The `service` key defines those time periods as service filters. Like `network`, each filter consist of a 2-part `Array`, the first part an `Array` of the index positions within each `link` service array that are to be summed to produce the total service count. The second part, the localised description of the filter. For example:
+
+```javascript
+"service": [
+  [
+    [0, 1],
+      // Index positions in link service array
+    {"en-US": "All day"}
+  ],
+  [
+    [0],
+    {"en-US": "Morning"}
+  ],
+  [
+    [1],
+    {"en-US": "Afternoon"}
+  ]
+]
+```
+
+The corresponding `link` service array would consist of an `Array` of two numbers, the first morning, and second afternoon. The first filter would sum both, while the second "morning" filter would take only the first service count, the third "afternoon" filter only the second count.
+
 ### Link
 
 The `link` key contains an `Array` of lines of link data. Each line of link data is defined as a route upon which the entire service has identical stopping points and identical product. On some networks, every daily service will become a separate line of link data, on others almost the whole day's service can be attached to a single line of link data. Each line of link data is itself an `Array` consisting 4 parts:
 
-1. Product ID (`integer`) - described in Network above.
-1. Service level (`integer`) - typically a count of daily or weekly services operated (the total in both directions unless caveat-ed otherwise), although the precise variable is flexible. It could, for example, be used to indicate total vehicle capacity. Ensure the `link` key in `translation` contains an appropriate description.
-1. Nodes served (`Array` of `interger`s) - the Node ID of each point the services stops to serve passengers, in order. Routes are presumed to also operate in the reverse direction, but, as described below, the route can be define as one direction only, in which case the start point is only the first point in the `Array`. Node IDs reference an index position in `node`, and if the `link` is populated with data, so must `node` (and in turn `place`).
-1. Caveats (`Object`) - an extendable area for keys indicating special processing conditions attached to this line of link data. In most cases this will be empty, vis: `{}`. Optional keys are described below:
+1. Product networks (`Array` of `integer`) - list of the Product IDs associated with this link, as described in Network above.
+1. Service levels (`Array` of `float`) - where each value in the array contains a count indicative of service level, such as total vehicle journeys operated (the sum of both directions, unless assigned the property `direction` below). To allow filtering, the position in the array must correspond to a position defined in the `service` key. 
+1. Nodes served (`Array` of `integer`) - the Node ID of each point the services stops to serve passengers, in order. Routes are presumed to also operate in the reverse direction, but, as described below, the route can be define as one direction only, in which case the start point is only the first point in the `Array`. Node IDs reference an index position in `node`, and if the `link` is populated with data, so must `node` (and in turn `place`).
+1. Properties (`Object`) - an extendable area for keys containing optional data or indicating special processing conditions. In many cases this will be empty, vis: `{}`. Optional keys are described below:
 
-* `circular` - `boolean` true indicates operation is actually a continuous loop, where the start and end points are the same station. Only the nodes for one complete loop should be included - the notional start and end stop thus included twice. Circular services are processed so that their duplicated start/end station is only counted once. **Caution:** Figure-of-eight loops are intentionally double-counted at the midpoint each service passes twice per journey, since such services may reasonably be considered to offer two completely different routes to passengers, however this does result in arithmetic quirks (as demonstrated by Atocha's C-7, described in [Known Issues](#known-issues)).
-* `direction` - `boolean` true indicates operation is only in the direction recorded, not also in the opposite direction. As noted under [Known Issues](#known-issues), services that are both circular and directional will produce numeric quirks. *Tip:* Services that loop only at one end of a route (sometimes seen in tram operation) should be recorded as uni-directional with nodes on the common section recorded twice, once in each direction - not recorded as circular.
-* `shared` - `integer` Product ID of the parent service. Shared allows an existing parent service to be assigned an additional child service of a different product category. The parent train is not specifically identified, only its product. Over common sections of route, only the parent will be processed and shown, however if the network is filtered to exclude the parent, the child is processed. The parent service should be defined as the longer of the two routes, such that the parent includes all the stops of the child. Define a `split` if the two routes diverge. Shared was originally required to describe Renfe's practice of sell (state supported) local journey fare products on sections of (theoretically commercial) long distance services, but can likely be hacked in various interesting ways.
-* `split` - `Array` containing `integer` Node IDs describing the unique nodes on the service's route. Split is assigned to one half of a service operated as two portions attached together over a common part of route. Splits can be affected at either or both ends of the route. In theory (untested) more than two portions can be handled by assigning a split to every portion except the first. Like `shared` services, and companion service is not specifically identified, however a `split` should be of the same Product ID as its companion service (else to avoid miscalculations `network` needs to be constructed so that both Product IDs fall into the same categories). Railway services south of London were built on this style of operation, while Renfe only routinely split trains operated on _very_ long distance routes.
+* `circular` or `c` - `boolean` true or `integer` 1 indicates operation is actually a continuous loop, where the start and end points are the same station. Only the nodes for one complete loop should be included - the notional start and end stop thus included twice. Circular services are processed so that their duplicated start/end station is only counted once. **Caution:** Figure-of-eight loops are intentionally double-counted at the midpoint each service passes twice per journey, since such services may reasonably be considered to offer two completely different routes to passengers, however this does result in arithmetic quirks (as demonstrated by Atocha's C-7, described in [Known Issues](#known-issues)).
+* `direction` or `d` - `boolean` true or `integer` 1 indicates operation is only in the direction recorded, not also in the opposite direction. As noted under [Known Issues](#known-issues), services that are both circular and directional will produce numeric quirks. *Tip:* Services that loop only at one end of a route (sometimes seen in tram operation) should be recorded as uni-directional with nodes on the common section recorded twice, once in each direction - not recorded as circular.
+* `pickup` or `u` - `Array` containing `integer` Node IDs describing nodes on the service's route where passengers can only board (get on), not alight (get off). Restriction not yet implemented.
+* `reference` or `r` - `Array` containing one or more `Object` of descriptive data associated with the routes within the link - for example, route headcodes or display colors. Possible keys and values are described below.
+* `setdown` or `s` - `Array` containing `integer` Node IDs describing nodes on the service's route where passengers can only alight (get off), not board (get on). Restriction not yet implemented.
+* `shared` or `h` - `integer` Product ID of the parent service. Shared allows an existing parent service to be assigned an additional child service of a different product category. The specific parent service is not specifically identified, only its product. Over common sections of route, only the parent will be processed and shown, however if the network is filtered to exclude the parent, the child is processed. The parent service should be defined as the longer of the two routes, such that the parent includes all the stops of the child. Shared was originally required to describe Renfe's practice of selling (state supported) local journey fare products on sections of (theoretically commercial) long distance services, but such operations are also common in aviation, where a single flight may carry seats sold more than one airline.
+* `split` or `t` - `Array` containing `integer` Node IDs describing the unique nodes on the service's route. Split is assigned to one half of a service operated as two portions attached together over a common part of route. Splits can be affected at either or both ends of the route. In theory more than two portions can be handled by assigning a split to every portion except the first. Like `shared` services, and companion service is not specifically identified, however a `split` should be of the same Product ID as its companion service (else to avoid miscalculations `network` needs to be constructed so that both Product IDs fall into the same categories). Railway services south of London were built on this style of operation, while operators such as Renfe only split trains operated on _very_ long distance routes.
+
+Possible keys within the `reference` Object - all values are `string`:
+
+* `c` - 6-hexadecimal HTML-style color associated with the route line
+* `n` - short name or human-readable reference code (recommended)
+* `t` - 6-hexadecimal HTML-style color associated with the route text (must contrast against the color of the line)
+* `u` - URL link for further human-readable information
+
+References should be consistently presented across the dataset - for example always "L1", not also "l1" and "line one". References should also be unique within localities - for example, the dataset may contain several different services referenced "L1", but should they serve the same node they will be aggregated together as "L1".
 
 **Caution:** `split`, and perhaps `shared`, can be hacked to mimic guaranteed onward connections to key destinations, especially from isolated branch lines or feeder services. However this feature should not be abused to imply all possible interchanges, and it may be more sensible to let users discover for themselves the options available at _the end of the line_.
-
-Some features of contemporary operation, such as stops made only on request, are already implicit in the data structure. There will inevitably be other quirks in specific transport networks that will need their own caveat keys and associated processing code. For example, Aquius cannot (yet) handle stops specifically made to pick up _or_ set down passengers (only both together) - a classic operational restriction in highly regulated or cabotaged markets. Caveats were intentionally keyed because they are optional for most services, and because the range of conditions that might be required cannot always be known. However routinue use of a key structure will tend to bloat the file size, and a caveat key that ends up being used _everywhere_ should evoke a strategic rethink of the whole data structure.
 
 ### Node
 
@@ -373,23 +415,37 @@ The `node` key contains an `Array` of node (stop, station) information. Each nod
 
 1. Longitude (`float`) - "x" coordinate of the node in WGS 84.
 1. Latitude (`float`) - "y" coordinate of the node in WGS 84.
-1. Place ID (`integer`) - index position in `place` (described below) for the place that contains this node.
+1. Properties (`Object`) - an extendable area for keys related to this node. Minimum empty, vis: `{}`.
+
+Optional `properties` keys are:
+
+* `place` or `p` - `integer` index position in `place` (described below) for the place that contains this node. Recommended.
+* `reference` or `r` - `Array` containing one or more `Object` of descriptive data associated with the stop or stops within the node - for example, names or URLs containing further information.
+
+Possible `reference` keys and values are described below - all values are `string`:
+
+* `n` - short name or human-readable reference code (recommended)
+* `u` - URL link for further human-readable information
 
 *Tip:* To reduce `dataset` file size, restrict the accuracy of coordinates to only that needed - metres, not millmetres.
 
 ### Place
 
-The `place` key has a similar structure to `node` above - each place an `Array` referenced by index position. Places are intended to quickly summarise local demographics - how many people are connected together. Places are assigned simply to nodes (see `node` above), so each node has just one demographic association. For example, the Spanish Railway dataset uses the census of local municipalities, since municipalities tend to self-define the concept of locality, with both cities and villages falling into single municipalities. It is not possible to change the population catchment for specific Products within the same network, so the dataset creator will need to find an acceptable compromise that represents the realistic catchment of a node. Aquius was originally intended simply to show the broad presence of people nearby. As is, if precise catchment is important, networks containing a mix of intra and inter-urban services may be best split into two completely separate datasets, to be shown in two separate instances of Aquius.
+The `place` key has a similar structure to `node` above - each place an `Array` referenced by index position. Place can be an entirely empty `Array`, vis: `[]`. Places are intended to quickly summarise local demographics - how many people are connected together. Places are assigned simply to nodes (see `node` above), so each node has just one demographic association. For example, the Spanish Railway dataset uses the census of local municipalities, since municipalities tend to self-define the concept of locality, with both cities and villages falling into single municipalities. It is not possible to change the population catchment for specific Products within the same network, so the dataset creator will need to find an acceptable compromise that represents the realistic catchment of a node. Aquius was originally intended simply to show the broad presence of people nearby. As is, if precise catchment is important, networks containing a mix of intra and inter-urban services may be best split into two completely separate datasets, to be shown in two separate instances of Aquius.
 
 1. Longitude (`float`) - "x" coordinate of the place in WGS 84.
 1. Latitude (`float`) - "y" coordinate of the place in WGS 84.
-1. Population (`integer`) - total resident population, or equivalent statistic.
+1. Properties (`Object`) - an extendable area for keys related to this place. Minimum empty, vis: `{}`.
+
+Optional `properties` keys are:
+
+* `population` or `p` - `integer` total resident population, or equivalent statistic. Recommended.
 
 *Tip:* For bespoke analysis, the population can be hacked for any geospatial data that sums.
 
 ## License
 
-Aquius, with its empty dataset, is freely reusable and modifiable under a [MIT License](https://opensource.org/licenses/MIT).
+Aquius, with no dataset, is freely reusable and modifiable under a [MIT License](https://opensource.org/licenses/MIT).
 
 Dataset copyright will differ, and no licensing guarantees can be given unless made explicit by all entities represented within the dataset. Be warned that no protection is afforded by the _logical nonsense_ of a public transport operator attempting to deny the public dissemination of their public operations. Nor should government-owned companies or state concessionaires be naively presumed to operate in some kind of public domain. Railways, in particular, can accumulate all manner of arcane legislation and strategic national paranoias. In the era of Google many public transport operators have grown less controlling of their information channels, but some traditional entities, [such as Renfe](https://www.elconfidencial.com/espana/madrid/2018-07-17/transparencia-retrasos-cercanias-madrid_1593408/), are not yet beyond claiming basic observable information to be a trade secret. Your mileage may vary.
 

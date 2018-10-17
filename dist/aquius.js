@@ -35,7 +35,8 @@ var aquius = aquius || {
       "network": "Network",
       "node": "Stops",
       "place": "People",
-      "scale": "Scale"
+      "scale": "Scale",
+      "service": "Period"
         // Expandable, but new keys should not start _ unless specially coded
     },
     "es-ES": {
@@ -48,7 +49,8 @@ var aquius = aquius || {
       "network": "Red",
       "node": "Paradas",
       "place": "Personas",
-      "scale": "Escala"
+      "scale": "Escala",
+      "service": "Período"
     }
   };
   var defaultOptions = {
@@ -110,8 +112,10 @@ var aquius = aquius || {
       // CSS Opacity of place (population) layer circle fill: 0-1
     "placeScale": 1.0,
       // Scale factor for place (population) layer circles: ceil(sqrt(people*scale/666)
-    "v": "hlp",
+    "v": "hlnp",
       // Displayed map layers by first letter: here, link, node, place
+    "r": 0,
+      // User selected service filter
     "s": 5,
       // User selected global scale factor: 0 to 10
     "uiHash": false,
@@ -124,6 +128,8 @@ var aquius = aquius || {
       // Enables summary statistic panel
     "uiScale": true,
       // Enables scale selector
+    "uiService": true,
+      // Enables service selector
     "uiShare": true,
       // Enables embed and export
     "uiStore": true,
@@ -531,6 +537,24 @@ var aquius = aquius || {
       return attributionTranslationObject;
     }
 
+    function rangeIndexedOption(configOptions, option, dataObjectKey) {
+      // Force eg n to be a valid network index
+
+      configOptions[option] = parseInt(configOptions[option], 10);
+      if (configOptions[option] < 0) {
+        configOptions[option] = 0;
+      } else {
+        if (dataObjectKey in configOptions.dataObject &&
+          Array.isArray(configOptions.dataObject[dataObjectKey]) &&
+          configOptions[option] >= configOptions.dataObject[dataObjectKey].length
+        ) {
+          configOptions[option] = configOptions.dataObject[dataObjectKey].length - 1;
+        }
+      }
+
+      return configOptions;
+    }
+
     var storeObject, storeNames, translationObjects, translationLocales, translationNames, i, j, k;
     var defaultNames = Object.keys(defaultOptions);
     var localeNames = [];
@@ -604,18 +628,8 @@ var aquius = aquius || {
       }
     }
 
-    // Force n to be a valid network index
-    configOptions.n = parseInt(configOptions.n, 10);
-    if (configOptions.n < 0) {
-      configOptions.n = 0;
-    } else {
-      if ("network" in configOptions.dataObject &&
-        Array.isArray(configOptions.dataObject.network) &&
-        configOptions.n >= configOptions.dataObject.network.length
-      ) {
-        configOptions.n = configOptions.dataObject.network.length - 1;
-      }
-    }
+    configOptions = rangeIndexedOption(configOptions, "n", "network");
+    configOptions = rangeIndexedOption(configOptions, "r", "service");
 
     // Translation precedence = configOptions, dataObject, default
     translationObjects = [];
@@ -659,7 +673,9 @@ var aquius = aquius || {
     }
 
     // Remove place if place data empty
-    if (configOptions.dataObject.place.length === 0) {
+    if ("place" in configOptions.dataObject === false ||
+      configOptions.dataObject.place.length === 0
+    ) {
       layerNames.splice(layerNames.indexOf("place"), 1);
       layerSummaryNames.splice(layerSummaryNames.indexOf("place"), 1);
     }
@@ -751,6 +767,46 @@ var aquius = aquius || {
     return configOptions;
   }
 
+  function getLocalised(configOptions, localiseThis) {
+
+    if (configOptions.t in configOptions.translation &&
+      localiseThis in configOptions.translation[configOptions.t]
+    ) {
+      // Available in user locale
+      return configOptions.translation[configOptions.t][localiseThis];
+    } else {
+      if (configOptions.locale in configOptions.translation &&
+        localiseThis in configOptions.translation[configOptions.locale]
+      ) {
+        // Available in default locale
+        return configOptions.translation[configOptions.locale][localiseThis];
+      }
+    }
+    return "";
+  }
+
+  function createElement(elementType, value, style) {
+    // Returns DOM. Value and style key:value objects optional. Events not handled
+
+    var theseValues, v;
+    var thisElement = document.createElement(elementType);
+
+    if (typeof value !== "undefined") {
+      theseValues = Object.keys(value);
+      for (v = 0; v < theseValues.length; v += 1) {
+        thisElement[theseValues[v]] = value[theseValues[v]];
+      }
+    }
+
+    if (typeof style !== "undefined") {
+      theseValues = Object.keys(style);
+      for (v = 0; v < theseValues.length; v += 1) {
+        thisElement.style[theseValues[v]] = style[theseValues[v]];
+      }
+    }
+
+    return thisElement;
+  }
 
   function buildUI(configId, configOptions) {
     // Bespoke layers and controls, all localisable
@@ -764,28 +820,15 @@ var aquius = aquius || {
     function localise(configOptions, toLocalise, rerender) {
       // Apply translation to localised DOM items
 
-      var i;
+      var localiseThis, i;
       var toLocaliseNames = Object.keys(toLocalise);
+
       for (i = 0; i < toLocaliseNames.length; i += 1) {
         if (document.getElementById(toLocaliseNames[i])) {
-
-          if (configOptions.t in configOptions.translation &&
-            toLocalise[toLocaliseNames[i]] in configOptions.translation[configOptions.t]
-          ) {
-            // Available in user locale
-            document.getElementById(toLocaliseNames[i]).textContent =
-              configOptions.translation[configOptions.t][toLocalise[toLocaliseNames[i]]];
-          } else {
-            if (configOptions.locale in configOptions.translation &&
-              toLocalise[toLocaliseNames[i]] in configOptions.translation[configOptions.locale]
-            ) {
-              // Available in default locale
-              document.getElementById(toLocaliseNames[i]).textContent =
-                configOptions.translation[configOptions.locale][toLocalise[toLocaliseNames[i]]];
-            }
-              // Leave unchanged or blank
+          localiseThis = getLocalised(configOptions, toLocalise[toLocaliseNames[i]]);
+          if (localiseThis !== "") {
+            document.getElementById(toLocaliseNames[i]).textContent = localiseThis;
           }
-
         }
       }
 
@@ -955,27 +998,37 @@ var aquius = aquius || {
       return theParent;
     }
 
-    function createElement(elementType, value, style) {
-      // Returns DOM. Value and style key:value objects optional. Events not handled
+    function createRadio(controlForm, configOptions, dataObjectKey, option, uiOption) {
 
-      var theseValues, v;
-      var thisElement = document.createElement(elementType);
+      var element, selection, i;
 
-      if (typeof value !== "undefined") {
-        theseValues = Object.keys(value);
-        for (v = 0; v < theseValues.length; v += 1) {
-          thisElement[theseValues[v]] = value[theseValues[v]];
+      if (dataObjectKey in configOptions.dataObject &&
+        Array.isArray(configOptions.dataObject[dataObjectKey]) &&
+        configOptions.dataObject[dataObjectKey].length > 1 &&
+        configOptions[uiOption] === true
+      ) {
+
+        selection = [];
+        for (i = 0; i < configOptions.dataObject[dataObjectKey].length; i += 1) {
+          selection.push({
+            "value": i,
+            "id": configId + dataObjectKey + i
+            });
+          toLocalise[configId + dataObjectKey + i] = "_" + dataObjectKey + i;
         }
-      }
 
-      if (typeof style !== "undefined") {
-        theseValues = Object.keys(style);
-        for (v = 0; v < theseValues.length; v += 1) {
-          thisElement.style[theseValues[v]] = style[theseValues[v]];
-        }
-      }
+        element = getRadio(selection, configId + dataObjectKey, configOptions[option]);
+        element.addEventListener("change", function () {
+          configOptions[option] = parseInt(document.querySelector("input[name='" +
+            configId + dataObjectKey + "']:checked").value, 10);
+          var opt = {};
+          opt[option] = configOptions[option];
+          store(configId, configOptions, opt);
+          configOptions = goHere(configId, configOptions);
+        }, supportsPassive ? { "passive": true } : false);
+        controlForm.appendChild(element);
 
-      return thisElement;
+      }
     }
 
     try {
@@ -1151,33 +1204,9 @@ var aquius = aquius || {
       return configOptions;
     }
 
-    if ("network" in configOptions.dataObject &&
-      Array.isArray(configOptions.dataObject.network) &&
-      configOptions.dataObject.network.length > 1 &&
-      configOptions.uiNetwork === true
-    ) {
+    createRadio(controlForm, configOptions, "network", "n", "uiNetwork");
 
-      selection = [];
-      for (i = 0; i < configOptions.dataObject.network.length; i += 1) {
-        selection.push({
-          "value": i,
-          "id": configId + "network" + i
-          });
-        toLocalise[configId + "network" + i] = "_network" + i;
-      }
-
-      element = getRadio(selection, configId + "network", configOptions.n);
-      element.addEventListener("change", function () {
-        configOptions.n = parseInt(document.querySelector("input[name='" +
-          configId + "network']:checked").value, 10);
-        store(configId, configOptions, {
-          "n": configOptions.n
-        });
-        configOptions = goHere(configId, configOptions);
-      }, supportsPassive ? { "passive": true } : false);
-      controlForm.appendChild(element);
-
-    }
+    createRadio(controlForm, configOptions, "service", "r", "uiService");
 
     if (configOptions.uiScale === true) {
       parent = createElement("label");
@@ -1190,7 +1219,10 @@ var aquius = aquius || {
       toLocalise[child.id] = "scale";
       parent.appendChild(child);
 
-      child = createElement("input", {
+      child = createElement("div", {}, {
+        "text-align": "center"
+      });
+      element = createElement("input", {
         "id": configId + "scale",
         "type": "range",
           // Range not supported by IE9, but should default to text
@@ -1198,13 +1230,14 @@ var aquius = aquius || {
         "max": 10,
         "value": configOptions.s
       });
-      child.addEventListener("change", function () {
+      element.addEventListener("change", function () {
         configOptions.s = parseInt(document.getElementById(configId + "scale").value, 10);
         store(configId, configOptions, {
           "s": configOptions.s
         });
         configOptions = goHere(configId, configOptions, true);
       }, supportsPassive ? { "passive": true } : false);
+      child.appendChild(element);
       parent.appendChild(child);
 
       controlForm.appendChild(parent);
@@ -1260,7 +1293,8 @@ var aquius = aquius || {
             {
               "filter": configOptions.n,
               "geoJSON": geoJSON,
-              "sanitize": false
+              "sanitize": false,
+              "service": configOptions.r
             }
           ))],
           {type: "application/json;charset=utf-8"})
@@ -1299,7 +1333,150 @@ var aquius = aquius || {
   function goHere(configId, configOptions, rerender, runonce) {
     // Requests and here and processes result. Rerender refreshes UI only. Runonce initial only
 
-    var id, geometry, keyName, options, scale, i, j;
+    var id, geometry, keyName, name, options, scale, i, j;
+
+    function makePopup(name, value, linkObject, nodeObject) {
+
+      var popup = createElement("div", {}, {
+        "color": "#000"
+      });
+
+      function buildData(reference, popup, isHead) {
+
+        var block, element, i;
+
+        if (reference !== "undefined" &&
+          Array.isArray(reference)
+        ) {
+          block = createElement("div", {}, {
+            "margin": "0.3em 0"
+          });
+          if (isHead) {
+            block.style["font-weight"] = "bold";
+          } else {
+            block.style["line-height"] = "2.3em";
+          }
+          for (i = 0; i < reference.length; i += 1) {
+            if ("n" in reference[i]) {
+              if ("u" in reference[i]) {
+                if (isHead) {
+                  element = createElement("a", {
+                    "href": reference[i].u
+                  });
+                } else {
+                  element = createElement("a", {
+                    "href": reference[i].u
+                  }, {
+                    "color": "#000",
+                    "text-decoration": "none"
+                  });
+                }
+              } else {
+                element = createElement("span");
+              }
+              element.textContent = reference[i].n;
+              if (isHead === false) {
+                element.style.border = "1px solid #000";
+                element.style.padding = "0.3em 0.5em";
+                if ("c" in reference[i]) {
+                  element.style["background-color"] = "#" + reference[i].c;
+                }
+                if ("t" in reference[i]) {
+                  element.style.color = "#" + reference[i].t;
+                  element.style["border-color"] = "#" + reference[i].t;
+                }
+              }
+              block.appendChild(element);
+              if (i < reference.length - 1) {
+                if (isHead) {
+                  block.appendChild(document.createTextNode("|"));
+                } else {
+                  block.appendChild(document.createTextNode(" "));
+                }
+              }
+            }
+          }
+          popup.appendChild(block);
+        }
+
+        return popup;
+      }
+
+      popup = buildData(nodeObject, popup, true);
+
+      popup.appendChild(createElement("div", {
+        "textContent": name + ": " + Math.round(value).toString()
+      }, {
+        "margin": "0.3em 0"
+      }));
+
+      popup = buildData(linkObject, popup, false);
+
+      return popup;
+
+    }
+
+    function getLinkColor(configOptions, reference) {
+
+      var i;
+      var colors = [];
+
+      function mergeColors(colors, defaultColor) {
+
+        var averageColor, i;
+        var mixedColor = "#";
+        var rgb = [[], [], []];
+
+        for (i = 0; i < colors.length; i += 1) {
+          if (colors[i].length === 6) {
+            // Currently supports only original HTML hex style colors
+            rgb[0].push(parseInt(colors[i].slice(0, 2), 16));
+            rgb[1].push(parseInt(colors[i].slice(2, 4), 16));
+            rgb[2].push(parseInt(colors[i].slice(4, 6), 16));
+          }
+        }
+
+        for (i = 0; i < rgb.length; i += 1) {
+          if (rgb[i].length === 0) {
+            return defaultColor;
+              // Unrecognised color style
+          }
+          averageColor = Math.round((rgb[i].reduce(function(a, b) {
+            return a + b;
+          }, 0)) / rgb[i].length);
+          if (averageColor <= 16) {
+            mixedColor += "0";
+          }
+          mixedColor += averageColor.toString(16);
+        }
+
+        return mixedColor;
+      }
+
+      if (reference === "undefined" ||
+        !Array.isArray(reference)
+      ) {
+        return configOptions.linkColor;
+      }
+
+      for (i = 0; i < reference.length; i += 1) {
+        if ("c" in reference[i] &&
+          colors.indexOf(reference[i].c) === -1
+        ) {
+          colors.push(reference[i].c);
+        }
+      }
+
+      if (colors.length === 0) {
+        return configOptions.linkColor;
+      }
+      if (colors.length === 1) {
+        return "#" + colors[0];
+        // Future: Link color !== node color (also below)
+      }
+
+      return mergeColors(colors, "#" + colors[0]);
+    }
 
     for (i = 0; i < layerNames.length; i += 1) {
       if (layerNames[i] in configOptions._layer) {
@@ -1312,7 +1489,8 @@ var aquius = aquius || {
       "_here" in configOptions === false
     ) {
       options = {
-        "filter": configOptions.n
+        "filter": configOptions.n,
+        "service": configOptions.r
       };
       if (typeof runonce !== "undefined" &&
         runonce === true
@@ -1356,9 +1534,11 @@ var aquius = aquius || {
     }
 
     if ("place" in configOptions._here &&
+      "place" in configOptions.dataObject &&
       configOptions.dataObject.place.length > 0
     ) {
       scale = Math.exp((configOptions.s - 5) / 2) * configOptions.placeScale / 666;
+      name = getLocalised(configOptions, "place");
       for (i = 0; i < configOptions._here.place.length; i += 1) {
         if ("circle" in configOptions._here.place[i] &&
           "value" in configOptions._here.place[i] &&
@@ -1375,7 +1555,8 @@ var aquius = aquius || {
               "radius": Math.ceil(Math.sqrt(configOptions._here.place[i].value * scale)),
               "stroke": false
             }
-          ).bindTooltip(Math.round(configOptions._here.place[i].value).toString())
+          ).bindTooltip(Math.round(configOptions._here.place[i].value).toString() + " " + name)
+            // Place is a tooltip, not popup, to allow easier here clicks
           .addTo(configOptions._layer.place);
         }
       }
@@ -1383,6 +1564,7 @@ var aquius = aquius || {
 
     if ("link" in configOptions._here) {
       scale = Math.exp((configOptions.s - 5) / 2) * configOptions.linkScale * 4;
+      name = getLocalised(configOptions, "link");
       for (i = 0; i < configOptions._here.link.length; i += 1) {
         if ("polyline" in configOptions._here.link[i] &&
           "value" in configOptions._here.link[i]
@@ -1397,10 +1579,20 @@ var aquius = aquius || {
             }
           }
           configOptions.leaflet.polyline(geometry, {
-              "color": configOptions.linkColor,
+              "color": getLinkColor(configOptions, configOptions._here.link[i].link),
               "weight": Math.ceil(Math.log(1 + (configOptions._here.link[i].value * (1 / scale))) * scale)
             }
-          ).bindTooltip(Math.round(configOptions._here.link[i].value).toString())
+          ).on("click", function (evt) {
+            var popup = evt.target.getPopup();
+            var index = parseInt(popup.getContent(), 10);
+            if (!Number.isNaN(index)) {
+              // Else already processed
+              popup.setContent(makePopup(name, configOptions._here.link[index].value, configOptions._here.link[index].link));
+              popup.update();
+            }
+          })
+          .bindPopup(i)
+            // Popup stores only the index value until clicked
           .addTo(configOptions._layer.link);
         }
       }
@@ -1408,6 +1600,7 @@ var aquius = aquius || {
 
     if ("node" in configOptions._here) {
       scale = Math.exp((configOptions.s - 5) / 2) * configOptions.nodeScale * 2;
+      name = getLocalised(configOptions, "link");
       for (i = 0; i < configOptions._here.node.length; i += 1) {
         if ("circle" in configOptions._here.node[i] &&
           "value" in configOptions._here.node[i] &&
@@ -1423,7 +1616,18 @@ var aquius = aquius || {
               "radius": Math.ceil(Math.log(1 + (configOptions._here.node[i].value * (1 / (scale * 2)))) * scale),
               "weight": 1
             }
-          ).bindTooltip(Math.round(configOptions._here.node[i].value).toString())
+          ).on("click", function (evt) {
+            var popup = evt.target.getPopup();
+            var index = parseInt(popup.getContent(), 10);
+            if (!Number.isNaN(index)) {
+              // Else already processed
+              popup.setContent(makePopup(name, configOptions._here.node[index].value,
+                configOptions._here.node[index].link, configOptions._here.node[index].node));
+              popup.update();
+            }
+          })
+          .bindPopup(i)
+            // Popup stores only the index value until clicked
           .addTo(configOptions._layer.node);
         }
       }
@@ -1514,7 +1718,7 @@ var aquius = aquius || {
    * @param {number} x - longitude
    * @param {number} y - latitude
    * @param {number} range - metres from lat,lng
-   * @param {Object} options - filter:network index, geoJSON:array of string layernames, sanitize:boolean, 
+   * @param {Object} options - filter:network index, geoJSON:array layernames, sanitize:boolean, service:service index
    * @return {Object} key:values - error:description on failure
    */
   "use strict";
@@ -1530,10 +1734,11 @@ var aquius = aquius || {
       // Minimum default structure of each "line" (array) for non-header data structures
       "0": {
         // By schema ID, extendable for future schema
-        "link": [0, 0, [0], {}],
+        "link": [[0], [0], [0], {}],
         "network": [[0], {"en-US": "Unknown"}],
-        "node": [0, 0, 0],
-        "place": [0, 0, 0]
+        "node": [0, 0, {}],
+        "place": [0, 0, {}],
+        "service": [[0], {"en-US": "Unknown"}]
       }
     };
       // In practice 0 equates to null, while avoiding dataset rejection or variable checking during draw
@@ -1590,9 +1795,28 @@ var aquius = aquius || {
           if (typeof dataObject[keyName[i]][j][k] !==
             typeof networkObjects[dataObject.meta.schema][keyName[i]][k]
           ) {
-            // Replace specific data item with default
-            dataObject[keyName[i]][j][k] =
-              networkObjects[dataObject.meta.schema][keyName[i]][k];
+
+            if ((keyName[i] === "node" ||
+              keyName[i] === "place") &&
+              k === 2 &&
+              typeof dataObject[keyName[i]][j][k] === "number"
+            ) {
+              // Accomodate old non-property node/place data structure
+              dataObject[keyName[i]][j][k] = {"p": dataObject[keyName[i]][j][k]};
+            } else {
+              if (keyName[i] === "link" &&
+                typeof dataObject[keyName[i]][j][k] === "number" &&
+                (k === 0 ||
+                k === 1)
+              ) {
+                // Accomodate old non-array link product data structure
+                dataObject[keyName[i]][j][k] = [dataObject[keyName[i]][j][k]];
+              } else {
+                // Replace specific data item with default
+                dataObject[keyName[i]][j][k] =
+                  networkObjects[dataObject.meta.schema][keyName[i]][k];
+              }
+            }
           }
 
           if (Array.isArray(dataObject[keyName[i]][j][k])) {
@@ -1647,8 +1871,8 @@ var aquius = aquius || {
   function walkRoutes(raw, dataObject, options) {
     // Adds serviceLink and serviceNode matrices to raw, filtered for here and product
 
-    var destination, origin, products, route, serviceCircular, serviceDirection,
-      serviceLevel, serviceSplit, i, j;
+    var destination, origin, products, reference, route, serviceCircular, serviceDirection,
+      serviceLevel, serviceLevelLink, serviceSplit, serviceSplitIndex, services, i, j, k;
     
     raw.serviceLink = [];
       // Service by link [from[to[service]]] - with voids undefined
@@ -1657,7 +1881,8 @@ var aquius = aquius || {
 
     if ("filter" in options &&
       typeof options.filter === "number" &&
-      options.filter >= 0 && options.filter < dataObject.network.length
+      options.filter >= 0 &&
+      options.filter < dataObject.network.length
     ) {
       products = dataObject.network[options.filter][0];
     } else {
@@ -1665,12 +1890,28 @@ var aquius = aquius || {
         // Zero length means all products
     }
 
+    if ("service" in options &&
+      typeof options.service === "number" &&
+      options.service >= 0 &&
+      options.service < dataObject.service.length
+    ) {
+      services = dataObject.service[options.service][0];
+    } else {
+      services = [];
+        // Zero length means all services
+    }
+
     for (i = 0; i < dataObject.link.length; i += 1) {
 
-      if ((products.length === 0 || products.indexOf(dataObject.link[i][0]) !== -1) &&
+      if ((products.length === 0 ||
+        ((products.filter( function (value) {
+          return dataObject.link[i][0].indexOf(value) !== -1;
+        })).length > 0) ) &&
           // Product included
-        ("shared" in dataObject.link[i][3] === false ||
-          products.indexOf(dataObject.link[i][3].shared) === -1) &&
+        (("shared" in dataObject.link[i][3] === false ||
+          products.indexOf(dataObject.link[i][3].shared) === -1) ||
+          ("h" in dataObject.link[i][3] === false ||
+          products.indexOf(dataObject.link[i][3].h) === -1)) &&
           // Share not included as parent
         (dataObject.link[i][2].filter( function (value) {
           return raw.hereNodes.indexOf(value) !== -1;
@@ -1679,137 +1920,197 @@ var aquius = aquius || {
       ) {
         // Process this link line, otherwise ignore
 
-        route = [];
-        serviceCircular = null;
-        serviceDirection = null;
-        serviceSplit = null;
-
-        if ("split" in dataObject.link[i][3] &&
-          Array.isArray(dataObject.link[i][3]["split"])
-        ) {
-          /**
-           * splits (split === 1) only contributes to service count at nodes within unique sections,
-           * unless (split === 2) fromNodes contains no common sections.
-           * splits (split === 1) only plotted in unique sections,
-           * unless (split === 2) fromNodes contains no common sections
-           */
-          if (
-            (dataObject.link[i][2].filter( function (value) {
-            return dataObject.link[i][3]["split"].indexOf(value) === -1;
-            }))
-            .filter( function (value) {
-              return raw.hereNodes.indexOf(value) !== -1;
-            }).length > 0
+        serviceLevel = 0;
+        for (j = 0; j < dataObject.link[i][1].length; j += 1) {
+          if (services.indexOf(j) !== -1 ||
+            services.length === 0
           ) {
-            // Splits, including within common sections
-            serviceSplit = 1;
+            serviceLevel += dataObject.link[i][1][j];
+          }
+        }
+
+        if (serviceLevel > 0) {
+
+          reference = [];
+          route = [];
+          serviceCircular = null;
+          serviceDirection = null;
+          serviceSplit = null;
+          serviceSplitIndex = [];
+
+          if ("reference" in dataObject.link[i][3] &&
+            Array.isArray(dataObject.link[i][3]["reference"])
+          ) {
+            reference = dataObject.link[i][3]["reference"];
           } else {
-            // Splits, containing no common sections
-            serviceSplit = 2;
-            raw.summary.link += dataObject.link[i][1];
+            if ("r" in dataObject.link[i][3] &&
+              Array.isArray(dataObject.link[i][3]["r"])
+            ) {
+              reference = dataObject.link[i][3]["r"];
+            }
           }
-        } else {
-          raw.summary.link += dataObject.link[i][1];
-        }
 
-        if ("circular" in dataObject.link[i][3] &&
-          dataObject.link[i][3].circular === true
-        ) {
-          serviceCircular = dataObject.link[i][2].length - 1;
-            // Exclude the final node on a circular
-        }
+          if (("split" in dataObject.link[i][3] &&
+            Array.isArray(dataObject.link[i][3]["split"])) ||
+            ("t" in dataObject.link[i][3] &&
+            Array.isArray(dataObject.link[i][3].t))
+          ) {
+            /**
+             * splits (split === 1) only contributes to service count at nodes within unique sections,
+             * unless (split === 2) fromNodes contains no common sections.
+             * splits (split === 1) only plotted in unique sections,
+             * unless (split === 2) fromNodes contains no common sections
+             */
+            if ("split" in dataObject.link[i][3]) {
+              serviceSplitIndex = dataObject.link[i][3]["split"];
+            } else {
+              serviceSplitIndex = dataObject.link[i][3].t;
+            }
+            if (
+              (dataObject.link[i][2].filter( function (value) {
+              return serviceSplitIndex.indexOf(value) === -1;
+              }))
+              .filter( function (value) {
+                return raw.hereNodes.indexOf(value) !== -1;
+              }).length > 0
+            ) {
+              // Splits, including within common sections
+              serviceSplit = 1;
+            } else {
+              // Splits, containing no common sections
+              serviceSplit = 2;
+              raw.summary.link += serviceLevel;
+            }
+          } else {
+            raw.summary.link += serviceLevel;
+          }
 
-        if ("direction" in dataObject.link[i][3] &&
-          dataObject.link[i][3].direction === true
-        ) {
-          serviceDirection = 1;
+          if (("circular" in dataObject.link[i][3] &&
+            (dataObject.link[i][3].circular === true ||
+            dataObject.link[i][3].circular === 1)) ||
+            ("c" in dataObject.link[i][3] &&
+            (dataObject.link[i][3].c === true ||
+            dataObject.link[i][3].c === 1))
+          ) {
+            serviceCircular = dataObject.link[i][2].length - 1;
+              // Exclude the final node on a circular
+          }
 
-          for (j = 0; j < dataObject.link[i][2].length; j += 1) {
-            if (raw.hereNodes.indexOf(dataObject.link[i][2][j]) !== -1 ) {
-              if (serviceCircular !== null) {
-                route = dataObject.link[i][2].slice(0, -1);
-                  // Come friendly bombs and fall on Parla
-                route = route.slice(j).concat(route.slice(0, j));
-                  // Its circular uni-directional tram is nodal nightmare
-                route.push(route[0]);
-                  /**
-                   * Still not perfect: Counts the whole service round the loop
-                   * Considered defering these service till they can be summarised at the end
-                   * However Parla has unequal frequencies in each direction,
-                   * so halving (as other circulars) over common sections is still wrong
-                   * Would need to calculate which direction is the fastest to each node
-                   */
-              } else {
-                route = dataObject.link[i][2].slice(j);
-                  // Route ignores nodes before the 1st found in hereNodes
+          if (("direction" in dataObject.link[i][3] &&
+            (dataObject.link[i][3].direction === true ||
+            dataObject.link[i][3].direction === 1)) ||
+            ("d" in dataObject.link[i][3] &&
+            (dataObject.link[i][3].d === true ||
+            dataObject.link[i][3].d === 1))
+          ) {
+            serviceDirection = 1;
+
+            for (j = 0; j < dataObject.link[i][2].length; j += 1) {
+              if (raw.hereNodes.indexOf(dataObject.link[i][2][j]) !== -1 ) {
+                if (serviceCircular !== null) {
+                  route = dataObject.link[i][2].slice(0, -1);
+                    // Come friendly bombs and fall on Parla
+                  route = route.slice(j).concat(route.slice(0, j));
+                    // Its circular uni-directional tram is nodal nightmare
+                  route.push(route[0]);
+                    /**
+                     * Still not perfect: Counts the whole service round the loop
+                     * Considered defering these service till they can be summarised at the end
+                     * However Parla has unequal frequencies in each direction,
+                     * so halving (as other circulars) over common sections is still wrong
+                     * Would need to calculate which direction is the fastest to each node
+                     */
+                } else {
+                  route = dataObject.link[i][2].slice(j);
+                    // Route ignores nodes before the 1st found in hereNodes
+                }
+                break;
               }
-              break;
             }
+
+          } else {
+            route = dataObject.link[i][2];
           }
 
-        } else {
-          route = dataObject.link[i][2];
+          for (j = 0; j < route.length; j += 1) {
+
+            if ((serviceSplit !== 1 ||
+              serviceSplitIndex.indexOf(route[j]) !== -1) &&
+              (serviceCircular !== j)
+            ) {
+
+              if (serviceDirection === 1 ||
+                raw.hereNodes.indexOf(route[j]) !== -1
+              ) {
+                serviceLevelLink = serviceLevel;
+              } else {
+                serviceLevelLink = serviceLevel / 2;
+              }
+              if (typeof raw.serviceNode[route[j]] === "undefined") {
+                raw.serviceNode[route[j]] = {
+                  "reference": [],
+                  "service": serviceLevelLink
+                };
+              } else {
+                raw.serviceNode[route[j]].service += serviceLevelLink;
+              }
+              if (reference.length > 0) {
+                for (k = 0; k < reference.length; k += 1) {
+                  raw.serviceNode[route[j]].reference.push(reference[k]);
+                    // May contains duplicates
+                }
+              }
+
+            }
+
+            if (route.length - 1 > j &&
+              (serviceSplit !== 1 ||
+              serviceSplitIndex.indexOf(route[j]) !== -1 ||
+              serviceSplitIndex.indexOf(route[j + 1]) !== -1)
+            ) {
+
+              if (serviceDirection === 1 ||
+                (raw.hereNodes.indexOf(route[j]) !== -1 && raw.hereNodes.indexOf(route[j + 1]) !== -1)
+              ) {
+                serviceLevelLink = serviceLevel;
+              } else {
+                serviceLevelLink = serviceLevel / 2;
+              }
+
+              if (route[j] < route[j + 1]) {
+                // Origin is largest node first. Skips reverse. Subsequent pop rather than shift
+                origin = route[j + 1];
+                destination = route[j];
+              } else {
+                origin = route[j];
+                destination = route[j + 1];
+              }
+
+              if (typeof raw.serviceLink[origin] === "undefined") {
+                raw.serviceLink[origin] = [];
+              }
+              if (typeof raw.serviceLink[origin][destination] ===
+                "undefined"
+              ) {
+                raw.serviceLink[origin][destination] = {
+                  "reference": [],
+                  "service": serviceLevelLink
+                };
+              } else {
+                raw.serviceLink[origin][destination].service += serviceLevelLink;
+              }
+              if (reference.length > 0) {
+                for (k = 0; k < reference.length; k += 1) {
+                  raw.serviceLink[origin][destination].reference.push(reference[k]);
+                    // May contains duplicates
+                }
+              }
+
+            }
+
+          }
         }
 
-        for (j = 0; j < route.length; j += 1) {
-
-          if ((serviceSplit !== 1 ||
-            dataObject.link[i][3]["split"].indexOf(route[j]) !== -1) &&
-            (serviceCircular !== j)
-          ) {
-
-            if (serviceDirection === 1 ||
-              raw.hereNodes.indexOf(route[j]) !== -1
-            ) {
-              serviceLevel = dataObject.link[i][1];
-            } else {
-              serviceLevel = dataObject.link[i][1] / 2;
-            }
-            if (typeof raw.serviceNode[route[j]] !== "undefined") {
-              raw.serviceNode[route[j]] = raw.serviceNode[route[j]] + serviceLevel;
-            } else {
-              raw.serviceNode[route[j]] = serviceLevel;
-            }
-
-          }
-
-          if (route.length - 1 > j &&
-            (serviceSplit !== 1 ||
-            dataObject.link[i][3]["split"].indexOf(route[j]) !== -1 ||
-            dataObject.link[i][3]["split"].indexOf(route[j + 1]) !== -1)
-          ) {
-
-            if (serviceDirection === 1 ||
-              (raw.hereNodes.indexOf(route[j]) !== -1 && raw.hereNodes.indexOf(route[j + 1]) !== -1)
-            ) {
-              serviceLevel = dataObject.link[i][1];
-            } else {
-              serviceLevel = dataObject.link[i][1] / 2;
-            }
-
-            if (route[j] < route[j + 1]) {
-              // Origin is largest node first. Skips reverse. Subsequent pop rather than shift
-              origin = route[j + 1];
-              destination = route[j];
-            } else {
-              origin = route[j];
-              destination = route[j + 1];
-            }
-            
-            if (typeof raw.serviceLink[origin] === "undefined") {
-              raw.serviceLink[origin] = [];
-            }
-            if (typeof raw.serviceLink[origin][destination] ===
-              "undefined"
-            ) {
-              raw.serviceLink[origin][destination] = serviceLevel;
-            } else {
-              raw.serviceLink[origin][destination] += serviceLevel;
-            }
-
-          }
-
-        }
       }
 
     }
@@ -1820,9 +2121,11 @@ var aquius = aquius || {
   function pathRoutes(raw) {
     // Converts OD matrix into raw.path's routes of the same service level
 
-    var destination, destinationNum, link, originNum, service, serviceLevel, stack, i, j;
+    var destination, destinationNum, link, originNum, service, serviceKey, stack, i, j, k;
     var serviceOD = {};
       // service: [ [from, to] ]
+    var serviceData = {};
+      // equivalently keyed service: {service, reference}
     var origin = Object.keys(raw.serviceLink);
 
     for (i = 0; i < origin.length; i += 1) {
@@ -1835,19 +2138,34 @@ var aquius = aquius || {
 
         destinationNum = destination[j] - 0;
           // Numeric of destination
-        serviceLevel = raw.serviceLink[originNum][destinationNum];
-
-        if (serviceLevel in serviceOD === false) {
-          serviceOD[serviceLevel] = [];
+        serviceKey = [raw.serviceLink[originNum][destinationNum].service.toString()];
+        if ("reference" in raw.serviceLink[originNum][destinationNum]) {
+          for (k = 0; k < raw.serviceLink[originNum][destinationNum].reference.length; k += 1) {
+            if ("n" in raw.serviceLink[originNum][destinationNum].reference[k]) {
+              // Name
+              serviceKey.push(raw.serviceLink[originNum][destinationNum].reference[k].n.toString());
+            } else {
+              if ("c" in raw.serviceLink[originNum][destinationNum].reference[k]) {
+                // Else route color
+                serviceKey.push(raw.serviceLink[originNum][destinationNum].reference[k].c.toString());
+              }
+            }
+          }
         }
-        serviceOD[serviceLevel].push([originNum, destinationNum]);
+        serviceKey = serviceKey.join(":");
+
+        if (serviceKey in serviceOD === false) {
+          serviceOD[serviceKey] = [];
+          serviceData[serviceKey] = raw.serviceLink[originNum][destinationNum];
+        }
+        serviceOD[serviceKey].push([originNum, destinationNum]);
 
       }
 
     }
 
     raw.path = [];
-      // Path elements [service, [node, node, etc]]
+      // Path elements [serviceData, [node, node, etc]]
 
     service = Object.keys(serviceOD);
     for (i = 0; i < service.length; i += 1) {
@@ -1886,7 +2204,7 @@ var aquius = aquius || {
       // Further stack aggregation possible, but time-consuming vs resulting reduction in objects
 
       for (j = 0; j < stack.length; j += 1) {
-        raw.path.push([service[i] - 0, stack[j]]);
+        raw.path.push([serviceData[service[i]], stack[j]]);
       }
 
     }
@@ -1897,7 +2215,7 @@ var aquius = aquius || {
   function conjureGeometry(raw, dataObject, options) {
     // Convert matrices into geospatial structures
 
-    var geojson, geometry, maxIndex, placeList, i, j, k;
+    var geojson, geometry, maxIndex, placeList, properties, value, i, j, k;
     var result = {};
 
     function makePolyline(polyPoints, node) {
@@ -1918,15 +2236,50 @@ var aquius = aquius || {
       return polyline;
     }
 
+    function extractReferences(referenceObject) {
+
+      var keys, i;
+      var stack = {};
+      var reference = [];
+
+      for (i = 0; i < referenceObject.length; i += 1) {
+
+        if ("n" in referenceObject[i]) {
+          stack[referenceObject[i].n.toString()] = referenceObject[i];
+            // Duplicate n on the same link are merged
+        } else {
+          if ("c" in referenceObject[i]) {
+            stack[referenceObject[i].c.toString()] = referenceObject[i];
+          }
+        }
+
+      }
+
+      keys = Object.keys(stack).sort();
+      for (i = 0; i < keys.length; i += 1) {
+        reference.push(stack[keys[i]]);
+      }
+
+      return reference;
+    }
+
     result.summary = raw.summary;
     result.here = raw.here;
     result.link = [];
 
     for (i = 0; i < raw.path.length; i += 1) {
-      result.link.push({
+      geometry = {
         "polyline": makePolyline(raw.path[i][1], dataObject.node),
-        "value": raw.path[i][0]
-      });
+        "value": raw.path[i][0].service
+      };
+
+      if ("reference" in raw.path[i][0] &&
+        raw.path[i][0].reference.length > 0
+      ) {
+        geometry.link = extractReferences(raw.path[i][0].reference);
+      }
+
+      result.link.push(geometry);
     }
 
     result.node = [];
@@ -1938,16 +2291,45 @@ var aquius = aquius || {
         i <= maxIndex
       ) {
         result.summary.node += 1;
-        result.node.push({
+
+        geometry = {
           "circle": [
             dataObject.node[i][0],
             dataObject.node[i][1]
           ],
-          "value": raw.serviceNode[i]
-        });
+          "value": raw.serviceNode[i].service
+        };
 
-        if (placeList.indexOf(dataObject.node[i][2]) === -1) {
-          placeList.push(dataObject.node[i][2]);
+        if ("reference" in raw.serviceNode[i] &&
+          raw.serviceNode[i].reference.length > 0
+        ) {
+          geometry.link = extractReferences(raw.serviceNode[i].reference);
+        }
+
+        if ("reference" in dataObject.node[i][2] &&
+          dataObject.node[i][2].reference.length > 0
+        ) {
+          geometry.node = extractReferences(dataObject.node[i][2].reference);
+        } else {
+          if ("r" in dataObject.node[i][2] &&
+            dataObject.node[i][2].r.length > 0
+          ) {
+            geometry.node = extractReferences(dataObject.node[i][2].r);
+          }
+        }
+
+        result.node.push(geometry);
+
+        if ("place" in dataObject.node[i][2] &&
+          placeList.indexOf(dataObject.node[i][2].place) === -1
+        )  {
+          placeList.push(dataObject.node[i][2].place);
+        } else {
+          if ("p" in dataObject.node[i][2] &&
+            placeList.indexOf(dataObject.node[i][2].p) === -1
+          ) {
+            placeList.push(dataObject.node[i][2].p);
+          }
         }
       }
     }
@@ -1959,18 +2341,33 @@ var aquius = aquius || {
       if (placeList[i] <= maxIndex &&
         placeList[i] >= 0
       ) {
-        result.summary.place += dataObject.place[placeList[i]][2];
-        result.place.push({
-          "circle": [
-            dataObject.place[placeList[i]][0],
-            dataObject.place[placeList[i]][1]
-          ],
-          "value": dataObject.place[placeList[i]][2]
-        });
+        value = 0;
+
+        if ("population" in dataObject.place[placeList[i]][2]) {
+          value = dataObject.place[placeList[i]][2].population;
+        } else {
+          if ("p" in dataObject.place[placeList[i]][2]) {
+            value = dataObject.place[placeList[i]][2].p;
+          }
+        }
+
+        if (value > 0) {
+          result.summary.place += value;
+          result.place.push({
+            "circle": [
+              dataObject.place[placeList[i]][0],
+              dataObject.place[placeList[i]][1]
+            ],
+            "value": value
+          });
+        }
+
       }
     }
 
-    if ("geoJSON" in options === false || !Array.isArray(options.geoJSON)) {
+    if ("geoJSON" in options === false ||
+      !Array.isArray(options.geoJSON)
+    ) {
 
       return result;
 
@@ -2003,13 +2400,20 @@ var aquius = aquius || {
                   geometry.coordinates.push(result[options.geoJSON[i]][j].polyline[k]);
                 }
               }
+              properties = {
+                "type": options.geoJSON[i],
+                "value": result[options.geoJSON[i]][j].value
+              };
+              if ("link" in result[options.geoJSON[i]][j]) {
+                properties.link = result[options.geoJSON[i]][j].link;
+              }
+              if ("node" in result[options.geoJSON[i]][j]) {
+                properties.node = result[options.geoJSON[i]][j].node;
+              }
               geojson.features.push({
                 "type": "Feature",
                 "geometry": geometry,
-                "properties": {
-                  "type": options.geoJSON[i],
-                  "value": result[options.geoJSON[i]][j].value
-                }
+                "properties": properties
               });
             }
           }
@@ -2028,7 +2432,10 @@ var aquius = aquius || {
   ) {
     return {"error": "Unsupported browser"};
   }
-  if (typeof (x || y || range) !== "number") {
+  if (typeof x !== "number" ||
+    typeof y !== "number" ||
+    typeof range !== "number"
+  ) {
     return {"error": "Here parameters not numeric"};
   }
   if (typeof options !== "object") {
