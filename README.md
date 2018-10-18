@@ -21,6 +21,8 @@ Those advantages cannot maintain all the features of existing approaches to publ
 
 > Ready to explore? [Try a live demonstration](https://timhowgego.github.io/Aquius/live/)!
 
+## Manual
+
 In this document:
 
 * [User FAQ](#user-faq)
@@ -210,7 +212,7 @@ placeColor|string|"#00f"|CSS Color of place (population) layer circle fill
 placeOpacity|float|0.5|CSS Opacity of place (population) layer circle fill: 0-1
 placeScale|float|1.0|Scale factor for place (population) layer circles: ceil( sqrt( people * scale / 666) )
 
-**Caution:** Colors accept any CSS format, but be wary of introducing transparency this way, because it tends to slow down rendering. Transparent link lines will render with ugly joins.
+**Caution:** Colors accept any [CSS format](https://developer.mozilla.org/en-US/docs/Web/CSS/color_value), but be wary of introducing transparency this way, because it tends to slow down rendering. Transparent link lines will render with ugly joins.
 
 ### User Interface
 
@@ -225,7 +227,7 @@ uiPanel|boolean|true|Enables summary statistic panel
 uiScale|boolean|true|Enables scale selector
 uiService|boolean|true|Enables service selector
 uiShare|boolean|true|Enables embed and export
-uiStore|boolean|true|Enables browser session storage of user state
+uiStore|boolean|true|Enables browser [session storage](https://developer.mozilla.org/en-US/docs/Web/API/Window/sessionStorage) of user state
 
 ### User State
 
@@ -251,11 +253,11 @@ z|integer|6|Map view zoom
 
 Aquius can also be used as a stand-alone library via `aquius.here()`, which accepts and returns data Objects without script loading or user interface. Arguments, in order:
 
-* `dataObject` - `Object` containing a [Data Structure](#data-structure).
-* `x` - `float` longitude of _here_ in WGS 84.
-* `y` - `float` latitude of _here_ in WGS 84.
-* `range` - `float` distance from _here_ to be searched for nodes, in metres.
-* `options` - optional `Object` of key:value pairs.
+1. `dataObject` - `Object` containing a [Data Structure](#data-structure).
+1. `x` - `float` longitude of _here_ in WGS 84.
+1. `y` - `float` latitude of _here_ in WGS 84.
+1. `range` - `float` distance from _here_ to be searched for nodes, in metres.
+1. `options` - optional `Object` of key:value pairs.
 
 Possible `options`:
 
@@ -275,7 +277,7 @@ Otherwise, if `geoJSON` is specified a GeoJSON-style Object with a `FeatureColle
 * `node` - array of reference data objects relating to the node itself
 * `link` - array of reference data objects relating to the links at the node, or the links contained on the line
 
-The information conatined within keys `node` and `link` is that otherwise displayed in popup boxes when clicking on nodes or links in the map view. The existence of keys `node` and `link` will depend on the dataset. The potential format of the objects that described for the `reference` property of `node` and `link` in the [Data Structure](#data-structure).
+The information contained within keys `node` and `link` is that otherwise displayed in popup boxes when clicking on nodes or links in the map view. The existence of keys `node` and `link` will depend on the dataset. The potential format of the objects that described for the `reference` property of `node` and `link` in the [Data Structure](#data-structure).
 
 Otherwise the JSON-like Object will contain `summary`, is an Object containing link, node and place totals, and geometry for `here`, `link`, `node` and `place`. Each geometry key contains an Array of features, where each feature is an Object with a key `value` (the associated numeric value, such as number of services) and either `circle` (here, node, place) or `polyline` (link). Circles consist of an Array containing a single x, y pair of WGS 84 coordinates. Polylines consist of an Array of Arrays in route order, each child Array containing a similar pair of x, y coordinates. Unless `sanitize` is false, the sanitized `dataObject` will be returned as a key, allowing subsequent queries with the returned dataObject to be passed with `sanitize` false, which speeds up the query slighty.
 
@@ -331,7 +333,7 @@ An optional key `translation` may contain an `Object` with the same structure as
 
 ### Option
 
-An optional key `option` may contain an `Object` with the same structure as the [Configuration](#configuration) second argument of `aquius.init()`, described earlier. Keys `id`, `dataset`, `network` and `translation` are ignored, all in their own way redundant. It is recommended to set a sensible initial User State for the map (map view, _here_ click), but can also be used to apply Styling (color, scale), or even control the User Interface or set alternative base mapping. The `option` key only takes precedence over Aquius' defaults, not over valid hash or Configuration options.
+An optional key `option` may contain an `Object` with the same structure as the [Configuration](#configuration) second argument of `aquius.init()`, described earlier. Keys `id`, `dataset`, `network` and `translation` are ignored, all in their own way redundant. It is recommended to set a sensible initial User State for the map (map view, _here_ click), but this key can also be used to apply Styling (color, scale), or even control the User Interface or set alternative base mapping. The `option` key only takes precedence over Aquius' defaults, not over valid hash or Configuration options.
 
 ### Network
 
@@ -390,12 +392,12 @@ The `link` key contains an `Array` of lines of link data. Each line of link data
 1. Nodes served (`Array` of `integer`) - the Node ID of each point the services stops to serve passengers, in order. Routes are presumed to also operate in the reverse direction, but, as described below, the route can be define as one direction only, in which case the start point is only the first point in the `Array`. Node IDs reference an index position in `node`, and if the `link` is populated with data, so must `node` (and in turn `place`).
 1. Properties (`Object`) - an extendable area for keys containing optional data or indicating special processing conditions. In many cases this will be empty, vis: `{}`. Optional keys are described below:
 
-* `circular` or `c` - `boolean` true or `integer` 1 indicates operation is actually a continuous loop, where the start and end points are the same station. Only the nodes for one complete loop should be included - the notional start and end stop thus included twice. Circular services are processed so that their duplicated start/end station is only counted once. **Caution:** Figure-of-eight loops are intentionally double-counted at the midpoint each service passes twice per journey, since such services may reasonably be considered to offer two completely different routes to passengers, however this does result in arithmetic quirks (as demonstrated by Atocha's C-7, described in [Known Issues](#known-issues)).
+* `circular` or `c` - `boolean` true or `integer` 1 indicates operation is actually a continuous loop, where the start and end points are the same station. Only the nodes for one complete loop should be included - the notional start and end stop thus included twice. Circular services are processed so that their duplicated start/end station is only counted once. Figure-of-eight loops are intentionally double-counted at the midpoint each service passes twice per journey, since such services may reasonably be considered to offer two completely different routes to passengers, however this does result in arithmetic quirks (as demonstrated by Atocha's C-7, described in [Known Issues](#known-issues)).
 * `direction` or `d` - `boolean` true or `integer` 1 indicates operation is only in the direction recorded, not also in the opposite direction. As noted under [Known Issues](#known-issues), services that are both circular and directional will produce numeric quirks. *Tip:* Services that loop only at one end of a route (sometimes seen in tram operation) should be recorded as uni-directional with nodes on the common section recorded twice, once in each direction - not recorded as circular.
-* `pickup` or `u` - `Array` containing `integer` Node IDs describing nodes on the service's route where passengers can only board (get on), not alight (get off). Restriction not yet implemented.
+* `pickup` or `u` - `Array` containing `integer` Node IDs describing nodes on the service's route where passengers can only board (get on), not alight (get off).
 * `reference` or `r` - `Array` containing one or more `Object` of descriptive data associated with the routes within the link - for example, route headcodes or display colors. Possible keys and values are described below.
-* `setdown` or `s` - `Array` containing `integer` Node IDs describing nodes on the service's route where passengers can only alight (get off), not board (get on). Restriction not yet implemented.
-* `shared` or `h` - `integer` Product ID of the parent service. Shared allows an existing parent service to be assigned an additional child service of a different product category. The specific parent service is not specifically identified, only its product. Over common sections of route, only the parent will be processed and shown, however if the network is filtered to exclude the parent, the child is processed. The parent service should be defined as the longer of the two routes, such that the parent includes all the stops of the child. Shared was originally required to describe Renfe's practice of selling (state supported) local journey fare products on sections of (theoretically commercial) long distance services, but such operations are also common in aviation, where a single flight may carry seats sold more than one airline.
+* `setdown` or `s` - `Array` containing `integer` Node IDs describing nodes on the service's route where passengers can only alight (get off), not board (get on).
+* `shared` or `h` - `integer` Product ID of the parent service. Shared allows an existing parent service to be assigned an additional child service of a different product category. The specific parent service is not specifically identified, only its product. Over common sections of route, only the parent will be processed and shown, however if the network is filtered to exclude the parent, the child is processed. The parent service should be defined as the longer of the two routes, such that the parent includes all the stops of the child. Shared was originally required to describe Renfe's practice of selling (state supported) local journey fare products on sections of (theoretically commercial) long distance services, but such operations are also common in aviation, where a single flight may carry seats sold by more than one airline.
 * `split` or `t` - `Array` containing `integer` Node IDs describing the unique nodes on the service's route. Split is assigned to one half of a service operated as two portions attached together over a common part of route. Splits can be affected at either or both ends of the route. In theory more than two portions can be handled by assigning a split to every portion except the first. Like `shared` services, and companion service is not specifically identified, however a `split` should be of the same Product ID as its companion service (else to avoid miscalculations `network` needs to be constructed so that both Product IDs fall into the same categories). Railway services south of London were built on this style of operation, while operators such as Renfe only split trains operated on _very_ long distance routes.
 
 Possible keys within the `reference` Object - all values are `string`:
@@ -427,7 +429,7 @@ Possible `reference` keys and values are described below - all values are `strin
 * `n` - short name or human-readable reference code (recommended)
 * `u` - URL link for further human-readable information
 
-*Tip:* To reduce `dataset` file size, restrict the accuracy of coordinates to only that needed - metres, not millmetres.
+*Tip:* To reduce `dataset` file size, restrict the accuracy of coordinates to only that needed - metres, not millmetres. Likewise, while URLs and detailed names may provide useful reference information, these can inflate file size dramatically when lengthy or when attached to every node or service.
 
 ### Place
 

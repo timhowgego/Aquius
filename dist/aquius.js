@@ -1871,8 +1871,8 @@ var aquius = aquius || {
   function walkRoutes(raw, dataObject, options) {
     // Adds serviceLink and serviceNode matrices to raw, filtered for here and product
 
-    var destination, origin, products, reference, route, serviceCircular, serviceDirection,
-      serviceLevel, serviceLevelLink, serviceSplit, serviceSplitIndex, services, i, j, k;
+    var destination, origin, pickup, pickupIndex, products, reference, route, serviceCircular,
+      serviceDirection, serviceLevel, serviceLevelLink, serviceSplit, serviceSplitIndex, services, i, j, k;
     
     raw.serviceLink = [];
       // Service by link [from[to[service]]] - with voids undefined
@@ -1908,15 +1908,28 @@ var aquius = aquius || {
           return dataObject.link[i][0].indexOf(value) !== -1;
         })).length > 0) ) &&
           // Product included
+
         (("shared" in dataObject.link[i][3] === false ||
           products.indexOf(dataObject.link[i][3].shared) === -1) ||
           ("h" in dataObject.link[i][3] === false ||
           products.indexOf(dataObject.link[i][3].h) === -1)) &&
           // Share not included as parent
+
+        (("setdown" in dataObject.link[i][3] === false ||
+          (raw.hereNodes.filter( function (value) {
+            return dataObject.link[i][3].setdown.indexOf(value) === -1;
+          })).length > 0) ||
+          ("s" in dataObject.link[i][3] === false ||
+          (raw.hereNodes.filter( function (value) {
+            return dataObject.link[i][3].s.indexOf(value) === -1;
+          })).length > 0)) &&
+          // At least one here node is not setdown only
+
         (dataObject.link[i][2].filter( function (value) {
           return raw.hereNodes.indexOf(value) !== -1;
         })).length > 0
           // Node within here
+
       ) {
         // Process this link line, otherwise ignore
 
@@ -2030,6 +2043,25 @@ var aquius = aquius || {
 
           } else {
             route = dataObject.link[i][2];
+          }
+
+          if ("pickup" in dataObject.link[i][3] ||
+            "u" in dataObject.link[i][3]
+          ) {
+            if ("pickup" in dataObject.link[i][3]) {
+              pickup = dataObject.link[i][3].pickup;
+            } else {
+              pickup = dataObject.link[i][3].u;
+            }
+            for (j = 0; j < pickup.length; j += 1) {
+              if (raw.hereNodes.indexOf(pickup[j]) === -1) {
+                pickupIndex = route.indexOf(pickup[j]);
+                if (pickupIndex !== -1) {
+                  // Pickup-only nodes are removed from route unless within here
+                  route.splice(pickupIndex, 1);
+                }
+              }
+            }
           }
 
           for (j = 0; j < route.length; j += 1) {
