@@ -31,6 +31,7 @@ In this document:
 * [Known Issues](#known-issues)
 * [Configuration](#configuration)
 * [Here Queries](#here-queries)
+* [GTFS To Aquius](#gtfs-to-aquius)
 * [Data Structure](#data-structure)
 * [License](#license)
 * [Contributing](#contributing)
@@ -90,7 +91,6 @@ Others options are documented in the [Configuration](#configuration) section bel
 * Internet Explorer 9 is the oldest vintage of browser theoretically supported, although a modern browser will be faster (both in use of `Promise` to load data and `Canvas` to render data). Mobile and tablet devices are supported, although older devices may lag when interacting with the map interface.
 * Aquius is written in pure Javascript, automatically loading its one dependency at runtime, [Leaflet](https://github.com/Leaflet/Leaflet). Aquius can produce graphically intensive results, so be cautious before embedding multiple instances in the same page, or adding Aquius to pages that are already cluttered.
 * Aquius works adequately within large conurbations, or for inter-regional networks, but might become more technically problematic should multiple large networks be deposited into one unfiltered dataset. As is, a 2010-era computer mapping every rail service from Madrid takes about 100ms to do the calculations and another 100ms to map the result, which can then lag slightly when moved.
-* A [GTFS](https://developers.google.com/transit/gtfs/reference/) converter is being written. In the meantime, the dataset format is described in the [Data Structure](#data-structure) section below.
 
 ## Known Issues
 
@@ -98,7 +98,7 @@ This section tries to explain the reasoning behind particular quirks.
 
 ### General
 
-Aquius is fundamentally inaccessible to those with severe visual impairment: The limitation lay in the concept, not primarily the implementation. Aquius can't even read out the stop names, since it doesn't know anything about them except their coordinates. Genuine solutions are more radical than marginal, implying a quite separate application. For example, conversion of the map into a 3D soundscape, or allowing users to walk a route as if playing a [MUD](https://en.wikipedia.org/wiki/MUD).
+Aquius is fundamentally inaccessible to those with severe visual impairment: The limitation lay in the concept, not primarily the implementation. Aquius can't even read out the stop names, since it doesn't necessarily know anything about them except their coordinates. Genuine solutions are more radical than marginal, implying a quite separate application. For example, conversion of the map into a 3D soundscape, or allowing users to walk a route as if playing a [MUD](https://en.wikipedia.org/wiki/MUD).
 
 Multiple base maps can be added but only one may be displayed: A user selection and associated customisation was envisaged for the future.
 
@@ -282,6 +282,47 @@ The information contained within keys `node` and `link` is that otherwise displa
 Otherwise the JSON-like Object will contain `summary`, is an Object containing link, node and place totals, and geometry for `here`, `link`, `node` and `place`. Each geometry key contains an Array of features, where each feature is an Object with a key `value` (the associated numeric value, such as number of services) and either `circle` (here, node, place) or `polyline` (link). Circles consist of an Array containing a single x, y pair of WGS 84 coordinates. Polylines consist of an Array of Arrays in route order, each child Array containing a similar pair of x, y coordinates. Unless `sanitize` is false, the sanitized `dataObject` will be returned as a key, allowing subsequent queries with the returned dataObject to be passed with `sanitize` false, which speeds up the query slighty.
 
 **Caution:** Both `link` outputs mirrors the internal construction of Aquius' map, which tries to find adjoining links with the same service frequency and attach them to one continuous polyline. The logic reduces the number of objects, but does not find all logical links, nor does it necessarily links the paths taken by individual services. If you need to map individual routes interrogate the original link in the original `dataObject`.
+
+## GTFS To Aquius
+
+[General Transit Feed Specification](https://developers.google.com/transit/gtfs/reference/) is the most widely used interchange format for public transport schedule data. A [script is available](https://github.com/timhowgego/Aquius/tree/master/dist) that automatically converts single GTFS archives into Aquius datasets. This script is currently under development, requiring both features and testing, so check the output carefully. [A live demonstration is available here](https://timhowgego.github.io/Aquius/live/gtfs/). Alternatively, run the `gtfs.min.js` file privately:
+
+* With a user interface: Within a webpage, load the script and call `gtfsToAquius.init("aquius-div-id")`, where "aquius-div-id" is an empty element on the page.
+* From another script: Call `gtfsToAquius.process(gtfs, geojson, config)`, where each argument of that function is a JSON-like `Object`: `gtfs` consists of a key representing the name of the GTFS file without extension (for example, `calendar`) whose value is the raw text content of the GTFS file. `geojson` is the content of a GeoJSON file pre-parsed into an `Object`. `config` contains key:value pairs for optional configuration settings, as described below. Both `geojson` and `config` can be empty (`{}`). The function returns an `Object` with possible keys `error` (array of any error messages), `config` (with defaults or calculated values applied), and `aquius` (as a `dataObject`).
+
+**Caution:** As is, the script runs as a single thread which offers no user feedback, so may appear to stall when processing large datasets. Runtime is typically 1-2 seconds per 10 megabytes of GTFS text data (with roughly half that time spent processing the Comma Separated Values), plus time to assign stops (nodes) to population (places). The single-operator networks found in most GTFS archives should process within about 5 seconds, but very complex multi-operator conurbations may take longer.
+
+### Configuration File
+
+GTFS To Aquius accepts and produces a file called `config.json`. In the absence of a proper user interface, this is the only way to customise the GTFS processing. Otherwise GTFS To Aquius simply analyses services over the next 7 days, producing average daily service totals, filtered by agency (operator). `config.json` is JSON file, whose minimum content is an empty `Object` (`{}`) and whose encoding should be UTF-8. To this `Object` one or more key: value pairs may be added. Currently supported keys are:
+
+Key|Type|Default|Description
+---|----|-------|-----------
+allowName|boolean|true|Include stop names (increases file size)
+allowURL|boolean|true|Include URLs for stops and services where available (increases file size)
+fromDate|YYYYMMDD dateString|Today|Start date for service pattern analysis (inclusive)
+meta|object|{"schema": "0"}|As [Data Structure](#data-structure) meta key
+option|object|{}|As [Data Structure](#data-structure) option key
+populationProperty|string|"population"|Field name in GeoJSON properties containing the number of people (or equivalent demographic statistic)
+productFilter|object|{"type": "agency"}|Group services by, including network definitions, detailed below
+servicePer|integer|1|Service average per period in days (1 gives daily totals, 7 gives weekly totals), regardless of fromDate/toDate
+toDate|YYYYMMDD dateString|Next week|End date for service pattern analysis (inclusive)
+translation|object|{}|As [Data Structure](#data-structure) translation key
+
+`productFilter` currently supports one of two `type` values:
+
+* "agency", which assigns a product code to each operator identified in the GTFS (default)
+* "mode", which assigns a product code to each vehicle type identified in the GTFS (only the original types and "supported" [extensions](https://developers.google.com/transit/gtfs/reference/extended-route-types) will be named)
+
+By default GTFS To Aquius will create network filters consisting of all and each (with every filter named in en-US locale), and add keys `index` (list of all GTFS codes) and `network` (arrays structured like the [Data Structure](#data-structure) network key, except references are to GTFS codes, not numerical indices) to the `productFilter` `Object`. The easiest way to build bespoke network filters is to process the GTFS data once, then manually edit the `config.json` produced. If using GTFS To Aquius via its user interface, a rough count of routes and services by each `productFilter` will be produced after processing, allowing the most important categories to be identified. **Caution:** Pre-defining the `productFilter` will prevent GTFS To Aquius adding or removing entries, so any new operators or modes subsequently added to the GTFS source will need to be added to the `productFilter` manually.
+
+*Tip:* The fastest way to start building a `config.json` file is to run GTFS To Aquius once, download and edit the resulting `config.json`, then use that file in subsequent GTFS To Aquius processing. 
+
+### GeoJSON File
+
+Optionally, a [GeoJSON file](http://geojson.org/) can be provided containing population data, which allows Aquius to summarise the people served by a network. The file must end in the extension `.json` or `.geojson`, must use (standard) WGS 84 coordinates, and must contain either Polygon or MultiPolygon geographic boundaries. Each feature should have a property containing the number of people (or equivalent demographic statistic), either using field name "population", or that defined in `config.json` as `populationProperty`. Excessively large or complex boundary files may delay processing, so before processing GTFS To Aquius, consider reducing the geographic area to only that required, or simplifying the geometry.
+
+GTFS To Aquius will attempt to assign each node (stop) to the boundary it falls within. For consistent results, boundaries should not overlap and specific populations should not be counted more than once. The choice of boundaries should be appropriate for the scale and scope of the services within the GTFS file: Not so small as to routinely exclude nodes used by a local population, but not so large as to suggest unrealistic hinterlands or catchment areas. For example, an entire city may reasonably have access to an inter-regional network whose only stop is in the city centre, and thus city-level boundaries might be appropriate at inter-regional level. In contrast, an urban network within a city should use more detailed boundaries that reflect the inherently local nature of the areas served. Note that the population summaries produced by Aquius are not intended to be precise, rather to provide a broad summary of where people are relative to nearby routes, and to allow basic comparison of differences in network connectivity.
 
 ## Data Structure
 

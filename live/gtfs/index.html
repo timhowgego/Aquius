@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html style="height:100%;" lang="en-US">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width" />
+<style>
+body{height:100%;margin:0;color:#000}
+body,form,input,button{font:14px Arial,Helvetica,sans-serif;line-height:1.25}
+form{padding:6px}
+a{color:#0366d6}
+.aquiusError,.aquiusSuccess,.aquiusSummary,h1,p{margin:0;padding:6px}
+.aquiusError,.aquiusSuccess{list-style-type:none}
+.aquiusError{background-color:#fbb}
+.aquiusSuccess,.aquiusSummary{background-color:rgba(27,31,35,0.05)}
+.aquiusSummary{width:100%;text-align:center}
+.aquiusSummary tr:hover{background-color:rgba(13,15,17,0.05)}
+h1{border-bottom:1px solid #eaecef;margin-bottom:6px}
+tt{background-color:rgba(27,31,35,0.05);padding:0.2em 0.4em;border-radius:3px;font-size:85%}
+</style>
+<title>GTFS to Aquius</title>
+</head>
+<body>
+<h1>GTFS to Aquius</h1>
+<div id="aquius"></div>
+<noscript>Javascript is required to use this tool.</noscript>
+<p>This tool converts <a href="https://developers.google.com/transit/gtfs/reference/">GTFS</a> (General Transit Feed Specification) data into an <a href="https://timhowgego.github.io/Aquius/#data-structure">Aquius dataset</a> file. Unzip the GTFS (General Transit Feed Specification) archive, select (above) all the <tt>.txt</tt> files that were within the archive. Then click 'Process' and wait for the output to appear. Processing typically takes a couple of seconds for every 10 Megabytes of raw text data.</p>
+<p>Optionally, also add a GeoJSON file (ending <tt>.json</tt> or <tt>.geojson</tt>) to the selection, which contains Polygon or MultiPolygon geographic boundaries which have their numeric population attached as the property <tt>population</tt> (or a custom field which has been specified in config.json as <tt>populationProperty</tt>). Population data allows Aquius to summarise the people served by a network. To improve processing speed, first limit the geographic area to broadly that of the GTFS archive and reduce the node complexity of the boundaries.</p>
+<p>Optionally, also add a file called <tt>config.json</tt> to the selection, which contains <a href="https://timhowgego.github.io/Aquius/#gtfs-to-aquius">bespoke criteria</a> for generating the output. This can be used to control processing conditions such as date ranges, define product filters, and integrate attributions or translations. To produce a basic config.json file, process the data once and save the resulting config.json file. Edit that file in a text editor, then add the edited config.json to the selection above and re-process.</p>
+<p>See documentation for <a href="https://timhowgego.github.io/Aquius/#gtfs-to-aquius">configuration details</a> and <a href="https://timhowgego.github.io/Aquius/#quick-setup">how to use of the output file</a>.</p>
+<p>For routine or repeat usage, the conversion script can incorporated into a bespoke application which <a href="https://github.com/timhowgego/Aquius/tree/master/dist">imports the javascript</a> and calls the function <tt>gtfsToAquius.process(gtfs, geojson, config)</tt>. Each argument of that function is a JSON-like Object, where <tt>gtfs</tt> consists of a key representing the name of the GTFS file without extension (for example, <tt>calendar</tt>) whose value is the raw text content of the GTFS file. The function returns an object with possible keys <tt>error</tt> (array of any error messages), <tt>config</tt> (as config.json), and <tt>aquius</tt> (as output file).</p>
+<script src="https://timhowgego.github.io/Aquius/dist/gtfs.min.js" async></script>
+<script>window.addEventListener("load",function(){gtfsToAquius.init("aquius");});</script>
+</body>
+</html>
