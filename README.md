@@ -11,13 +11,11 @@ Aquius visualises the links between people that are made possible by transport n
 1. Conventional journey planners are aimed at users that already have some understanding of what routes exist. Aquius summarises overall service patterns.
 1. Most network maps are pre-defined and necessarily simplified, typically showing an entire city or territory. Aquius relates to a bespoke location.
 
-The application makes no server queries (once the initial dataset has been loaded), so responds near-instantly. That speed allows network discovery by trial and error, which changes the user dynamic from _being told_, to playful learning.
+The application makes no server queries (once the initial dataset has been loaded), so responds near-instantly. That speed allows network discovery by trial and error, which changes the user dynamic from _being told_, to playful learning. Some caveats:
 
-Those advantages cannot maintain all the features of existing approaches to public transport information, notably:
-
-* Aquius maps links, not routes. Straight-line links are shown between defined service stops, not drawn along the precise geographic route taken. This allows services that do not stop at all intermediate stops to be clearly differentiated. It also makes it technically possible for an internet client to work with a large transport network. Aquius is however limited to displaying conventional scheduled public transport, and perhaps does not display information in the manner users have come to expect.
+* Aquius maps straight-line links, not the precise geographic route taken. This allows services that do not stop at all intermediate stops to be clearly differentiated. It also makes it technically possible for an internet client to work with a large transport network. Aquius is however limited conventional scheduled public transport with fixed stopping points.
 * Aquius summarises the patterns of fixed public transport networks. It presumes a degree of network stability over time, and cannot sensibly be used to describe a transport network that is in constant flux. The Aquius data structure allows filtering by time period, but such periods must be pre-defined and cannot offer the same precision as schedule-based systems.
-* Aquius only shows the direct service from _here_, not journeys achieved by interchange. It is theoretically possible to define keys interchanges from one service to one other service of the same type within the network dataset by mimicking a service which splits into two porions part-way through its journey. However if the intention is to show all possible interchanges without letting users explore the possibilities for themselves, then Aquius is not the logical platform to use: Displaying all possible interchanges ultimately results in a map of every service which fails to convey what is genuinely local to _here_.
+* Aquius only shows the direct service from _here_, not journeys achieved by interchange. It is theoretically possible to define key interchanges from one service to another by mimicking a service which splits into two portions part-way through its journey. However if the intention is to show all possible interchanges without letting users explore the possibilities for themselves, then Aquius is not the logical platform to use: Displaying all possible interchanges ultimately results in a map of every service which fails to convey what is genuinely local to _here_.
 
 > Ready to explore? [Try a live demonstration](https://timhowgego.github.io/Aquius/live/)!
 
@@ -44,7 +42,7 @@ In this document:
 
 *What do the line widths and circle diameters indicate?* Links and stops are scaled by the logarithm of the service (such as total daily trains), so at high service levels the visual display is only slightly increased. Increasing the scale increases the visual distinction between service levels, but may flood the view in urban areas. The area of each population circle is in proportion to the number of residents. The original numbers are displayed in a tooltip, visible when mousing over (or similar) the line or circle. The here circle defines the exact geographic area of _here_, that searched to find local stops.
 
-*How can everything be displayed?* Zoom out a lot, then click... The result may be visually hard to digest, and laggy - especially with an unfiltered network or when showing multiple map layers: Aquius wasn't really intended to display everything.
+*How can everything be displayed?* Zoom out a lot, then click... The result may be visually hard to digest, and laggy - especially with an unfiltered network or when showing multiple map layers: Aquius wasn't really intended to display everything. Hosts can limit this behaviour by increasing the value of [Configuration](#configuration) key `minZoom`.
 
 ## Quick Setup
 
@@ -206,6 +204,8 @@ Key|Type|Default|Description
 hereColor|string|"#080"|CSS Color for here layer circle strokes
 linkColor|string|"#f00"|CSS Color for link (service) layer strokes
 linkScale|float|1.0|Scale factor for link (service) layer strokes: ceil( log( 1 + ( service * ( 1 / ( scale * 4 ) ) ) ) * scale * 4)
+minWidth|integer|2|Minimum pixel width of links, regardless of scaling. Assists click useability
+minZoom|integer|0|Minimum map zoom. Sets a soft cap on query complexity
 nodeColor|string|"#000"|CSS Color for node (stop) layer circle strokes
 nodeScale|float|1.0|Scale factor for node (stop) layer circles: ceil( log( 1 + ( service * ( 1 / ( scale * 4) ) ) ) * scale * 2)
 panelOpacity|float|0.7|CSS Opacity for background of the bottom-left summary panel

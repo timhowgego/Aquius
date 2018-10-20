@@ -92,6 +92,10 @@ var aquius = aquius || {
       // Here click zoom
     "map": {},
       // Active Leaflet map object: Used in preference to own map
+    "minWidth": 2,
+      // Minimum pixel width of links, regardless of scaling. Assists click useability
+    "minZoom": 0,
+      // Minimum map zoom. Sets a soft cap on query complexity
     "n": 0,
       // User selected network filter
     "network": [],
@@ -631,6 +635,13 @@ var aquius = aquius || {
     configOptions = rangeIndexedOption(configOptions, "n", "network");
     configOptions = rangeIndexedOption(configOptions, "r", "service");
 
+    if (configOptions.z < configOptions.minZoom) {
+      configOptions.z = configOptions.minZoom;
+    }
+    if (configOptions.m < configOptions.minZoom) {
+      configOptions.m = configOptions.minZoom;
+    }
+
     // Translation precedence = configOptions, dataObject, default
     translationObjects = [];
     if ("translation" in configOptions.dataObject) {
@@ -699,7 +710,10 @@ var aquius = aquius || {
         while (document.getElementById(configId).firstChild) {
           document.getElementById(configId).removeChild(document.getElementById(configId).firstChild);
         }
-        configOptions.map = configOptions.leaflet.map(configId, {preferCanvas: true});
+        configOptions.map = configOptions.leaflet.map(configId, {
+          minZoom: configOptions.minZoom,
+          preferCanvas: true
+        });
           // Canvas renderer is faster. IE8 not supported anyway
     }
 
@@ -1405,7 +1419,9 @@ var aquius = aquius || {
 
       popup = buildData(nodeObject, popup, true);
 
-      if (value < 2) {
+      if (value < 10 &&
+        value % 1 !== 0
+      ) {
         value = (Math.round(value * 10) / 10).toString();
       } else {
         value = Math.round(value).toString();
@@ -1586,7 +1602,8 @@ var aquius = aquius || {
           }
           configOptions.leaflet.polyline(geometry, {
               "color": getLinkColor(configOptions, configOptions._here.link[i].link),
-              "weight": Math.ceil(Math.log(1 + (configOptions._here.link[i].value * (1 / scale))) * scale)
+              "weight": Math.ceil(Math.log(1 + (configOptions._here.link[i].value * (1 / scale)))
+                * scale + configOptions.minWidth)
             }
           ).on("click", function (evt) {
             var popup = evt.target.getPopup();
@@ -1619,7 +1636,8 @@ var aquius = aquius || {
             ]), {
               "color": configOptions.nodeColor,
               "fill": false,
-              "radius": Math.ceil(Math.log(1 + (configOptions._here.node[i].value * (1 / (scale * 2)))) * scale),
+              "radius": Math.ceil(Math.log(1 + (configOptions._here.node[i].value * (1 / (scale * 2))))
+                * scale + (configOptions.minWidth / 2)),
               "weight": 1
             }
           ).on("click", function (evt) {
