@@ -1378,6 +1378,7 @@ var aquius = aquius || {
               if (isHead === false) {
                 element.style.border = "1px solid #000";
                 element.style.padding = "0.3em 0.5em";
+                element.style["white-space"] = "nowrap";
                 if ("c" in reference[i]) {
                   element.style["background-color"] = "#" + reference[i].c;
                 }
@@ -1404,8 +1405,13 @@ var aquius = aquius || {
 
       popup = buildData(nodeObject, popup, true);
 
+      if (value < 2) {
+        value = (Math.round(value * 10) / 10).toString();
+      } else {
+        value = Math.round(value).toString();
+      }
       popup.appendChild(createElement("div", {
-        "textContent": name + ": " + Math.round(value).toString()
+        "textContent": name + ": " + value
       }, {
         "margin": "0.3em 0"
       }));
@@ -1911,24 +1917,28 @@ var aquius = aquius || {
 
         (("shared" in dataObject.link[i][3] === false ||
           products.indexOf(dataObject.link[i][3].shared) === -1) ||
-          ("h" in dataObject.link[i][3] === false ||
+          ("h" in dataObject.link[i][3] === false &&
           products.indexOf(dataObject.link[i][3].h) === -1)) &&
           // Share not included as parent
 
-        (("setdown" in dataObject.link[i][3] === false ||
-          (raw.hereNodes.filter( function (value) {
-            return dataObject.link[i][3].setdown.indexOf(value) === -1;
-          })).length > 0) ||
-          ("s" in dataObject.link[i][3] === false ||
-          (raw.hereNodes.filter( function (value) {
-            return dataObject.link[i][3].s.indexOf(value) === -1;
-          })).length > 0)) &&
-          // At least one here node is not setdown only
-
         (dataObject.link[i][2].filter( function (value) {
           return raw.hereNodes.indexOf(value) !== -1;
-        })).length > 0
+        })).length > 0 &&
           // Node within here
+
+        (("setdown" in dataObject.link[i][3] === false ||
+          (raw.hereNodes.filter( function (value) {
+            return (dataObject.link[i][2].filter( function (valued) {
+              return dataObject.link[i][3].setdown.indexOf(valued) < 0;
+            })).indexOf(value) !== -1;
+          })).length > 0) &&
+          ("s" in dataObject.link[i][3] === false ||
+          (raw.hereNodes.filter( function (value) {
+            return (dataObject.link[i][2].filter( function (valued) {
+              return dataObject.link[i][3].s.indexOf(valued) < 0;
+            })).indexOf(value) !== -1;
+          })).length > 0))
+          // At least one here node is not setdown only
 
       ) {
         // Process this link line, otherwise ignore

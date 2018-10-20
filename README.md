@@ -106,6 +106,8 @@ Population bubbles are not necessarily centered on towns: These are typically lo
 
 Circular services that constitute two routes in different directions, that share some stops but not all, display with the service in both directions serving the entire shared part of the loop: Circular services normally halve the total service to represent the journey possibilities either clockwise or counter-clockwise, without needing to decide which direction to travel in to reach any one stop. Circular services that take different routes depending on their direction cannot simply be halved in this manner, even over the common section, because the service level in each direction is not necessarily the same. Consequently Aquius would have to understand which direction to travel in order to reach each destination the fastest. That would be technically possible by calculating distance, but would remain prone to misinterpretation, because a service with a significantly higher service frequency in one direction might reasonably be used to make journeys round almost the entire loop, regadless of distance. The safest assumption is that services can be ridden round the loop in either direction. In practice this issue only arises [in Parla](https://timhowgego.github.io/Aquius/live/es-rail-20-jul-2018/#x-3.76265/y40.23928/z14/c-3.7669/k40.2324/m10/s5/vlphn/n2).
 
+Aquius will summarise cabotaged routes accurately where only one node on the route is within _here_, but may over-count the service total when multiple nodes with different cabotage rules for the same vehicle journey are included in _here_. Cabotaged routes are those where pickup and setdown restrictions vary depending on the passenger journey being undertaken, not the vehicle journey. For example, an international or inter-regional operator may be forbidden from carrying passengers solely within one nation or region. Flixbus, for example, define these restrictions by creating multiple copies of each vehicle journey, each copy with different pickup and setdown flags. This poses a logical problem for Aquius, since it needs to both display the links from each separate node _and_ acknowledge that these separate links are provided by the exact same vehicle journey. Currently Aquius opts to show the links and over-count the journeys. This could be improved by counting common sections and nodes accurately, perhaps by defining a parent link that serves as a lookup for the entire stop sequence - although the basic conflict between link display and service count would remain a source of confusion.
+
 ### Spain
 
 Spanish Railway dataset services are not totally accurate: The network was research in one direction (away from Madrid), during academic holidays, and with a Cercanías journey planner that only showed origin/destination and not the stops inbetween. Likewise service totals for many city metros were calculated from average headways, so won't be perfectly accurate. Tourist-type services have been excluded. International services only within Spain. For an introduction to the dataset, see [Disassembling Trenes](https://timhowgego.wordpress.com/2018/09/04/disassembling-trenes/).
@@ -287,32 +289,34 @@ Otherwise the JSON-like Object will contain `summary`, is an Object containing l
 
 [General Transit Feed Specification](https://developers.google.com/transit/gtfs/reference/) is the most widely used interchange format for public transport schedule data. A [script is available](https://github.com/timhowgego/Aquius/tree/master/dist) that automatically converts single GTFS archives into Aquius datasets. This script is currently under development, requiring both features and testing, so check the output carefully. [A live demonstration is available here](https://timhowgego.github.io/Aquius/live/gtfs/). Alternatively, run the `gtfs.min.js` file privately:
 
-* With a user interface: Within a webpage, load the script and call `gtfsToAquius.init("aquius-div-id")`, where "aquius-div-id" is an empty element on the page.
+* With a user interface: Within a webpage, load the script and call `gtfsToAquius.init("aquius-div-id")`, where "aquius-div-id" is the ID of an empty element on the page.
 * From another script: Call `gtfsToAquius.process(gtfs, geojson, config)`, where each argument of that function is a JSON-like `Object`: `gtfs` consists of a key representing the name of the GTFS file without extension (for example, `calendar`) whose value is the raw text content of the GTFS file. `geojson` is the content of a GeoJSON file pre-parsed into an `Object`. `config` contains key:value pairs for optional configuration settings, as described below. Both `geojson` and `config` can be empty (`{}`). The function returns an `Object` with possible keys `error` (array of any error messages), `config` (with defaults or calculated values applied), and `aquius` (as a `dataObject`).
 
 **Caution:** As is, the script runs as a single thread which offers no user feedback, so may appear to stall when processing large datasets. Runtime is typically 1-2 seconds per 10 megabytes of GTFS text data (with roughly half that time spent processing the Comma Separated Values), plus time to assign stops (nodes) to population (places). The single-operator networks found in most GTFS archives should process within about 5 seconds, but very complex multi-operator conurbations may take longer.
 
 ### Configuration File
 
-GTFS To Aquius accepts and produces a file called `config.json`. In the absence of a proper user interface, this is the only way to customise the GTFS processing. Otherwise GTFS To Aquius simply analyses services over the next 7 days, producing average daily service totals, filtered by agency (operator). `config.json` is JSON file, whose minimum content is an empty `Object` (`{}`) and whose encoding should be UTF-8. To this `Object` one or more key: value pairs may be added. Currently supported keys are:
+By default GTFS To Aquius simply analyses services over the next 7 days, producing average daily service totals, filtered by agency (operator). GTFS To Aquius accepts and produces a file called `config.json`, which in the absence of a detailed user interface, is the only way to customise the GTFS processing. The minimum content of `config.json` is an empty `Object` (`{}`). To this `Object` one or more key: value pairs may be added. Currently supported keys are:
 
 Key|Type|Default|Description
 ---|----|-------|-----------
+allowColor|boolean|true|Include route-specific colors if available
 allowName|boolean|true|Include stop names (increases file size)
+allowRoute|boolean|true|Include route-specific short names
 allowURL|boolean|true|Include URLs for stops and services where available (increases file size)
 fromDate|YYYYMMDD dateString|Today|Start date for service pattern analysis (inclusive)
 meta|object|{"schema": "0"}|As [Data Structure](#data-structure) meta key
-option|object|{}|As [Data Structure](#data-structure) option key
+option|object|{}|As [Configuration](#configuration)/[Data Structure](#data-structure) option key
 populationProperty|string|"population"|Field name in GeoJSON properties containing the number of people (or equivalent demographic statistic)
 productFilter|object|{"type": "agency"}|Group services by, including network definitions, detailed below
 servicePer|integer|1|Service average per period in days (1 gives daily totals, 7 gives weekly totals), regardless of fromDate/toDate
 toDate|YYYYMMDD dateString|Next week|End date for service pattern analysis (inclusive)
-translation|object|{}|As [Data Structure](#data-structure) translation key
+translation|object|{}|As [Configuration](#configuration)/[Data Structure](#data-structure) translation key
 
 `productFilter` currently supports one of two `type` values:
 
-* "agency", which assigns a product code to each operator identified in the GTFS (default)
-* "mode", which assigns a product code to each vehicle type identified in the GTFS (only the original types and "supported" [extensions](https://developers.google.com/transit/gtfs/reference/extended-route-types) will be named)
+* "agency", which assigns a product code for each operator identified in the GTFS (default)
+* "mode", which assigns a product code for each vehicle type identified in the GTFS (only the original types and "supported" [extensions](https://developers.google.com/transit/gtfs/reference/extended-route-types) will be named)
 
 By default GTFS To Aquius will create network filters consisting of all and each (with every filter named in en-US locale), and add keys `index` (list of all GTFS codes) and `network` (arrays structured like the [Data Structure](#data-structure) network key, except references are to GTFS codes, not numerical indices) to the `productFilter` `Object`. The easiest way to build bespoke network filters is to process the GTFS data once, then manually edit the `config.json` produced. If using GTFS To Aquius via its user interface, a rough count of routes and services by each `productFilter` will be produced after processing, allowing the most important categories to be identified. **Caution:** Pre-defining the `productFilter` will prevent GTFS To Aquius adding or removing entries, so any new operators or modes subsequently added to the GTFS source will need to be added to the `productFilter` manually.
 

@@ -381,8 +381,12 @@ var gtfsToAquius = gtfsToAquius || {
 
     var i;
     var defaults = {
+      "allowColor": true,
+        // Include route-specific colors if available
       "allowName": true,
         // Include stop names (increases file size)
+      "allowRoute": true,
+        // Include route-specific short names
       "allowURL": true,
         // Include stop and service URLs (increases file size)
       "fromDate": formatDate(Date.now()),
@@ -509,9 +513,7 @@ var gtfsToAquius = gtfsToAquius || {
       "routes": ["route_id"],
       "stops": ["stop_id", "stop_lat", "stop_lon"],
       "trips": ["route_id", "service_id", "trip_id"],
-      "stop_times": ["trip_id", "stop_id", "stop_sequence"],
-      "calendar": ["service_id", "monday", "tuesday", "wednesday", "thursday", "friday",
-        "saturday", "sunday", "start_date", "end_date"]
+      "stop_times": ["trip_id", "stop_id", "stop_sequence"]
     };
 
     if ("type" in out.config.productFilter &&
@@ -1076,26 +1078,31 @@ var gtfsToAquius = gtfsToAquius || {
         fromDateMS += 864e5;
       }
 
-      for (i = 0; i < out.gtfs.calendar.length; i += 1) {
+      if ("calendar" in out.gtfs) {
+        // Some GTFS (eg CP) skip calendar and use only calendar_dates
 
-        dayCount = 0;
-        startDateMS = unformatDate(out.gtfs.calendar[i][out.gtfsHead.calendar.start_date]);
-        endToDateMS = unformatDate(out.gtfs.calendar[i][out.gtfsHead.calendar.end_date]);
+        for (i = 0; i < out.gtfs.calendar.length; i += 1) {
 
-        dates = Object.keys(calendarDates);
-        for (j = 0; j < dates.length; j += 1) {
-          if (calendarDates[dates[j]] >= startDateMS &&
-            calendarDates[dates[j]] <= endToDateMS
-          ) {
-            today = parseInt(out.gtfs.calendar[i][out.gtfsHead.calendar[getDay(calendarDates[dates[j]])]], 10);
-            if (!Number.isNaN(today)) {
-              dayCount += today;
+          dayCount = 0;
+          startDateMS = unformatDate(out.gtfs.calendar[i][out.gtfsHead.calendar.start_date]);
+          endToDateMS = unformatDate(out.gtfs.calendar[i][out.gtfsHead.calendar.end_date]);
+
+          dates = Object.keys(calendarDates);
+          for (j = 0; j < dates.length; j += 1) {
+            if (calendarDates[dates[j]] >= startDateMS &&
+              calendarDates[dates[j]] <= endToDateMS
+            ) {
+              today = parseInt(out.gtfs.calendar[i][out.gtfsHead.calendar[getDay(calendarDates[dates[j]])]], 10);
+              if (!Number.isNaN(today)) {
+                dayCount += today;
+              }
             }
           }
-        }
 
-        if (dayCount > 0) {
-          serviceDays[out.gtfs.calendar[i][out.gtfsHead.calendar.service_id]] = dayCount;
+          if (dayCount > 0) {
+            serviceDays[out.gtfs.calendar[i][out.gtfsHead.calendar.service_id]] = dayCount;
+          }
+
         }
 
       }
@@ -1235,10 +1242,11 @@ var gtfsToAquius = gtfsToAquius || {
 
       for (i = 0; i < out.gtfs.stop_times.length; i += 1) {
         if (trip[out.gtfs.stop_times[i][out.gtfsHead.stop_times.trip_id]] !== undefined) {
-          if (trip[out.gtfs.stop_times[i][out.gtfsHead.stop_times.trip_id]].stops.length === 0 ||
+          if ((trip[out.gtfs.stop_times[i][out.gtfsHead.stop_times.trip_id]].stops.length === 0 ||
             trip[out.gtfs.stop_times[i][out.gtfsHead.stop_times.trip_id]]
               .stops[trip[out.gtfs.stop_times[i][out.gtfsHead.stop_times.trip_id]].stops.length - 1] !==
-              out.nodeLookup[out.gtfs.stop_times[i][out.gtfsHead.stop_times.stop_id]]
+              out.nodeLookup[out.gtfs.stop_times[i][out.gtfsHead.stop_times.stop_id]]) &&
+              out.gtfs.stop_times[i][out.gtfsHead.stop_times.stop_id] in out.nodeLookup
           ) {
             // Else concurrent stops
 
@@ -1284,27 +1292,30 @@ var gtfsToAquius = gtfsToAquius || {
             // Slug is a temporary indexable unique reference
         };
 
-        if (out.gtfsHead.routes.route_short_name !== -1 &&
-          out.gtfs.routes[i][out.gtfsHead.routes.route_short_name] !== ""
-        ) {
-          routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.n =
-            out.gtfs.routes[i][out.gtfsHead.routes.route_short_name];
-          routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.slug +=
-            out.gtfs.routes[i][out.gtfsHead.routes.route_short_name];
-        } else {
-          // Long name only if short name unavailable
-          if (out.config.allowName === true &&
-            out.gtfsHead.routes.route_long_name !== -1 &&
-            out.gtfs.routes[i][out.gtfsHead.routes.route_long_name] !== ""
+        if (out.config.allowRoute === true) {
+          if (out.gtfsHead.routes.route_short_name !== -1 &&
+            out.gtfs.routes[i][out.gtfsHead.routes.route_short_name] !== ""
           ) {
             routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.n =
-              out.gtfs.routes[i][out.gtfsHead.routes.route_long_name];
+              out.gtfs.routes[i][out.gtfsHead.routes.route_short_name];
             routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.slug +=
-              out.gtfs.routes[i][out.gtfsHead.routes.route_long_name];
+              out.gtfs.routes[i][out.gtfsHead.routes.route_short_name];
+          } else {
+            // Long name only if short name unavailable
+            if (out.config.allowName === true &&
+              out.gtfsHead.routes.route_long_name !== -1 &&
+              out.gtfs.routes[i][out.gtfsHead.routes.route_long_name] !== ""
+            ) {
+              routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.n =
+                out.gtfs.routes[i][out.gtfsHead.routes.route_long_name];
+              routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.slug +=
+                out.gtfs.routes[i][out.gtfsHead.routes.route_long_name];
+            }
           }
         }
 
-        if (out.gtfsHead.routes.route_color !== -1 &&
+        if (out.config.allowColor === true &&
+          out.gtfsHead.routes.route_color !== -1 &&
           out.gtfs.routes[i][out.gtfsHead.routes.route_color] !== ""
         ) {
           routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.c =
@@ -1313,7 +1324,8 @@ var gtfsToAquius = gtfsToAquius || {
             out.gtfs.routes[i][out.gtfsHead.routes.route_color];
         }
 
-        if (out.gtfsHead.routes.route_text_color !== -1 &&
+        if (out.config.allowColor === true &&
+          out.gtfsHead.routes.route_text_color !== -1 &&
           out.gtfs.routes[i][out.gtfsHead.routes.route_text_color] !== ""
         ) {
           routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.t =
@@ -1399,7 +1411,7 @@ var gtfsToAquius = gtfsToAquius || {
             nodes.push(trip[out.gtfs.trips[i][out.gtfsHead.trips.trip_id]].stops[j][1]);
           }
 
-          forward = "f" + routes[out.gtfs.trips[i][out.gtfsHead.trips.route_id]];
+          forward = "f" + routes[out.gtfs.trips[i][out.gtfsHead.trips.route_id]].product;
 
           if (out.gtfsHead.stop_times.pickup_type !== -1 &&
             trip[out.gtfs.trips[i][out.gtfsHead.trips.trip_id]].setdown.length > 0
@@ -1422,9 +1434,11 @@ var gtfsToAquius = gtfsToAquius || {
 
             link[forward].service += trip[out.gtfs.trips[i][out.gtfsHead.trips.trip_id]].service;
             if ("reference" in routes[out.gtfs.trips[i][out.gtfsHead.trips.route_id]] &&
+              Object.keys(routes[out.gtfs.trips[i][out.gtfsHead.trips.route_id]].reference).length > 1 &&
               link[forward].referenceLookup.indexOf(
                 routes[out.gtfs.trips[i][out.gtfsHead.trips.route_id]].reference.slug) === -1
             ) {
+              // Length 1 is slug only, which will be subsequently removed
               link[forward].reference.push(routes[out.gtfs.trips[i][out.gtfsHead.trips.route_id]].reference);
               link[forward].referenceLookup.push(routes[out.gtfs.trips[i][out.gtfsHead.trips.route_id]].reference.slug);
             }
@@ -1434,7 +1448,8 @@ var gtfsToAquius = gtfsToAquius || {
             if (backward in link) {
 
               link[backward].service += trip[out.gtfs.trips[i][out.gtfsHead.trips.trip_id]].service;
-              if ("reference" in routes[out.gtfs.trips[i][out.gtfsHead.trips.route_id]] &&
+              if ("reference" in routes[out.gtfs.trips[i][out.gtfsHead.trips.route_id]]   &&
+                Object.keys(routes[out.gtfs.trips[i][out.gtfsHead.trips.route_id]].reference).length > 1 &&
                 link[backward].referenceLookup.indexOf(
                   routes[out.gtfs.trips[i][out.gtfsHead.trips.route_id]].reference.slug) === -1
               ) {
@@ -1453,7 +1468,9 @@ var gtfsToAquius = gtfsToAquius || {
                 "route": nodes,
                 "service": trip[out.gtfs.trips[i][out.gtfsHead.trips.trip_id]].service
               };
-              if ("reference" in routes[out.gtfs.trips[i][out.gtfsHead.trips.route_id]]) {
+              if ("reference" in routes[out.gtfs.trips[i][out.gtfsHead.trips.route_id]] &&
+                Object.keys(routes[out.gtfs.trips[i][out.gtfsHead.trips.route_id]].reference).length > 1
+              ) {
                 link[forward].reference = [routes[out.gtfs.trips[i][out.gtfsHead.trips.route_id]].reference]
                 link[forward].referenceLookup = [routes[out.gtfs.trips[i][out.gtfsHead.trips.route_id]].reference.slug];
               }
@@ -1480,7 +1497,7 @@ var gtfsToAquius = gtfsToAquius || {
 
       return link;
     }
-    
+
     function aquiusLink(out, link) {
 
       var line, service, i, j;
@@ -1513,7 +1530,9 @@ var gtfsToAquius = gtfsToAquius || {
           for (j = 0; j < link[keys[i]].reference.length; j += 1) {
             delete link[keys[i]].reference[j].slug;
           }
-          line[3].r = link[keys[i]].reference;
+          if (Object.keys(link[keys[i]].reference).length > 0) {
+            line[3].r = link[keys[i]].reference;
+          }
         }
         if ("color" in link[keys[i]]) {
           line[3].o = link[keys[i]].color;
@@ -1534,6 +1553,15 @@ var gtfsToAquius = gtfsToAquius || {
         out.aquius.link.push(line);
 
       }
+
+      out.aquius.link.sort(function (a, b) {
+        return b[1].reduce(function(c, d) {
+          return c + d;
+        }, 0) - a[1].reduce(function(c, d) {
+          return c + d;
+        }, 0);
+      });
+        // Descending service count, since busiest most likely to be queried and thus found faster
 
       return out;
     }
