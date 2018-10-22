@@ -1,6 +1,5 @@
 /*eslint-env browser*/
 /*global aquius*/
-/*global Promise*/
 
 var gtfsToAquius = gtfsToAquius || {
 /**
@@ -14,25 +13,18 @@ var gtfsToAquius = gtfsToAquius || {
   /**
    * Initialisation with user interface
    * @param {string} configId - Id of DOM element within which to build UI
+   * @return {boolean} initialisation success
    */
    "use strict";
 
-  var process = this.process;
-
-  function promiseScript(url) {
-
-    return new Promise(function (resolve, reject) {
-      var element;
-      element = document.createElement("script");
-      element.src = url;
-      element.onload = resolve;
-      element.onerror = reject;
-      document.head.appendChild(element);
-    });
-  }
-
   function createElement(elementType, value, style) {
-    // Returns DOM. Value and style key:value objects optional. Events not handled
+    /**
+     * Helper: Creates DOM element
+     * @param {string} elementType
+     * @param {object} value - optional DOM value:content pairs
+     * @param {object} style - optional DOM style value:content pairs
+     * @return {object} DOM element
+     */
 
     var theseValues, v;
     var thisElement = document.createElement(elementType);
@@ -54,61 +46,176 @@ var gtfsToAquius = gtfsToAquius || {
     return thisElement;
   }
 
-  function initUI() {
-    // Initial UI
+  function createTabulation(tableData, tableHeader, tableDataStyle) {
+    /**
+     * Helper: Creates table DOM
+     * @param {object} tableData - array (rows) of arrays (cell content)
+     * @param {object} tableHeader - array of header cell names
+     * @param {object} tableDataStyle - optional array of data cell styles
+     * @return {object} DOM element
+     */
 
-    var parent, element;
-    var homeDOM = document.getElementById(configId);
+    var td, tr, i, j;
+    var table = createElement("table");
 
-    while (homeDOM.firstChild) {
-      homeDOM.removeChild(homeDOM.firstChild);
+    if (tableHeader.length > 0) {
+      tr = createElement("tr");
+      for (i = 0; i < tableHeader.length; i += 1) {
+        tr.appendChild(createElement("th", {
+          "textContent": tableHeader[i].toString()
+        }));
+      }
+      table.appendChild(tr);
     }
 
-    parent = createElement("form");
-
-    element = createElement("label", {
-      "textContent": "Select GTFS text files, population GeoJSON and config.json: "
-    });
-    element.appendChild(createElement("input", {
-      "id": configId + "importFiles",
-      "multiple": "multiple",
-      "name": configId + "importFiles[]",
-      "type": "file"
-    }));
-    parent.appendChild(element);
-
-    element = createElement("button", {
-      "id": configId + "ProcessButton",
-      "textContent": "Process",
-      "type": "button"
-    });
-    element.addEventListener("click", (function() {
-      if (document.getElementById(configId + "importFiles").files.length > 0) {
-        document.getElementById(configId + "ProcessButton").disabled = true;
-        document.getElementById(configId + "Progress").textContent = "Working...";
-        readAsTextFiles(document.getElementById(configId + "importFiles").files, postImportLoad);
+    for (i = 0; i < tableData.length; i += 1) {
+      tr = createElement("tr");
+      for (j = 0; j < tableData[i].length; j += 1) {
+        td = createElement("td", {
+          "textContent": tableData[i][j].toString()
+        });
+        if (tableDataStyle !== undefined &&
+          tableDataStyle.length > j
+        ) {
+          td.className = tableDataStyle[j];
+        }
+        tr.appendChild(td);
       }
-    }), false);
-    parent.appendChild(element);
+      table.appendChild(tr);
+    }
 
-    parent.appendChild(document.createTextNode(" "));
-    parent.appendChild(createElement("span", {
-      "id": configId + "Progress"
-    }));
-
-    homeDOM.appendChild(parent);
-
-    homeDOM.appendChild(createElement("div", {
-      "id": configId + "Output"
-    }));
+    return table;
   }
 
-  function readAsTextFiles(fileList, callback) {
-    // Returns array of filename, content to function callback
+  function initialiseUI(vars) {
+    /**
+     * Creates user interface in its initial state
+     * @param {object} vars - internal data references (including configId)
+     * @return {boolean} initialisation success
+     */
 
-    var reader, i;
-    var data = [];
+    var button, form, label;
+    var baseDOM = document.getElementById(vars.configId);
+
+    if (!baseDOM) {
+      return false;
+    }
+
+    while (baseDOM.firstChild) {
+      baseDOM.removeChild(baseDOM.firstChild);
+    }
+
+    if (!Object.keys ||
+      ![].indexOf ||
+      typeof JSON !== "object" ||
+      !window.File ||
+      !window.FileReader ||
+      !window.Blob
+    ) {
+      baseDOM.appendChild(
+        document.createTextNode("Browser not supported: Try a modern browser"));
+      return false;
+    }
+
+    document.head.appendChild(createElement("script", {
+      "src": "https://timhowgego.github.io/Aquius/dist/aquius.min.js",
+      "type": "text/javascript"
+    }));
+      // Optional in much later post-processing, so no callback
+
+    form = createElement("form", {
+      "className": vars.configId + "Input"
+    });
+
+    label = createElement("label", {
+      "textContent": "GTFS as .txt, optional config, and optional GeoJSON to process:"
+    });
+    
+    button = createElement("input", {
+      "id": vars.configId + "ImportFiles",
+      "multiple": "multiple",
+      "name": vars.configId + "ImportFiles[]",
+      "type": "file"
+    });
+    button.addEventListener("change", (function(){
+      manageProcess(vars);
+    }), false);
+    label.appendChild(button);
+
+    form.appendChild(label);
+
+    form.appendChild(createElement("span", {
+      "id": vars.configId + "Progress"
+    }));
+
+    baseDOM.appendChild(form);
+
+    baseDOM.appendChild(createElement("div", {
+      "id": vars.configId + "Output"
+    }));
+
+    return true;
+  }
+
+  function outputError(error, vars) {
+    /**
+     * Output errors to user interface, destroying any prior Output
+     * @param {object} error - error Object
+     * @param {object} vars - internal data references
+     */
+    
+    var message;
+    var fileDOM = document.getElementById(vars.configId + "ImportFiles");
+    var outputDOM = document.getElementById(vars.configId + "Output");
+    var progressDOM = document.getElementById(vars.configId + "Progress");
+    
+    if (error !== undefined &&
+      outputDOM !== null
+    ) {
+
+      while (outputDOM.firstChild) {
+        outputDOM.removeChild(outputDOM.firstChild);
+      }
+
+      outputDOM.className = vars.configId + "OutputError";
+
+      if ("message" in error) {
+        message = error.message;
+      } else {
+        message = JSON.stringify(error);
+      }
+
+      outputDOM.appendChild(createElement("p", {
+        "textContent": "Error: " + message
+      }));
+
+      if (progressDOM !== null) {
+        while (progressDOM.firstChild) {
+          progressDOM.removeChild(progressDOM.firstChild);
+        }
+        progressDOM.textContent = "Failed";
+      }
+      if (fileDOM !== null) {
+        fileDOM.disabled = false;
+      }
+    }
+  }
+
+  function manageProcess(vars) {
+    /**
+     * Initiates file import and Aquius creation
+     * @param {object} vars - internal data references
+     */
+
+    var error, reader, i;
+    var gtfs = {};
+    var fileDOM = document.getElementById(vars.configId + "ImportFiles");
+    var options = {
+      "_vars": vars,
+      "callback": postProcess
+    };
     var processedFiles = 0;
+    var progressDOM = document.getElementById(vars.configId + "Progress");
     var totalFiles = 0;
 
     function loadFiles(files) {
@@ -117,6 +224,10 @@ var gtfsToAquius = gtfsToAquius || {
 
       for (i = 0; i < totalFiles; i += 1) {
         reader = new FileReader();
+        reader.onerror = (function(theFile) {
+          error = new Error("Could not read " + theFile.name);
+          reader.abort();
+        });
         reader.onload = (function(theFile) {
           return function() {
             onLoad(theFile.name, this.result);
@@ -128,96 +239,112 @@ var gtfsToAquius = gtfsToAquius || {
     }
 
     function onLoad(filename, result) {
-      data.push([filename, result]);
+
+      var extension, json;
+      var filenameParts = filename.toLowerCase().split(".");
+      
+      if (filenameParts.length > 1) {
+        extension = filenameParts.pop();
+      } else {
+        extension = "txt";
+          // Fallback
+      }
+      
+      try {
+
+        switch (extension) {
+
+          case "csv":
+          case "txt":
+            gtfs[filenameParts.join("")] = result;
+            break;
+
+          case "geojson":
+          case "js":
+          case "json":
+            json = JSON.parse(result);
+            if ("type" in json &&
+              json.type === "FeatureCollection"
+            ) {
+              options.geojson = json;
+            } else {
+              options.config = json;
+            }
+            break;
+
+          default:
+            break;
+
+        }
+
+      } catch(err) {
+        error = err;
+      }
     }
 
     function onLoadEnd() {
       processedFiles += 1;
-      if (processedFiles === totalFiles) { 
-        callback(data);
+      if (processedFiles === totalFiles) {
+        if (error !== undefined) {
+          outputError(error, vars);
+        } else {
+          vars.process(gtfs, options);
+        }
       }
     }
 
-    loadFiles(fileList);
+    if (fileDOM !== null &&
+      fileDOM.files.length > 0
+    ) {
+      fileDOM.disabled = true;
+      if (progressDOM !== null) {
+        while (progressDOM.firstChild) {
+          progressDOM.removeChild(progressDOM.firstChild);
+        }
+        progressDOM.textContent = "Working...";
+      }
+      loadFiles(fileDOM.files);
+    }
   }
 
-  function postImportLoad(importRaw) {
+  function postProcess(error, out, options) {
+    /**
+     * Called after Aquius creation
+     * @param {object} error - Error object or undefined 
+     * @param {object} out - output, including keys aquius and config
+     * @param {object} options - as sent, including _vars
+     */
 
-    var child, element, extension, keys, link, out, parent, parts, service, thejson, i, j;
-    var config = {};
-    var geojson = {};
-    var gtfs = {};
-    var error = [];
-    var outputDOM = document.getElementById(configId + "Output");
+    var keys, tableData, tableDataRow, i, j;
+    var vars = options._vars;
+    var fileDOM = document.getElementById(vars.configId + "ImportFiles");
+    var outputDOM = document.getElementById(vars.configId + "Output");
+    var progressDOM = document.getElementById(vars.configId + "Progress");
+
+    if (error !== undefined) {
+      outputError(error, vars);
+      return false;
+    }
+
+    if (!outputDOM ||
+      !progressDOM)
+    {
+      return false;
+    }
 
     while (outputDOM.firstChild) {
       outputDOM.removeChild(outputDOM.firstChild);
     }
 
-    for (i = 0; i < importRaw.length; i += 1) {
-      if (importRaw[i].length > 1) {
-        parts = importRaw[i][0].toLowerCase().split(".");
-        if (parts.length > 1) {
-          extension = parts.pop();
-          switch (extension) {
-
-            case "txt":
-              try {
-                gtfs[parts.join("")] = importRaw[i][1];
-              } catch(err) {
-                error.push(parts.join("") + "." + extension  + ": " + err.message);
-              }
-              break;
-
-            case "json":
-            case "geojson":
-              try {
-                thejson = JSON.parse(importRaw[i][1]);
-                if ("type" in thejson &&
-                  thejson.type === "FeatureCollection"
-                ) {
-                  geojson = thejson;
-                } else {
-                  config = thejson;
-                }
-              } catch(err) {
-                error.push(parts.join("") + "." + extension + ": " + err.message);
-              }
-              break;
-
-            default:
-              break;
-
-          }
-        }
-      }
+    while (progressDOM.firstChild) {
+      progressDOM.removeChild(progressDOM.firstChild);
     }
 
-    if (error.length > 0) {
-      out = {"error": error};
-    } else {
-      out = process(gtfs, geojson, config);
+    if (fileDOM !== null) {
+      fileDOM.disabled = false;
     }
 
-    document.getElementById(configId + "Progress").textContent = "";
-    document.getElementById(configId + "ProcessButton").disabled = false;
-
-    parent = createElement("ul", {
-      "id": configId + "Download"
-    });
-
-    if ("error" in out &&
-      out.error.length > 0
-     ) {
-      parent.className = configId + "Error";
-      for (i = 0; i < out.error.length; i += 1) {
-        parent.appendChild(createElement("li", {
-          "textContent": "Error: " + out.error[i]
-        }));
-      }
-    } else {
-      parent.className = configId + "Success";
-    }
+    outputDOM.className = "";
 
     keys = ["aquius", "config"];
     for (i = 0; i < keys.length; i += 1) {
@@ -225,141 +352,99 @@ var gtfsToAquius = gtfsToAquius || {
         Object.keys(out[keys[i]]).length > 0
       ) {
 
-        if (keys[i] === "config") {
-          thejson = JSON.stringify(out[keys[i]], null, " ");
-        } else {
-          thejson = JSON.stringify(out[keys[i]]);
-        }
-        child = createElement("li");
-        element = createElement("a", {
-          "className": configId + "Download",
+        progressDOM.appendChild(createElement("a", {
+          "className": vars.configId + "Download",
           "href": window.URL.createObjectURL(
-            new Blob([thejson], {type: "application/json;charset=utf-8"})
-            ),
+            new Blob([JSON.stringify(out[keys[i]])],
+            {type: "application/json;charset=utf-8"})
+          ),
           "download": keys[i] + ".json",
-          "textContent": "Save " + keys[i] + ".json"
-        });
-        child.appendChild(element);
-        parent.appendChild(child);
+          "textContent": "Save " + keys[i] + ".json",
+          "role": "button"
+        }));
 
       }
     }
 
-    outputDOM.appendChild(parent);
-
-    if (("error" in out === false ||
-      out.error.length === 0) &&
-      typeof aquius !== "undefined"
-    ) {
+    if (typeof aquius !== "undefined") {
+      // If aquius has not loaded by now, skip the map
       outputDOM.appendChild(createElement("div", {
-        "className": configId + "Map",
-        "id": configId + "Map"
+        "id": vars.configId + "Map"
       }, {
         "height": (document.documentElement.clientHeight / 2) + "px"
       }));
-      aquius.init(configId + "Map", {
+      aquius.init(vars.configId + "Map", {
         "dataObject": out.aquius,
         "uiStore": false
       });
     }
 
-    if ("network" in out.aquius &&
+    if ("aquius" in out &&
+      "network" in out.aquius &&
       "link" in out.aquius
     ) {
 
-      parent = createElement("table", {
-        "className": configId + "Summary",
-      });
-      child = createElement("tr");
-      keys = ["Network", "Routes", "Services"];
-      for (i = 0; i < keys.length; i += 1) {
-        child.appendChild(createElement("th", {
-          "textContent": keys[i]
-        }));
-      }
-      parent.appendChild(child);
-
+      tableData = [];
       for (i = 0; i < out.aquius.network.length; i += 1) {
 
-        child = createElement("tr");
+        tableDataRow = [];
+
         if ("en-US" in out.aquius.network[i][1]) {
-          child.appendChild(createElement("td", {
-            "textContent": out.aquius.network[i][1]["en-US"]
-          }));
+          tableDataRow.push(out.aquius.network[i][1]["en-US"]);
         } else {
-          child.appendChild(createElement("td", {
-            "textContent": JSON.stringify(out.aquius.network[i][1])
-          }));
+          tableDataRow.push(JSON.stringify(out.aquius.network[i][1]));
         }
 
-        link = 0;
-        service = 0;
+        tableDataRow.push(0, 0);
         for (j = 0; j < out.aquius.link.length; j += 1) {
           if (out.aquius.network[i][0].indexOf(out.aquius.link[j][0][0]) !== -1) {
             // Code only outputs one product per link, thus always index 0
-            link += 1;
-            service += out.aquius.link[j][1].reduce(function(a, b) {
+            tableDataRow[1] += 1;
+            tableDataRow[2] += out.aquius.link[j][1].reduce(function(a, b) {
               return a + b;
             }, 0);
           }
         }
-        child.appendChild(createElement("td", {
-          "textContent": Math.round(link).toString()
-        }));
-        child.appendChild(createElement("td", {
-          "textContent":  Math.round(service).toString()
-        }));
-        parent.appendChild(child);
+        tableDataRow[1] = Math.round(tableDataRow[1]);
+        tableDataRow[2] = Math.round(tableDataRow[2]);
 
+        tableData.push(tableDataRow);
       }
 
-      outputDOM.appendChild(parent);
+      outputDOM.appendChild(createTabulation(tableData, ["Network", "Routes", "Services"],
+        [vars.configId + "Text", vars.configId + "Number", vars.configId + "Number"]));
     }
   }
 
-
-  if (!document.getElementById(configId)) {
-    return false;
-  }
-
-  if (!Object.keys ||
-    ![].indexOf ||
-    typeof JSON !== "object" ||
-    !window.File ||
-    !window.FileReader ||
-    !window.Blob ||
-    typeof Promise === "undefined"
-  ) {
-    document.getElementById(configId).appendChild(
-      document.createTextNode("Browser not supported: Try a modern browser"));
-    return false;
-  }
-
-  promiseScript("https://timhowgego.github.io/Aquius/dist/aquius.min.js").then(initUI());
+  return initialiseUI({
+    "configId": configId,
+    "process": this.process
+  });
 },
 
 
-"process": function process(gtfs, geojson, config) {
+"process": function process(gtfs, options) {
   /**
-   * Initialisation with user interface
+   * Creates Aquius dataObject
    * @param {object} gtfs - key per GTFS file slug, value raw text content of GTFS file
-   * @param {object} geojson - parsed GeoJSON file
-   * @param {object} config - key:value pairs for optional configuration settings
-   * @return {object} - with possible keys error, config, aquius
+   * @param {object} options - geojson, config, callback
+   * @return {object} without callback: possible keys aquius, config, error, gtfs, gtfsHead
+   * with callback: callback(error, out, options)
    */
   "use strict";
 
-  var out = {
-    "aquius": {},
-    "config": {},
-    "error": []
-  };
+  var out = {};
 
-  function cleanup(out) {
-    // On exit
+  function finish(out, gtfs, options) {
+    /**
+     * Called to exit
+     * @param {object} out - internal data references
+     * @param {object} gtfs
+     * @param {object} options
+     */
 
-    var i;
-    var clean = ["gtfs", "gtfsHead", "node", "nodeLookup"];
+    var error, i;
+    var clean = ["node", "nodeLookup"];
       // Out objects to be destroyed once processing is complete
 
     for (i = 0; i < clean.length; i += 1) {
@@ -368,16 +453,24 @@ var gtfsToAquius = gtfsToAquius || {
       }
     }
 
-    if ("error" in out &&
-      out.error.length === 0
+    if (typeof options === "object" &&
+      "callback" in options
     ) {
-      delete out.error;
+      if ("error" in out) {
+        error = new Error(out.error.join(". "));
+      }
+      return options.callback(error, out, options);
     }
-
     return out;
   }
 
-  function parseConfig(out, config) {
+  function parseConfig(out, options) {
+    /**
+     * Parse options.config into valid out.config. Defines defaults
+     * @param {object} out
+     * @param {object} options
+     * @return {object} out
+     */
 
     var i;
     var defaults = {
@@ -390,27 +483,42 @@ var gtfsToAquius = gtfsToAquius || {
       "allowURL": true,
         // Include stop and service URLs (increases file size)
       "fromDate": formatDate(Date.now()),
+        // Start date for service pattern analysis (inclusive)
       "meta": {
         "schema": "0"
       },
+        // As Data Structure meta key
       "option": {},
+        // As Data Structure/Configuration option key
       "populationProperty": "population",
+        // Field name in GeoJSON properties containing the number of people
       "productFilter": {
         "type": "agency"
       },
+        // Group services by, including network definitions (see docs)
       "servicePer": 1,
-        // Service average per period in days, 1 daily, 7 weekly, regardless of fromDate/endDate
+        // Service average per period in days (1 gives daily totals, 7 gives weekly totals)
       "toDate": formatDate(Date.now() + 5184e5),
-        // Start to end date is inclusive, thus +6 days for a week
+        // End date for service pattern analysis (inclusive), thus +6 days for 1 week
       "translation": {}
+        // As Data Structure/Configuration translation key
     };
     var keys = Object.keys(defaults);
 
+    if ("config" in out === false) {
+      out.config = {};
+    }
+
+    if (typeof options !== "object") {
+      options = {};
+    }
+
     for (i = 0; i < keys.length; i += 1) {
-      if (keys[i] in config &&
-        typeof config[keys[i]] === typeof defaults[keys[i]]
+      if ("config" in options &&
+        keys[i] in options.config &&
+        typeof options.config[keys[i]] === typeof defaults[keys[i]]
       ) {
-        out.config[keys[i]] = config[keys[i]];
+        out.config[keys[i]] = options.config[keys[i]];
       } else {
         out.config[keys[i]] = defaults[keys[i]];
       }
@@ -419,94 +527,106 @@ var gtfsToAquius = gtfsToAquius || {
     return out;
   }
 
-  function parseGtfs(out, gtfs) {
-    // Parse array of name:stringContent into object with required data
+  function parseCsv(csv) {
+    /**
+     * Helper: Parses CSV string into multi-array
+     * Modified from Jezternz. Runtime about 1 second per 20MB of data
+     * @param {string} csv
+     * @return {object} multi-array of lines[columns]
+     */
 
-    function parseCsv(csv) {
-      // CSV parser, modified from Jezternz. Runtime about 1 second per 15MB of data
+    var pattern = new RegExp(("(\\,|\\r?\\n|\\r|^)(?:\"([^\"]*(?:\"\"[^\"]*)*)\"|([^\\,\\r\\n]*))"),"gi");
+    var matches = pattern.exec(csv);
+    var output = [[]];
 
-      var pattern = new RegExp(("(\\,|\\r?\\n|\\r|^)(?:\"([^\"]*(?:\"\"[^\"]*)*)\"|([^\\,\\r\\n]*))"),"gi");
-      var matches = pattern.exec(csv);
-      var output = [[]];
+    csv = csv.trim();
 
-      csv = csv.trim();
-
-      while (matches !== null) {
-        if (matches[1].length && matches[1] !== ",") {
-          output.push([]);
-        }
-        output[output.length - 1].push(matches[2] ?
-          matches[2].replace(new RegExp( "\"\"", "g" ), "\"") :
-          matches[3]);
-        matches = pattern.exec(csv);
+    while (matches !== null) {
+      if (matches[1].length && matches[1] !== ",") {
+        output.push([]);
       }
-
-      return output;
+      output[output.length - 1].push(matches[2] ?
+        matches[2].replace(new RegExp( "\"\"", "g" ), "\"") :
+        matches[3]);
+      matches = pattern.exec(csv);
     }
+
+    return output;
+  }
+
+  function parseGtfs(out, gtfs) {
+    /**
+     * Parse gtfs strings into out.gtfs, columns defined in out.gtfsHead
+     * @param {object} out
+     * @param {object} gtfs
+     * @return {object} out
+     */
 
     var content, keys, required, i, j;
 
-    out.gtfsHead = {
-      // Numbers record column position, or -1 if missing
-      "calendar": {
-        "service_id": -1,
-        "monday": -1,
-        "tuesday": -1,
-        "wednesday": -1,
-        "thursday": -1,
-        "friday": -1,
-        "saturday": -1,
-        "sunday": -1,
-        "start_date": -1,
-        "end_date": -1
-      },
-      "calendar_dates": {
-        "service_id": -1,
-        "date": -1,
-        "exception_type": -1
-      },
-      "frequencies": {
-        "trip_id": -1,
-        "start_time": -1,
-        "end_time": -1,
-        "headway_secs": -1
-      },
-      "routes": {
-        "route_color": -1,
-        "route_id": -1,
-        "route_long_name": -1,
-        "route_short_name": -1,
-        "route_text_color": -1,
-        "route_url": -1
-      },
-      "stop_times": {
-        "trip_id": -1,
-        "stop_id": -1,
-        "stop_sequence": -1,
-        "pickup_type": -1,
-        "drop_off_type": -1
-      },
-      "stops": {
-        "stop_code": -1,
-        "stop_id": -1,
-        "stop_lat": -1,
-        "stop_lon": -1,
-        "stop_name": -1,
-        "stop_url": -1,
-        "location_type": -1,
-        "parent_station": -1
-      },
-      "transfers": {
-        "from_stop_id": -1,
-        "to_stop_id": -1,
-        "transfer_type": -1
-      },
-      "trips": {
-        "route_id": -1,
-        "service_id": -1,
-        "trip_id": -1
-      }
-    };
+    if ("gtfsHead" in out === false) {
+      out.gtfsHead = {
+        // Numbers record column position, or -1 if missing
+        "calendar": {
+          "service_id": -1,
+          "monday": -1,
+          "tuesday": -1,
+          "wednesday": -1,
+          "thursday": -1,
+          "friday": -1,
+          "saturday": -1,
+          "sunday": -1,
+          "start_date": -1,
+          "end_date": -1
+        },
+        "calendar_dates": {
+          "service_id": -1,
+          "date": -1,
+          "exception_type": -1
+        },
+        "frequencies": {
+          "trip_id": -1,
+          "start_time": -1,
+          "end_time": -1,
+          "headway_secs": -1
+        },
+        "routes": {
+          "route_color": -1,
+          "route_id": -1,
+          "route_long_name": -1,
+          "route_short_name": -1,
+          "route_text_color": -1,
+          "route_url": -1
+        },
+        "stop_times": {
+          "trip_id": -1,
+          "stop_id": -1,
+          "stop_sequence": -1,
+          "pickup_type": -1,
+          "drop_off_type": -1
+        },
+        "stops": {
+          "stop_code": -1,
+          "stop_id": -1,
+          "stop_lat": -1,
+          "stop_lon": -1,
+          "stop_name": -1,
+          "stop_url": -1,
+          "location_type": -1,
+          "parent_station": -1
+        },
+        "transfers": {
+          "from_stop_id": -1,
+          "to_stop_id": -1,
+          "transfer_type": -1
+        },
+        "trips": {
+          "route_id": -1,
+          "service_id": -1,
+          "trip_id": -1
+        }
+      };
+    }
 
     required = {
       // Files and fields that MUST be present
@@ -546,7 +666,9 @@ var gtfsToAquius = gtfsToAquius || {
     }
       // Extendable for further product filters
 
-    out.gtfs = {};
+    if("gtfs" in out === false) {
+      out.gtfs = {};
+    }
 
     keys = Object.keys(out.gtfsHead);
     for (i = 0; i < keys.length; i += 1) {
@@ -567,6 +689,9 @@ var gtfsToAquius = gtfsToAquius || {
     keys = Object.keys(required);
     for (i = 0; i < keys.length; i += 1) {
       if (keys[i] in out.gtfs === false) {
+        if ("error" in out === false) {
+          out.error = [];
+        }
         out.error.push("Missing GTFS "+ keys[i] + ".txt");
       } else {
         if (keys[i] in out.gtfsHead) {
@@ -574,6 +699,9 @@ var gtfsToAquius = gtfsToAquius || {
             if (required[keys[i]][j] in out.gtfsHead[keys[i]] === false ||
               out.gtfsHead[keys[i]][required[keys[i]][j]] === -1
             ) {
+              if ("error" in out === false) {
+                out.error = [];
+              }
               out.error.push("Missing value " + required[keys[i]][j]  + " in GTFS "+ keys[i] + ".txt");
             }
           }
@@ -585,6 +713,11 @@ var gtfsToAquius = gtfsToAquius || {
   }
 
   function formatDate(dateMS) {
+    /**
+     * Helper: Converts millisecond date to GTFS date
+     * @param {integer} dateMS - milliseconds from epoch
+     * @return {string} date in GTFS (YYYYMMDD) format
+     */
 
     var dateDate = new Date(dateMS);
     var dateString = dateDate.getFullYear().toString();
@@ -601,6 +734,11 @@ var gtfsToAquius = gtfsToAquius || {
   }
 
   function unformatDate(dateString) {
+    /**
+     * Helper: Converts GTFS date to millisecond date
+     * @param{string} dateString - date in GTFS (YYYYMMDD) format
+     * @return {integer} milliseconds from epoch
+     */
 
     if (dateString.length < 8) {
       return 0;
@@ -615,6 +753,15 @@ var gtfsToAquius = gtfsToAquius || {
   }
 
   function createMeta(out) {
+    /**
+     * Creates out.aquius header keys - meta, option, translation
+     * @param {object} out
+     * @return {object} out
+     */
+
+    if ("aquius" in out === false) {
+      out.aquius = {};
+    }
 
     if ("schema" in out.config.meta === false ||
       out.config.meta.schema !== "0"
@@ -696,6 +843,11 @@ var gtfsToAquius = gtfsToAquius || {
   }
 
   function createProduct(out) {
+    /**
+     * Creates out.aquius.network from config.productFilter
+     * @param {object} out
+     * @return {object} out
+     */
 
     var route, i, j;
     var modeLookup = {
@@ -859,7 +1011,12 @@ var gtfsToAquius = gtfsToAquius || {
 
     }
 
-    out.aquius.network = [];
+    if ("aquius" in out === false) {
+      out.aquius = {};
+    }
+    if ("network" in out.aquius === false) {
+      out.aquius.network = [];
+    }
 
     for (i = 0; i < out.config.productFilter.network.length; i += 1) {
       if (out.config.productFilter.network[i].length > 1 &&
@@ -878,705 +1035,942 @@ var gtfsToAquius = gtfsToAquius || {
     return out;
   }
 
-  function groupNodes(out) {
+  function getStopProperties(out, stopObject) {
+    /**
+     * Helper: Create node property key, with key "r" if relevant contents in stopObject
+     * @param {object} out
+     * @param {object} stopObject - gtfs.stops array (line)
+     * @return {object} "r" key
+     */
 
-    function getStopProperties(stopObject) {
+    var properties = {};
 
-      var properties = {};
-
-      if (out.config.allowName === true &&
-        out.gtfsHead.stops.stop_name !== -1 &&
-        stopObject[out.gtfsHead.stops.stop_name] !== ""
+    if (out.config.allowName === true &&
+      out.gtfsHead.stops.stop_name !== -1 &&
+      stopObject[out.gtfsHead.stops.stop_name] !== ""
+    ) {
+      properties.n = stopObject[out.gtfsHead.stops.stop_name];
+      if (out.gtfsHead.stops.stop_code !== -1 &&
+        stopObject[out.gtfsHead.stops.stop_code] !== ""
       ) {
-        properties.n = stopObject[out.gtfsHead.stops.stop_name];
-        if (out.gtfsHead.stops.stop_code !== -1 &&
-          stopObject[out.gtfsHead.stops.stop_code] !== ""
-        ) {
-          properties.n += " (" + stopObject[out.gtfsHead.stops.stop_code] +")";
-        }
+        properties.n += " (" + stopObject[out.gtfsHead.stops.stop_code] +")";
       }
-
-      if (out.config.allowURL === true &&
-        out.gtfsHead.stops.stop_url !== -1 &&
-        stopObject[out.gtfsHead.stops.stop_url] !== ""
-      ) {
-        properties.u = stopObject[out.gtfsHead.stops.stop_url];
-      }
-
-      if (Object.keys(properties).length > 0) {
-        return {"r": [properties]};
-      }
-      return {};
     }
 
-    function coordinate(coord) {
-
-      coord = parseFloat(coord);
-      if (Number.isNaN(coord)) {
-        return 0;
-      }
-
-      return Math.round(coord * 1e5) / 1e5;
-        // Round to 5 decimal places
+    if (out.config.allowURL === true &&
+      out.gtfsHead.stops.stop_url !== -1 &&
+      stopObject[out.gtfsHead.stops.stop_url] !== ""
+    ) {
+      properties.u = stopObject[out.gtfsHead.stops.stop_url];
     }
 
-    function parentStops(out) {
+    if (Object.keys(properties).length > 0) {
+      return {"r": [properties]};
+    }
+    return {};
+  }
 
-      var i;
-      var childStops = [];
-        // stop_id, parent_id
+  function formatCoordinateNumber(coord) {
+    /**
+     * Helper: Forces value into a number rounded to 5 decimal places
+     * @param {string} coord - raw number as string
+     * @return {float} coordinate
+     */
 
-      if (out.gtfsHead.stops.location_type !== -1 &&
-        out.gtfsHead.stops.parent_station !== -1
-      ) {
+    coord = parseFloat(coord);
+    if (Number.isNaN(coord)) {
+      return 0;
+    }
 
-        for (i = 0; i < out.gtfs.stops.length; i += 1) {
-          if (out.gtfs.stops[i][out.gtfsHead.stops.location_type] === "1") {
-            // Is parent
-            out.nodeLookup[out.gtfs.stops[i][out.gtfsHead.stops.stop_id]] = out.aquius.node.length;
-            out.aquius.node.push([
-              coordinate(out.gtfs.stops[i][out.gtfsHead.stops.stop_lon]),
-              coordinate(out.gtfs.stops[i][out.gtfsHead.stops.stop_lat]),
-              getStopProperties(out.gtfs.stops[i])
+    return Math.round(coord * 1e5) / 1e5;
+      // Round to 5 decimal places
+  }
+
+  function parentStops(out) {
+    /**
+     * Parses gtfs.stops parent stations and groups nodes within together
+     * @param {object} out
+     * @return {object} out
+     */
+
+    var i;
+    var childStops = [];
+      // stop_id, parent_id
+
+    if (out.gtfsHead.stops.location_type !== -1 &&
+      out.gtfsHead.stops.parent_station !== -1
+    ) {
+
+      if ("nodeLookup" in out === false) {
+        out.nodeLookup = {};
+        // Lookup of GTFS stop_id: out.aquius.node index
+      }
+      if ("aquius" in out === false) {
+        out.aquius = {};
+      }
+      if ("node" in out.aquius === false) {
+        out.aquius.node = [];
+      }
+
+      for (i = 0; i < out.gtfs.stops.length; i += 1) {
+        if (out.gtfs.stops[i][out.gtfsHead.stops.location_type] === "1") {
+          // Is parent
+          out.nodeLookup[out.gtfs.stops[i][out.gtfsHead.stops.stop_id]] = out.aquius.node.length;
+          out.aquius.node.push([
+            formatCoordinateNumber(out.gtfs.stops[i][out.gtfsHead.stops.stop_lon]),
+            formatCoordinateNumber(out.gtfs.stops[i][out.gtfsHead.stops.stop_lat]),
+            getStopProperties(out, out.gtfs.stops[i])
+          ]);
+        } else {
+          if (out.gtfs.stops[i][out.gtfsHead.stops.parent_station] !== "") {
+            // Is child
+            childStops.push([
+              out.gtfs.stops[i][out.gtfsHead.stops.stop_id],
+              out.gtfs.stops[i][out.gtfsHead.stops.parent_station]
             ]);
-          } else {
-            if (out.gtfs.stops[i][out.gtfsHead.stops.parent_station] !== "") {
-              // Is child
-              childStops.push([
-                out.gtfs.stops[i][out.gtfsHead.stops.stop_id],
-                out.gtfs.stops[i][out.gtfsHead.stops.parent_station]
-              ]);
-            }
           }
         }
-
-        for (i = 0; i < childStops.length; i += 1) {
-          if (childStops[i][1] in out.nodeLookup) {
-            // Else no parent, so stop should be processed elsewhere
-            out.nodeLookup[childStops[i][0]] = out.nodeLookup[childStops[i][1]];
-          }
-        }
-
       }
 
-      return out;
+      for (i = 0; i < childStops.length; i += 1) {
+        if (childStops[i][1] in out.nodeLookup) {
+          // Else no parent, so stop should be processed elsewhere
+          out.nodeLookup[childStops[i][0]] = out.nodeLookup[childStops[i][1]];
+        }
+      }
+
     }
 
-    function transferStops(out) {
+    return out;
+  }
 
-      var fromStop, toStop, i, j;
+  function transferStops(out) {
+    /**
+     * Parses gtfs.stops transfer stations and groups nodes within together
+     * @param {object} out
+     * @return {object} out
+     */
 
-      if ("transfers" in out.gtfs &&
-        out.gtfsHead.transfers.from_stop_id !== -1 &&
-        out.gtfsHead.transfers.to_stop_id !== -1 &&
-        out.gtfsHead.transfers.transfer_type !== 1
-      ) {
-        // Transfer pairs are logically grouped together, even where actual transfer is forbidden
+    var fromStop, toStop, i, j;
 
-        for (i = 0; i < out.gtfs.transfers.length; i += 1) {
-          if (out.gtfs.transfers[i][out.gtfsHead.transfers.from_stop_id] !== "") {
-            fromStop = out.nodeLookup[out.gtfs.transfers[i][out.gtfsHead.transfers.from_stop_id]];
-            toStop = out.nodeLookup[out.gtfs.transfers[i][out.gtfsHead.transfers.to_stop_id]];
+    if ("transfers" in out.gtfs &&
+      out.gtfsHead.transfers.from_stop_id !== -1 &&
+      out.gtfsHead.transfers.to_stop_id !== -1 &&
+      out.gtfsHead.transfers.transfer_type !== 1
+    ) {
+      // Transfer pairs are logically grouped together, even where actual transfer is forbidden
 
-            if (fromStop !== toStop) {
-              if (fromStop !== undefined &&
-                toStop !== undefined) {
-                // Could merge stops, but already clearly assigned as stations, so leave as separate
+      if ("nodeLookup" in out === false) {
+        out.nodeLookup = {};
+        // Lookup of GTFS stop_id: out.aquius.node index
+      }
+      if ("aquius" in out === false) {
+        out.aquius = {};
+      }
+      if ("node" in out.aquius === false) {
+        out.aquius.node = [];
+      }
+
+      for (i = 0; i < out.gtfs.transfers.length; i += 1) {
+        if (out.gtfs.transfers[i][out.gtfsHead.transfers.from_stop_id] !== "") {
+          fromStop = out.nodeLookup[out.gtfs.transfers[i][out.gtfsHead.transfers.from_stop_id]];
+          toStop = out.nodeLookup[out.gtfs.transfers[i][out.gtfsHead.transfers.to_stop_id]];
+
+          if (fromStop !== toStop) {
+            if (fromStop !== undefined &&
+              toStop !== undefined) {
+              // Could merge stops, but already clearly assigned as stations, so leave as separate
+            } else {
+              if (fromStop !== undefined) {
+                // Add toStop to fromStop
+                out.nodeLookup[toStop] = fromStop;
               } else {
-                if (fromStop !== undefined) {
-                  // Add toStop to fromStop
-                  out.nodeLookup[toStop] = fromStop;
+                if (toStop !== undefined) {
+                  // Add fromStop to toStop
+                  out.nodeLookup[fromStop] = toStop;
                 } else {
-                  if (toStop !== undefined) {
-                    // Add fromStop to toStop
-                    out.nodeLookup[fromStop] = toStop;
-                  } else {
-                    if (fromStop === undefined &&
-                      toStop === undefined) {
-                      // Add new stop
-                      for (j = 0; j < out.gtfs.stops.length; j += 1) {
+                  if (fromStop === undefined &&
+                    toStop === undefined) {
+                    // Add new stop
+                    for (j = 0; j < out.gtfs.stops.length; j += 1) {
 
-                        if (out.gtfs.stops[j][out.gtfsHead.stops.stop_id] === fromStop) {
-                          out.nodeLookup[fromStop] = out.aquius.node.length;
-                          out.nodeLookup[toStop] = out.aquius.node.length;
-                          out.aquius.node.push([
-                            coordinate(out.gtfs.stops[j][out.gtfsHead.stops.stop_lon]),
-                            coordinate(out.gtfs.stops[j][out.gtfsHead.stops.stop_lat]),
-                            getStopProperties(out.gtfs.stops[j])
-                          ]);
-                          break;
-                        }
-
+                      if (out.gtfs.stops[j][out.gtfsHead.stops.stop_id] === fromStop) {
+                        out.nodeLookup[fromStop] = out.aquius.node.length;
+                        out.nodeLookup[toStop] = out.aquius.node.length;
+                        out.aquius.node.push([
+                          formatCoordinateNumber(out.gtfs.stops[j][out.gtfsHead.stops.stop_lon]),
+                          formatCoordinateNumber(out.gtfs.stops[j][out.gtfsHead.stops.stop_lat]),
+                          getStopProperties(out, out.gtfs.stops[j])
+                        ]);
+                        break;
                       }
+
                     }
                   }
                 }
               }
             }
-
           }
+
         }
       }
-
-      return out;
     }
-
-    function regularStops(out) {
-
-      var i;
-
-      for (i = 0; i < out.gtfs.stops.length; i += 1) {
-        if (out.gtfs.stops[i].stop_id in out.nodeLookup === false &&
-          out.gtfs.stops[i][out.gtfsHead.stops.stop_id] !== "") {
-          out.nodeLookup[out.gtfs.stops[i][out.gtfsHead.stops.stop_id]] = out.aquius.node.length;
-          out.aquius.node.push([
-            coordinate(out.gtfs.stops[i][out.gtfsHead.stops.stop_lon]),
-            coordinate(out.gtfs.stops[i][out.gtfsHead.stops.stop_lat]),
-            getStopProperties(out.gtfs.stops[i])
-          ]);
-        }
-      }
-
-      return out;
-    }
-
-    out.aquius.node = [];
-      // Array of objects: x (lon), y (lat),`place (initially -1)
-    out.nodeLookup = {};
-      // stop_id: node index
-
-    out = parentStops(out);
-    out = transferStops(out);
-    out = regularStops(out);
 
     return out;
   }
 
-  function wanderRoutes(out) {
+  function regularStops(out) {
+    /**
+     * Parses gtfs.stops for unprocessed nodes (call after parentStops and transferStops)
+     * @param {object} out
+     * @return {object} out
+     */
 
-    function createServiceDays(out) {
+    var i;
 
-      var dates, dayCount, endToDateMS, startDateMS, today, i, j;
-      var serviceDays = {};
-        // service_id: total days
-      var calendarDates = {};
-        // All formatted days to be sampled date:millseconds
-      var fromDateMS = unformatDate(out.config.fromDate);
-      var toDateMS = unformatDate(out.config.toDate);
-
-      function getDay(dateMS) {
-
-        var days = ["sunday", "monday", "tuesday",
-          "wednesday", "thursday", "friday", "saturday"];
-        var dateDate = new Date(dateMS);
-
-        return days[dateDate.getDay()];
-      }
-
-      while (toDateMS >= fromDateMS) {
-        calendarDates[formatDate(fromDateMS)] = fromDateMS;
-        fromDateMS += 864e5;
-      }
-
-      if ("calendar" in out.gtfs) {
-        // Some GTFS (eg CP) skip calendar and use only calendar_dates
-
-        for (i = 0; i < out.gtfs.calendar.length; i += 1) {
-
-          dayCount = 0;
-          startDateMS = unformatDate(out.gtfs.calendar[i][out.gtfsHead.calendar.start_date]);
-          endToDateMS = unformatDate(out.gtfs.calendar[i][out.gtfsHead.calendar.end_date]);
-
-          dates = Object.keys(calendarDates);
-          for (j = 0; j < dates.length; j += 1) {
-            if (calendarDates[dates[j]] >= startDateMS &&
-              calendarDates[dates[j]] <= endToDateMS
-            ) {
-              today = parseInt(out.gtfs.calendar[i][out.gtfsHead.calendar[getDay(calendarDates[dates[j]])]], 10);
-              if (!Number.isNaN(today)) {
-                dayCount += today;
-              }
-            }
-          }
-
-          if (dayCount > 0) {
-            serviceDays[out.gtfs.calendar[i][out.gtfsHead.calendar.service_id]] = dayCount;
-          }
-
-        }
-
-      }
-
-      if ("calendar_dates" in out.gtfs &&
-       out.gtfsHead.calendar_dates.service_id !== -1 &&
-       out.gtfsHead.calendar_dates.date !== -1 &&
-       out.gtfsHead.calendar_dates.exception_type !== -1
-      ) {
-
-        for (i = 0; i < out.gtfs.calendar_dates.length; i += 1) {
-          if (calendarDates[out.gtfs.calendar_dates[i][out.gtfsHead.calendar_dates.date]] !== undefined) {
-
-            if (serviceDays[out.gtfs.calendar_dates[i][out.gtfsHead.calendar_dates.service_id]] === undefined) {
-              // New service
-              if (out.gtfs.calendar_dates[i][out.gtfsHead.calendar_dates.exception_type] === "1") {
-                serviceDays[out.gtfs.calendar_dates[i][out.gtfsHead.calendar_dates.service_id]] = 1;
-              }
-              // Else erroneous subtraction from non-existing service
-            } else {
-              if (out.gtfs.calendar_dates[i][out.gtfsHead.calendar_dates.exception_type] === "1") {
-                // Add at index
-                serviceDays[out.gtfs.calendar_dates[i][out.gtfsHead.calendar_dates.service_id]] += 1;
-              }
-              if (out.gtfs.calendar_dates[i][out.gtfsHead.calendar_dates.exception_type] === "2") {
-                // Subtract at index
-                if (serviceDays[out.gtfs.calendar_dates[i][out.gtfsHead.calendar_dates.service_id]] === 1) {
-                  // Subtract would zero service, so remove
-                  delete serviceDays[out.gtfs.calendar_dates[i][out.gtfsHead.calendar_dates.service_id]];
-                } else {
-                  serviceDays[out.gtfs.calendar_dates[i][out.gtfsHead.calendar_dates.service_id]] =
-                    serviceDays[out.gtfs.calendar_dates[i][out.gtfsHead.calendar_dates.service_id]] - 1;
-                }
-              }
-            }
-
-          }
-        }
-
-      }
-
-      return serviceDays;
+    if ("nodeLookup" in out === false) {
+      out.nodeLookup = {};
+      // Lookup of GTFS stop_id: out.aquius.node index
+    }
+    if ("aquius" in out === false) {
+      out.aquius = {};
+    }
+    if ("node" in out.aquius === false) {
+      out.aquius.node = [];
     }
 
-    function createFrequencies(out) {
+    for (i = 0; i < out.gtfs.stops.length; i += 1) {
+      if (out.gtfs.stops[i].stop_id in out.nodeLookup === false &&
+        out.gtfs.stops[i][out.gtfsHead.stops.stop_id] !== "") {
+        out.nodeLookup[out.gtfs.stops[i][out.gtfsHead.stops.stop_id]] = out.aquius.node.length;
+        out.aquius.node.push([
+          formatCoordinateNumber(out.gtfs.stops[i][out.gtfsHead.stops.stop_lon]),
+          formatCoordinateNumber(out.gtfs.stops[i][out.gtfsHead.stops.stop_lat]),
+          getStopProperties(out, out.gtfs.stops[i])
+        ]);
+      }
+    }
 
-      var i, service;
-      var frequencies = {};
-        // trip_id: service
+    return out;
+  }
 
-      function getDiffSeconds(startTimeString, endTimeString) {
+  function createServiceDays(out) {
+    /**
+     * Creates lookup of GTFS service_id: total days operated in analysed period
+     * @param {object} out
+     * @return {object} service_id: total days
+     */
 
-        function getTimeSeconds(timeString) {
-          // String in format nn:nn:nn
+    var dates, dayCount, endToDateMS, startDateMS, today, i, j;
+    var serviceDays = {};
+    var calendarDates = {};
+      // All formatted days to be sampled date:millseconds
+    var fromDateMS = unformatDate(out.config.fromDate);
+    var toDateMS = unformatDate(out.config.toDate);
 
-          var conversion, i;
-          var timeArray = timeString.split(":");
+    function getDay(dateMS) {
+      // Returns GTFS header day corresponding to milliseconds since epoch
 
-          if (timeArray.length < 3) {
+      var days = ["sunday", "monday", "tuesday",
+        "wednesday", "thursday", "friday", "saturday"];
+      var dateDate = new Date(dateMS);
+
+      return days[dateDate.getDay()];
+    }
+
+    while (toDateMS >= fromDateMS) {
+      calendarDates[formatDate(fromDateMS)] = fromDateMS;
+      fromDateMS += 864e5;
+    }
+
+    if ("calendar" in out.gtfs) {
+      // Some hacked GTFS archives skip calendar and use only calendar_dates
+
+      for (i = 0; i < out.gtfs.calendar.length; i += 1) {
+
+        dayCount = 0;
+        startDateMS = unformatDate(out.gtfs.calendar[i][out.gtfsHead.calendar.start_date]);
+        endToDateMS = unformatDate(out.gtfs.calendar[i][out.gtfsHead.calendar.end_date]);
+
+        dates = Object.keys(calendarDates);
+        for (j = 0; j < dates.length; j += 1) {
+          if (calendarDates[dates[j]] >= startDateMS &&
+            calendarDates[dates[j]] <= endToDateMS
+          ) {
+            today = parseInt(out.gtfs.calendar[i][out.gtfsHead.calendar[getDay(calendarDates[dates[j]])]], 10);
+            if (!Number.isNaN(today)) {
+              dayCount += today;
+            }
+          }
+        }
+
+        if (dayCount > 0) {
+          serviceDays[out.gtfs.calendar[i][out.gtfsHead.calendar.service_id]] = dayCount;
+        }
+
+      }
+
+    }
+
+    if ("calendar_dates" in out.gtfs &&
+     out.gtfsHead.calendar_dates.service_id !== -1 &&
+     out.gtfsHead.calendar_dates.date !== -1 &&
+     out.gtfsHead.calendar_dates.exception_type !== -1
+    ) {
+
+      for (i = 0; i < out.gtfs.calendar_dates.length; i += 1) {
+        if (calendarDates[out.gtfs.calendar_dates[i][out.gtfsHead.calendar_dates.date]] !== undefined) {
+
+          if (serviceDays[out.gtfs.calendar_dates[i][out.gtfsHead.calendar_dates.service_id]] === undefined) {
+            // New service
+            if (out.gtfs.calendar_dates[i][out.gtfsHead.calendar_dates.exception_type] === "1") {
+              serviceDays[out.gtfs.calendar_dates[i][out.gtfsHead.calendar_dates.service_id]] = 1;
+            }
+            // Else erroneous subtraction from non-existing service
+          } else {
+            if (out.gtfs.calendar_dates[i][out.gtfsHead.calendar_dates.exception_type] === "1") {
+              // Add at index
+              serviceDays[out.gtfs.calendar_dates[i][out.gtfsHead.calendar_dates.service_id]] += 1;
+            }
+            if (out.gtfs.calendar_dates[i][out.gtfsHead.calendar_dates.exception_type] === "2") {
+              // Subtract at index
+              if (serviceDays[out.gtfs.calendar_dates[i][out.gtfsHead.calendar_dates.service_id]] === 1) {
+                // Subtract would zero service, so remove
+                delete serviceDays[out.gtfs.calendar_dates[i][out.gtfsHead.calendar_dates.service_id]];
+              } else {
+                serviceDays[out.gtfs.calendar_dates[i][out.gtfsHead.calendar_dates.service_id]] =
+                  serviceDays[out.gtfs.calendar_dates[i][out.gtfsHead.calendar_dates.service_id]] - 1;
+              }
+            }
+          }
+
+        }
+      }
+
+    }
+
+    return serviceDays;
+  }
+
+  function getDiffSeconds(startTimeString, endTimeString) {
+    /**
+     * Helper: Get time difference in seconds between two GTFS-formatted (nn:nn:nn) times
+     * @param {string} startTimeString
+     * @param {string} endTimeString
+     * @return {integer} seconds
+     */
+
+      function getTimeSeconds(timeString) {
+
+        var conversion, i;
+        var timeArray = timeString.split(":");
+
+        if (timeArray.length < 3) {
+          return -1;
+            // Erroneous format
+        }
+        for (i = 0; i < timeArray.length; i += 1) {
+          conversion = parseInt(timeArray[i], 10);
+          if (Number.isNaN(conversion)) {
             return -1;
-              // Erroneous format
           }
-          for (i = 0; i < timeArray.length; i += 1) {
-            conversion = parseInt(timeArray[i], 10);
-            if (Number.isNaN(conversion)) {
-              return -1;
-            }
-            timeArray[i] = conversion;
-          }
-          return (timeArray[0] * 3600) + (timeArray[1] * 60) + timeArray[2];
+          timeArray[i] = conversion;
         }
-
-        var startTime = getTimeSeconds(startTimeString);
-        var endTime = getTimeSeconds(endTimeString);
-
-        if (startTime > endTime) {
-          // Rolls over midnight
-          return endTime - startTime - 86400;
-        } else {
-          return endTime - startTime;
-        }
+        return (timeArray[0] * 3600) + (timeArray[1] * 60) + timeArray[2];
       }
 
-      if ("frequencies" in out.gtfs &&
-        out.gtfsHead.frequencies.trip_id !== -1 &&
-        out.gtfsHead.frequencies.start_time !== -1 &&
-        out.gtfsHead.frequencies.end_time !== -1 &&
-        out.gtfsHead.frequencies.headway_secs !== -1
-      ) {
-         for (i = 0; i < out.gtfs.frequencies.length; i += 1) {
-           service = getDiffSeconds(
-             out.gtfs.frequencies[i][out.gtfsHead.frequencies.start_time],
-             out.gtfs.frequencies[i][out.gtfsHead.frequencies.end_time]
-             ) / parseInt(out.gtfs.frequencies[i][out.gtfsHead.frequencies.headway_secs], 10);
-           if (out.gtfs.frequencies[i][out.gtfsHead.frequencies.trip_id] in frequencies) {
-             frequencies[out.gtfs.frequencies[i][out.gtfsHead.frequencies.trip_id]] += service;
-           } else {
-             frequencies[out.gtfs.frequencies[i][out.gtfsHead.frequencies.trip_id]] = service;
-           }
+      var startTime = getTimeSeconds(startTimeString);
+      var endTime = getTimeSeconds(endTimeString);
+
+      if (startTime > endTime) {
+        // Rolls over midnight
+        return endTime - startTime - 86400;
+      } else {
+        return endTime - startTime;
+      }
+    }
+
+  function createFrequencies(out) {
+    /**
+     * Creates lookup of GTFS trip_id: service total for frequent services
+     * @param {object} out
+     * @return {object} trip_id: service total
+     */
+
+    var i, service;
+    var frequencies = {};
+
+    if ("frequencies" in out.gtfs &&
+      out.gtfsHead.frequencies.trip_id !== -1 &&
+      out.gtfsHead.frequencies.start_time !== -1 &&
+      out.gtfsHead.frequencies.end_time !== -1 &&
+      out.gtfsHead.frequencies.headway_secs !== -1
+    ) {
+       for (i = 0; i < out.gtfs.frequencies.length; i += 1) {
+         service = getDiffSeconds(
+           out.gtfs.frequencies[i][out.gtfsHead.frequencies.start_time],
+           out.gtfs.frequencies[i][out.gtfsHead.frequencies.end_time]
+         ) / parseInt(out.gtfs.frequencies[i][out.gtfsHead.frequencies.headway_secs], 10);
+         if (out.gtfs.frequencies[i][out.gtfsHead.frequencies.trip_id] in frequencies) {
+           frequencies[out.gtfs.frequencies[i][out.gtfsHead.frequencies.trip_id]] += service;
+         } else {
+           frequencies[out.gtfs.frequencies[i][out.gtfsHead.frequencies.trip_id]] = service;
          }
-      }
-
-      return frequencies;
+       }
     }
 
-    function createTrip(out, frequencies, serviceDays) {
+    return frequencies;
+  }
 
-      var i;
-      var trip = {};
-        // Required trip_id: { service int, stops [sequence, node], pickup only [], setdown only [] }
+  function createTrip(out, frequencies, serviceDays) {
+    /**
+     * Creates lookup of GTFS trip_id: complex Object describing trip
+     * @param {object} out
+     * @param {object} frequencies - as createFrequencies()
+     * @param {object} serviceDays - as createServiceDays()
+     * @return {object} trip_id: {service integer, stops [sequence, node], pickup only [], setdown only []}
+     */
 
-      for (i = 0; i < out.gtfs.trips.length; i += 1) {
-        if (serviceDays[out.gtfs.trips[i][out.gtfsHead.trips.service_id]] > 0) {
+    var i;
+    var trip = {};
 
-          trip[out.gtfs.trips[i][out.gtfsHead.trips.trip_id]] = {
-            "stops": []
-          };
-          if (out.gtfs.trips[i][out.gtfsHead.trips.trip_id] in frequencies) {
-            trip[out.gtfs.trips[i][out.gtfsHead.trips.trip_id]].service =
-              frequencies[out.gtfs.trips[i][out.gtfsHead.trips.trip_id]] *
-              serviceDays[out.gtfs.trips[i][out.gtfsHead.trips.service_id]];
-          } else {
-            trip[out.gtfs.trips[i][out.gtfsHead.trips.trip_id]].service =
-              serviceDays[out.gtfs.trips[i][out.gtfsHead.trips.service_id]];
-          }
-          if (out.gtfsHead.stop_times.pickup_type !== -1) {
-            trip[out.gtfs.trips[i][out.gtfsHead.trips.trip_id]].setdown = [];
-              // Pickup_type tested for none, thus setdown only
-          }
-          if (out.gtfsHead.stop_times.drop_off_type !== -1) {
-            trip[out.gtfs.trips[i][out.gtfsHead.trips.trip_id]].pickup = [];
-              // Drop_off_type tested for none, thus pickup only
-          }
+    for (i = 0; i < out.gtfs.trips.length; i += 1) {
+      if (serviceDays[out.gtfs.trips[i][out.gtfsHead.trips.service_id]] > 0) {
 
-        }
-      }
-
-      for (i = 0; i < out.gtfs.stop_times.length; i += 1) {
-        if (trip[out.gtfs.stop_times[i][out.gtfsHead.stop_times.trip_id]] !== undefined) {
-          if ((trip[out.gtfs.stop_times[i][out.gtfsHead.stop_times.trip_id]].stops.length === 0 ||
-            trip[out.gtfs.stop_times[i][out.gtfsHead.stop_times.trip_id]]
-              .stops[trip[out.gtfs.stop_times[i][out.gtfsHead.stop_times.trip_id]].stops.length - 1] !==
-              out.nodeLookup[out.gtfs.stop_times[i][out.gtfsHead.stop_times.stop_id]]) &&
-              out.gtfs.stop_times[i][out.gtfsHead.stop_times.stop_id] in out.nodeLookup
-          ) {
-            // Else concurrent stops
-
-            trip[out.gtfs.stop_times[i][out.gtfsHead.stop_times.trip_id]].stops.push([
-              out.gtfs.stop_times[i][out.gtfsHead.stop_times.stop_sequence],
-              out.nodeLookup[out.gtfs.stop_times[i][out.gtfsHead.stop_times.stop_id]]
-            ]);
-
-            if (out.gtfsHead.stop_times.pickup_type !== -1 &&
-              out.gtfs.stop_times[i][out.gtfsHead.stop_times.pickup_type] === "1"
-            ) {
-              trip[out.gtfs.stop_times[i][out.gtfsHead.stop_times.trip_id]].setdown.push(
-                out.nodeLookup[out.gtfs.stop_times[i][out.gtfsHead.stop_times.stop_id]]
-              );
-            }
-
-            if (out.gtfsHead.stop_times.drop_off_type !== -1 &&
-              out.gtfs.stop_times[i][out.gtfsHead.stop_times.drop_off_type] === "1"
-            ) {
-              trip[out.gtfs.stop_times[i][out.gtfsHead.stop_times.trip_id]].pickup.push(
-                out.nodeLookup[out.gtfs.stop_times[i][out.gtfsHead.stop_times.stop_id]]
-              );
-            }
-
-          }
-        }
-      }
-
-      return trip;
-    }
-
-    function createRoutes(out) {
-
-      var i;
-      var routes = {};
-        // route_id: {product, reference{n, c, u} }
-
-      for (i = 0; i < out.gtfs.routes.length; i += 1) {
-        routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]] = {};
-
-        routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference = {
-          "slug": ""
-            // Slug is a temporary indexable unique reference
+        trip[out.gtfs.trips[i][out.gtfsHead.trips.trip_id]] = {
+          "stops": []
         };
-
-        if (out.config.allowRoute === true) {
-          if (out.gtfsHead.routes.route_short_name !== -1 &&
-            out.gtfs.routes[i][out.gtfsHead.routes.route_short_name] !== ""
-          ) {
-            routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.n =
-              out.gtfs.routes[i][out.gtfsHead.routes.route_short_name];
-            routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.slug +=
-              out.gtfs.routes[i][out.gtfsHead.routes.route_short_name];
-          } else {
-            // Long name only if short name unavailable
-            if (out.config.allowName === true &&
-              out.gtfsHead.routes.route_long_name !== -1 &&
-              out.gtfs.routes[i][out.gtfsHead.routes.route_long_name] !== ""
-            ) {
-              routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.n =
-                out.gtfs.routes[i][out.gtfsHead.routes.route_long_name];
-              routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.slug +=
-                out.gtfs.routes[i][out.gtfsHead.routes.route_long_name];
-            }
-          }
-        }
-
-        if (out.config.allowColor === true &&
-          out.gtfsHead.routes.route_color !== -1 &&
-          out.gtfs.routes[i][out.gtfsHead.routes.route_color] !== ""
-        ) {
-          routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.c =
-            out.gtfs.routes[i][out.gtfsHead.routes.route_color];
-          routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.slug +=
-            out.gtfs.routes[i][out.gtfsHead.routes.route_color];
-        }
-
-        if (out.config.allowColor === true &&
-          out.gtfsHead.routes.route_text_color !== -1 &&
-          out.gtfs.routes[i][out.gtfsHead.routes.route_text_color] !== ""
-        ) {
-          routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.t =
-            out.gtfs.routes[i][out.gtfsHead.routes.route_text_color];
-          routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.slug +=
-            out.gtfs.routes[i][out.gtfsHead.routes.route_text_color];
-        }
-
-        if (out.config.allowURL === true &&
-          out.gtfsHead.routes.route_url !== -1 &&
-          out.gtfs.routes[i][out.gtfsHead.routes.route_url] !== ""
-        ) {
-          routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.u =
-            out.gtfs.routes[i][out.gtfsHead.routes.route_url];
-          routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.slug +=
-            out.gtfs.routes[i][out.gtfsHead.routes.route_url];
-        }
-
-        if (out.config.productFilter.type === "agency") {
-          if("agency_id" in out.gtfsHead.routes &&
-            out.gtfsHead.routes.agency_id !== -1
-          ) {
-            routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].product =
-              out.config.productFilter.index.indexOf(out.gtfs.routes[i][out.gtfsHead.routes.agency_id]);
-          } else {
-            routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].product = 0;
-          }
-
+        if (out.gtfs.trips[i][out.gtfsHead.trips.trip_id] in frequencies) {
+          trip[out.gtfs.trips[i][out.gtfsHead.trips.trip_id]].service =
+            frequencies[out.gtfs.trips[i][out.gtfsHead.trips.trip_id]] *
+            serviceDays[out.gtfs.trips[i][out.gtfsHead.trips.service_id]];
         } else {
-          if (out.config.productFilter.type === "mode" &&
-            "route_type" in out.gtfsHead.routes &&
-            out.gtfsHead.routes.route_type !== -1
-          ) {
-            routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].product =
-              out.config.productFilter.index.indexOf(out.gtfs.routes[i][out.gtfsHead.routes.route_type]);
-          } else {
-            routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].product =
-              out.config.productFilter.index[0];
-              // Fallback
-          }
+          trip[out.gtfs.trips[i][out.gtfsHead.trips.trip_id]].service =
+            serviceDays[out.gtfs.trips[i][out.gtfsHead.trips.service_id]];
         }
-      }
+        if (out.gtfsHead.stop_times.pickup_type !== -1) {
+          trip[out.gtfs.trips[i][out.gtfsHead.trips.trip_id]].setdown = [];
+            // Pickup_type tested for none, thus setdown only
+        }
+        if (out.gtfsHead.stop_times.drop_off_type !== -1) {
+          trip[out.gtfs.trips[i][out.gtfsHead.trips.trip_id]].pickup = [];
+            // Drop_off_type tested for none, thus pickup only
+        }
 
-      return routes;
+      }
     }
 
-    function createLink(out, trip, routes) {
-
-      var backward, forward, nodes, i, j;
-
-      function isCircular(nodes) {
-
-        var inner, i;
-
-        if (nodes.length < 3 ||
-          nodes[0] !== nodes[nodes.length -1]
+    for (i = 0; i < out.gtfs.stop_times.length; i += 1) {
+      if (trip[out.gtfs.stop_times[i][out.gtfsHead.stop_times.trip_id]] !== undefined) {
+        if ((trip[out.gtfs.stop_times[i][out.gtfsHead.stop_times.trip_id]].stops.length === 0 ||
+          trip[out.gtfs.stop_times[i][out.gtfsHead.stop_times.trip_id]]
+            .stops[trip[out.gtfs.stop_times[i][out.gtfsHead.stop_times.trip_id]].stops.length - 1] !==
+            out.nodeLookup[out.gtfs.stop_times[i][out.gtfsHead.stop_times.stop_id]]) &&
+            out.gtfs.stop_times[i][out.gtfsHead.stop_times.stop_id] in out.nodeLookup
         ) {
-          return 0;
-        }
+          // Else concurrent stops
 
-        inner = nodes.slice(1, nodes.length - 2);
-        for (i = 0; i < inner.length; i += 1) {
-          if (inner.indexOf(inner[i]) !== inner.lastIndexOf(inner[i])) {
-            // Different results from front and back means not unique
-            return 0;
-          }
-        }
-
-        return 1;
-      }
-
-      var link = {};
-        // {route array, product id, service count, direction unless both, pickup array, setdown array, reference array}
-
-      for (i = 0; i < out.gtfs.trips.length; i += 1) {
-        if (out.gtfs.trips[i][out.gtfsHead.trips.trip_id] in trip) {
-
-          nodes = [];
-          trip[out.gtfs.trips[i][out.gtfsHead.trips.trip_id]].stops.sort(function(a, b) {
-            return a[0] - b[0];
-          });
-          for (j = 0; j < trip[out.gtfs.trips[i][out.gtfsHead.trips.trip_id]].stops.length; j += 1) {
-            nodes.push(trip[out.gtfs.trips[i][out.gtfsHead.trips.trip_id]].stops[j][1]);
-          }
-
-          forward = "f" + routes[out.gtfs.trips[i][out.gtfsHead.trips.route_id]].product;
+          trip[out.gtfs.stop_times[i][out.gtfsHead.stop_times.trip_id]].stops.push([
+            out.gtfs.stop_times[i][out.gtfsHead.stop_times.stop_sequence],
+            out.nodeLookup[out.gtfs.stop_times[i][out.gtfsHead.stop_times.stop_id]]
+          ]);
 
           if (out.gtfsHead.stop_times.pickup_type !== -1 &&
-            trip[out.gtfs.trips[i][out.gtfsHead.trips.trip_id]].setdown.length > 0
+            out.gtfs.stop_times[i][out.gtfsHead.stop_times.pickup_type] === "1"
           ) {
-            trip[out.gtfs.trips[i][out.gtfsHead.trips.trip_id]].setdown.sort();
-            forward += "s" + trip[out.gtfs.trips[i][out.gtfsHead.trips.trip_id]].setdown.join(":");
+            trip[out.gtfs.stop_times[i][out.gtfsHead.stop_times.trip_id]].setdown.push(
+              out.nodeLookup[out.gtfs.stop_times[i][out.gtfsHead.stop_times.stop_id]]
+            );
           }
 
           if (out.gtfsHead.stop_times.drop_off_type !== -1 &&
-            trip[out.gtfs.trips[i][out.gtfsHead.trips.trip_id]].pickup.length > 0
+            out.gtfs.stop_times[i][out.gtfsHead.stop_times.drop_off_type] === "1"
           ) {
-            trip[out.gtfs.trips[i][out.gtfsHead.trips.trip_id]].pickup.sort();
-            forward += "p" + trip[out.gtfs.trips[i][out.gtfsHead.trips.trip_id]].pickup.join(":");
+            trip[out.gtfs.stop_times[i][out.gtfsHead.stop_times.trip_id]].pickup.push(
+              out.nodeLookup[out.gtfs.stop_times[i][out.gtfsHead.stop_times.stop_id]]
+            );
           }
 
-          backward = nodes.slice().reverse().join(":") + forward;
-          forward = nodes.join(":") + forward;
+        }
+      }
+    }
 
-          if (forward in link) {
+    return trip;
+  }
 
-            link[forward].service += trip[out.gtfs.trips[i][out.gtfsHead.trips.trip_id]].service;
-            if ("reference" in routes[out.gtfs.trips[i][out.gtfsHead.trips.route_id]] &&
+  function createRoutes(out) {
+    /**
+     * Creates lookup of GTFS route_id:: complex Object describing route
+     * @param {object} out
+     * @return {object} route_id: {product, reference{n, c, u}}
+     */
+
+    var i;
+    var routes = {};
+
+    for (i = 0; i < out.gtfs.routes.length; i += 1) {
+      routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]] = {};
+
+      routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference = {
+        "slug": ""
+          // Slug is a temporary indexable unique reference
+      };
+
+      if (out.config.allowRoute === true) {
+        if (out.gtfsHead.routes.route_short_name !== -1 &&
+          out.gtfs.routes[i][out.gtfsHead.routes.route_short_name] !== ""
+        ) {
+          routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.n =
+            out.gtfs.routes[i][out.gtfsHead.routes.route_short_name];
+          routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.slug +=
+            out.gtfs.routes[i][out.gtfsHead.routes.route_short_name];
+        } else {
+          // Long name only if short name unavailable
+          if (out.config.allowName === true &&
+            out.gtfsHead.routes.route_long_name !== -1 &&
+            out.gtfs.routes[i][out.gtfsHead.routes.route_long_name] !== ""
+          ) {
+            routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.n =
+              out.gtfs.routes[i][out.gtfsHead.routes.route_long_name];
+            routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.slug +=
+              out.gtfs.routes[i][out.gtfsHead.routes.route_long_name];
+          }
+        }
+      }
+
+      if (out.config.allowColor === true &&
+        out.gtfsHead.routes.route_color !== -1 &&
+        out.gtfs.routes[i][out.gtfsHead.routes.route_color] !== ""
+      ) {
+        routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.c =
+          out.gtfs.routes[i][out.gtfsHead.routes.route_color];
+        routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.slug +=
+          out.gtfs.routes[i][out.gtfsHead.routes.route_color];
+      }
+
+      if (out.config.allowColor === true &&
+        out.gtfsHead.routes.route_text_color !== -1 &&
+        out.gtfs.routes[i][out.gtfsHead.routes.route_text_color] !== ""
+      ) {
+        routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.t =
+          out.gtfs.routes[i][out.gtfsHead.routes.route_text_color];
+        routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.slug +=
+          out.gtfs.routes[i][out.gtfsHead.routes.route_text_color];
+      }
+
+      if (out.config.allowURL === true &&
+        out.gtfsHead.routes.route_url !== -1 &&
+        out.gtfs.routes[i][out.gtfsHead.routes.route_url] !== ""
+      ) {
+        routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.u =
+          out.gtfs.routes[i][out.gtfsHead.routes.route_url];
+        routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.slug +=
+          out.gtfs.routes[i][out.gtfsHead.routes.route_url];
+      }
+
+      if (out.config.productFilter.type === "agency") {
+        if("agency_id" in out.gtfsHead.routes &&
+          out.gtfsHead.routes.agency_id !== -1
+        ) {
+          routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].product =
+            out.config.productFilter.index.indexOf(out.gtfs.routes[i][out.gtfsHead.routes.agency_id]);
+        } else {
+          routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].product = 0;
+        }
+
+      } else {
+        if (out.config.productFilter.type === "mode" &&
+          "route_type" in out.gtfsHead.routes &&
+          out.gtfsHead.routes.route_type !== -1
+        ) {
+          routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].product =
+            out.config.productFilter.index.indexOf(out.gtfs.routes[i][out.gtfsHead.routes.route_type]);
+        } else {
+          routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].product =
+            out.config.productFilter.index[0];
+            // Fallback
+        }
+      }
+    }
+
+    return routes;
+  }
+
+  function createLink(out, trip, routes) {
+    /**
+     * Creates lookup of unique link reference: complex Object describing link
+     * @param {object} out
+     * @param {object} trip - as createTrip()
+     * @param {object} routes - as createRoutes()
+     * @return {object} linkUniqueId: {route array, product id, service count,
+     *   direction unless both, pickup array, setdown array, reference array}
+     */
+
+    var backward, forward, nodes, i, j;
+
+    function isCircular(nodes) {
+      // Returns 1 if route is circular
+
+      var inner, i;
+
+      if (nodes.length < 3 ||
+        nodes[0] !== nodes[nodes.length -1]
+      ) {
+        return 0;
+      }
+
+      inner = nodes.slice(1, nodes.length - 2);
+      for (i = 0; i < inner.length; i += 1) {
+        if (inner.indexOf(inner[i]) !== inner.lastIndexOf(inner[i])) {
+          // Different results from front and back means not unique
+          return 0;
+        }
+      }
+
+      return 1;
+    }
+
+    var link = {};
+
+    for (i = 0; i < out.gtfs.trips.length; i += 1) {
+      if (out.gtfs.trips[i][out.gtfsHead.trips.trip_id] in trip) {
+
+        nodes = [];
+        trip[out.gtfs.trips[i][out.gtfsHead.trips.trip_id]].stops.sort(function(a, b) {
+          return a[0] - b[0];
+        });
+        for (j = 0; j < trip[out.gtfs.trips[i][out.gtfsHead.trips.trip_id]].stops.length; j += 1) {
+          nodes.push(trip[out.gtfs.trips[i][out.gtfsHead.trips.trip_id]].stops[j][1]);
+        }
+
+        forward = "f" + routes[out.gtfs.trips[i][out.gtfsHead.trips.route_id]].product;
+
+        if (out.gtfsHead.stop_times.pickup_type !== -1 &&
+          trip[out.gtfs.trips[i][out.gtfsHead.trips.trip_id]].setdown.length > 0
+        ) {
+          trip[out.gtfs.trips[i][out.gtfsHead.trips.trip_id]].setdown.sort();
+          forward += "s" + trip[out.gtfs.trips[i][out.gtfsHead.trips.trip_id]].setdown.join(":");
+        }
+
+        if (out.gtfsHead.stop_times.drop_off_type !== -1 &&
+          trip[out.gtfs.trips[i][out.gtfsHead.trips.trip_id]].pickup.length > 0
+        ) {
+          trip[out.gtfs.trips[i][out.gtfsHead.trips.trip_id]].pickup.sort();
+          forward += "p" + trip[out.gtfs.trips[i][out.gtfsHead.trips.trip_id]].pickup.join(":");
+        }
+
+        backward = nodes.slice().reverse().join(":") + forward;
+        forward = nodes.join(":") + forward;
+
+        if (forward in link) {
+
+          link[forward].service += trip[out.gtfs.trips[i][out.gtfsHead.trips.trip_id]].service;
+          if ("reference" in routes[out.gtfs.trips[i][out.gtfsHead.trips.route_id]] &&
+            Object.keys(routes[out.gtfs.trips[i][out.gtfsHead.trips.route_id]].reference).length > 1 &&
+            link[forward].referenceLookup.indexOf(
+              routes[out.gtfs.trips[i][out.gtfsHead.trips.route_id]].reference.slug) === -1
+          ) {
+            // Length 1 is slug only, which will be subsequently removed
+            link[forward].reference.push(routes[out.gtfs.trips[i][out.gtfsHead.trips.route_id]].reference);
+            link[forward].referenceLookup.push(routes[out.gtfs.trips[i][out.gtfsHead.trips.route_id]].reference.slug);
+          }
+
+        } else {
+
+          if (backward in link) {
+
+            link[backward].service += trip[out.gtfs.trips[i][out.gtfsHead.trips.trip_id]].service;
+            if ("reference" in routes[out.gtfs.trips[i][out.gtfsHead.trips.route_id]]   &&
               Object.keys(routes[out.gtfs.trips[i][out.gtfsHead.trips.route_id]].reference).length > 1 &&
-              link[forward].referenceLookup.indexOf(
+              link[backward].referenceLookup.indexOf(
                 routes[out.gtfs.trips[i][out.gtfsHead.trips.route_id]].reference.slug) === -1
             ) {
-              // Length 1 is slug only, which will be subsequently removed
-              link[forward].reference.push(routes[out.gtfs.trips[i][out.gtfsHead.trips.route_id]].reference);
-              link[forward].referenceLookup.push(routes[out.gtfs.trips[i][out.gtfsHead.trips.route_id]].reference.slug);
+              link[backward].reference.push(routes[out.gtfs.trips[i][out.gtfsHead.trips.route_id]].reference);
+              link[backward].referenceLookup.push(routes[out.gtfs.trips[i][out.gtfsHead.trips.route_id]].reference.slug);
+            }
+            if ("direction" in link[backward]) {
+              delete link[backward].direction;
             }
 
           } else {
 
-            if (backward in link) {
-
-              link[backward].service += trip[out.gtfs.trips[i][out.gtfsHead.trips.trip_id]].service;
-              if ("reference" in routes[out.gtfs.trips[i][out.gtfsHead.trips.route_id]]   &&
-                Object.keys(routes[out.gtfs.trips[i][out.gtfsHead.trips.route_id]].reference).length > 1 &&
-                link[backward].referenceLookup.indexOf(
-                  routes[out.gtfs.trips[i][out.gtfsHead.trips.route_id]].reference.slug) === -1
-              ) {
-                link[backward].reference.push(routes[out.gtfs.trips[i][out.gtfsHead.trips.route_id]].reference);
-                link[backward].referenceLookup.push(routes[out.gtfs.trips[i][out.gtfsHead.trips.route_id]].reference.slug);
-              }
-              if ("direction" in link[backward]) {
-                delete link[backward].direction;
-              }
-
-            } else {
-
-              link[forward] = {
-                "direction": 1,
-                "product": routes[out.gtfs.trips[i][out.gtfsHead.trips.route_id]].product,
-                "route": nodes,
-                "service": trip[out.gtfs.trips[i][out.gtfsHead.trips.trip_id]].service
-              };
-              if ("reference" in routes[out.gtfs.trips[i][out.gtfsHead.trips.route_id]] &&
-                Object.keys(routes[out.gtfs.trips[i][out.gtfsHead.trips.route_id]].reference).length > 1
-              ) {
-                link[forward].reference = [routes[out.gtfs.trips[i][out.gtfsHead.trips.route_id]].reference]
-                link[forward].referenceLookup = [routes[out.gtfs.trips[i][out.gtfsHead.trips.route_id]].reference.slug];
-              }
-
-              if (out.gtfsHead.stop_times.pickup_type !== -1 &&
-                trip[out.gtfs.trips[i][out.gtfsHead.trips.trip_id]].setdown.length > 0
-              ) {
-                link[forward].setdown = trip[out.gtfs.trips[i][out.gtfsHead.trips.trip_id]].setdown;
-              }
-              if (out.gtfsHead.stop_times.drop_off_type !== -1 &&
-                trip[out.gtfs.trips[i][out.gtfsHead.trips.trip_id]].pickup.length > 0
-              ) {
-                link[forward].pickup = trip[out.gtfs.trips[i][out.gtfsHead.trips.trip_id]].pickup;
-              }
-              if (isCircular(nodes)) {
-                link[forward].circular = 1;
-              }
-
+            link[forward] = {
+              "direction": 1,
+              "product": routes[out.gtfs.trips[i][out.gtfsHead.trips.route_id]].product,
+              "route": nodes,
+              "service": trip[out.gtfs.trips[i][out.gtfsHead.trips.trip_id]].service
+            };
+            if ("reference" in routes[out.gtfs.trips[i][out.gtfsHead.trips.route_id]] &&
+              Object.keys(routes[out.gtfs.trips[i][out.gtfsHead.trips.route_id]].reference).length > 1
+            ) {
+              link[forward].reference = [routes[out.gtfs.trips[i][out.gtfsHead.trips.route_id]].reference]
+              link[forward].referenceLookup = [routes[out.gtfs.trips[i][out.gtfsHead.trips.route_id]].reference.slug];
             }
+
+            if (out.gtfsHead.stop_times.pickup_type !== -1 &&
+              trip[out.gtfs.trips[i][out.gtfsHead.trips.trip_id]].setdown.length > 0
+            ) {
+              link[forward].setdown = trip[out.gtfs.trips[i][out.gtfsHead.trips.trip_id]].setdown;
+            }
+            if (out.gtfsHead.stop_times.drop_off_type !== -1 &&
+              trip[out.gtfs.trips[i][out.gtfsHead.trips.trip_id]].pickup.length > 0
+            ) {
+              link[forward].pickup = trip[out.gtfs.trips[i][out.gtfsHead.trips.trip_id]].pickup;
+            }
+            if (isCircular(nodes)) {
+              link[forward].circular = 1;
+            }
+
           }
-
         }
-      }
 
-      return link;
+      }
     }
 
-    function aquiusLink(out, link) {
+    return link;
+  }
 
-      var line, service, i, j;
-      var keys = Object.keys(link);
-      var serviceFactor = out.config.servicePer /
-        (1 + ((unformatDate(out.config.toDate) - unformatDate(out.config.fromDate)) / 864e5));
-        // Day plus difference start to end milliseconds to days
+  function aquiusLink(out, link) {
+    /**
+     * Creates and populates aquius.link
+     * @param {object} out
+     * @param {object} link - as createLink()
+     * @return {object} out
+     */
 
+    var line, service, i, j;
+    var keys = Object.keys(link);
+    var serviceFactor = out.config.servicePer /
+      (1 + ((unformatDate(out.config.toDate) - unformatDate(out.config.fromDate)) / 864e5));
+      // Day plus difference start to end milliseconds to days
+    
+    if ("aquius" in out === false) {
+      out.aquius = {};
+    }
+    if ("link" in out.aquius === false) {
       out.aquius.link = [];
-
-      for (i = 0; i < keys.length; i += 1) {
-
-        service = link[keys[i]].service * serviceFactor;
-        if (service < 1) {
-          service = parseFloat(service.toPrecision(1));
-        } else {
-          service = parseInt(service, 10);
-        }
-
-        line = [
-          [link[keys[i]].product],
-            // Products assigned uniquely, since GTFS normally describes individual product+vehicle journeys
-          [service],
-            // @todo Service time period filtering
-          link[keys[i]].route,
-          {}
-        ];
-
-        if ("reference" in link[keys[i]]) {
-          for (j = 0; j < link[keys[i]].reference.length; j += 1) {
-            delete link[keys[i]].reference[j].slug;
-          }
-          if (Object.keys(link[keys[i]].reference).length > 0) {
-            line[3].r = link[keys[i]].reference;
-          }
-        }
-        if ("color" in link[keys[i]]) {
-          line[3].o = link[keys[i]].color;
-        }
-        if ("circular" in link[keys[i]]) {
-          line[3].c = 1;
-        }
-        if ("direction" in link[keys[i]]) {
-          line[3].d = 1;
-        }
-        if ("pickup" in link[keys[i]]) {
-          line[3].u = link[keys[i]].pickup;
-        }
-        if ("setdown" in link[keys[i]]) {
-          line[3].s = link[keys[i]].setdown;
-        }
-          // Future: Add shared/split? Would need to analysis whole schedule to assess overlaps
-        out.aquius.link.push(line);
-
-      }
-
-      out.aquius.link.sort(function (a, b) {
-        return b[1].reduce(function(c, d) {
-          return c + d;
-        }, 0) - a[1].reduce(function(c, d) {
-          return c + d;
-        }, 0);
-      });
-        // Descending service count, since busiest most likely to be queried and thus found faster
-
-      return out;
     }
 
-    var frequencies = createFrequencies(out);
-    var serviceDays = createServiceDays(out);
-    var trip = createTrip(out, frequencies, serviceDays);
-    var routes = createRoutes(out);
-    var link = createLink(out, trip, routes);
-    out = aquiusLink(out, link);
+    for (i = 0; i < keys.length; i += 1) {
+
+      service = link[keys[i]].service * serviceFactor;
+      if (service < 1) {
+        service = parseFloat(service.toPrecision(1));
+      } else {
+        service = parseInt(service, 10);
+      }
+
+      line = [
+        [link[keys[i]].product],
+          // Products assigned uniquely, since GTFS normally describes individual product+vehicle journeys
+        [service],
+          // @todo Service time period filtering
+        link[keys[i]].route,
+        {}
+      ];
+
+      if ("reference" in link[keys[i]]) {
+        for (j = 0; j < link[keys[i]].reference.length; j += 1) {
+          delete link[keys[i]].reference[j].slug;
+        }
+        if (Object.keys(link[keys[i]].reference).length > 0) {
+          line[3].r = link[keys[i]].reference;
+        }
+      }
+      if ("color" in link[keys[i]]) {
+        line[3].o = link[keys[i]].color;
+      }
+      if ("circular" in link[keys[i]]) {
+        line[3].c = 1;
+      }
+      if ("direction" in link[keys[i]]) {
+        line[3].d = 1;
+      }
+      if ("pickup" in link[keys[i]]) {
+        line[3].u = link[keys[i]].pickup;
+      }
+      if ("setdown" in link[keys[i]]) {
+        line[3].s = link[keys[i]].setdown;
+      }
+        // Future: Add shared/split? Would need to analysis whole schedule to assess overlaps
+      out.aquius.link.push(line);
+
+    }
+
+    out.aquius.link.sort(function (a, b) {
+      return b[1].reduce(function(c, d) {
+        return c + d;
+      }, 0) - a[1].reduce(function(c, d) {
+        return c + d;
+      }, 0);
+    });
+      // Descending service count, since busiest most likely to be queried and thus found faster
 
     return out;
   }
 
-  function populateNodes(out, geojson) {
+  function pointInGeometry(x, y, feature) {
+    /**
+     * Helper: Check if x,y point is in GeoJSON feature. Supports Polygon, MultiPolygon
+     * @param {float} x - x (longitude) coordinate
+     * @param {float} y - y (latitude) coordinate
+     * @param {object} feature - single GeoJSON feature array
+     * @return {boolean}
+     */
+
+    var i;
+
+    function insidePolygon(polygonArray) {
+
+      var inside, intersect, xj, xk, yj, yk, i, j, k;
+
+      if (Array.isArray(polygonArray)) {
+        for (i = 0; i < polygonArray.length; i += 1) {
+          if (Array.isArray(polygonArray[i])) {
+
+            // Via https://github.com/substack/point-in-polygon
+            // From http://www.ecse.rpi.edu/Homepages/wrf/Research/Short_Notes/pnpoly.html
+            inside = false;
+            for (j = 0, k = polygonArray[i].length - 1;
+              j < polygonArray[i].length; k = j++) {
+
+              xj = polygonArray[i][j][0];
+              yj = polygonArray[i][j][1];
+              xk = polygonArray[i][k][0];
+              yk = polygonArray[i][k][1];
+
+              intersect = ((yj > y) != (yk > y)) && (x < (xk - xj) * (y - yj) / (yk - yj) + xj);
+              if (intersect) {
+                inside = !inside;
+              }
+
+            }
+            if (inside) {
+              return true;
+            }
+          }
+        }
+      }
+
+      return false;
+    }
+
+    if ("geometry" in feature === false ||
+      "type" in feature.geometry === false ||
+      "coordinates" in feature.geometry === false ||
+      !Array.isArray(feature.geometry.coordinates)
+    ) {
+      return false;
+    }
+
+    if (feature.geometry.type === "MultiPolygon") {
+      for (i = 0; i < feature.geometry.coordinates.length; i += 1) {
+        if (insidePolygon(feature.geometry.coordinates[i])) {
+          return true;
+        }
+      }
+    }
+
+    if (feature.geometry.type === "Polygon") {
+      return insidePolygon(feature.geometry.coordinates);
+    }
+      // Future: Extendable for other geometries, such as nearest point
+    return false;
+  }
+
+  function getCentroid(feature) {
+    /**
+     * Helper: Calculate centroid of GeoJSON feature. Supports Polygon, MultiPolygon
+     * @param {object} feature - single GeoJSON feature array
+     * @return {object} with x and y keyed, or null if geometry not supported
+     */
+
+    var i;
+    var bounds = {};
+
+    function centroidPolygon(polygonArray) {
+
+      var i, j;
+      var bounds = {};
+
+      if (Array.isArray(polygonArray)) {
+          for (i = 0; i < polygonArray.length; i += 1) {
+            if (Array.isArray(polygonArray[i])) {
+              for (j = 0; j < polygonArray[i].length; j += 1) {
+                if (Array.isArray(polygonArray[i][j]) &&
+                  polygonArray[i][j].length === 2
+                ) {
+
+                  if ("maxX" in bounds === false) {
+                    // First entry
+                    bounds.maxX = polygonArray[i][j][0];
+                    bounds.minX = polygonArray[i][j][0];
+                    bounds.maxY = polygonArray[i][j][1];
+                    bounds.minY = polygonArray[i][j][1];
+                  } else {
+
+                    if (polygonArray[i][j][0] > bounds.maxX) {
+                      bounds.maxX = polygonArray[i][j][0];
+                    } else {
+                      if (polygonArray[i][j][0] < bounds.minX) {
+                        bounds.minX = polygonArray[i][j][0];
+                      }
+                    }
+                    if (polygonArray[i][j][1] > bounds.maxY) {
+                      bounds.maxY = polygonArray[i][j][1];
+                    } else {
+                      if (polygonArray[i][j][1] < bounds.minY) {
+                        bounds.minY = polygonArray[i][j][1];
+                      }
+                    }
+
+                  }
+
+                }
+              }
+            }
+          }
+        }
+
+      return bounds;
+    }
+
+    if ("geometry" in feature &&
+      "type" in feature.geometry &&
+      "coordinates" in feature.geometry &&
+      Array.isArray(feature.geometry.coordinates)
+    ) {
+
+      if (feature.geometry.type === "MultiPolygon") {
+         for (i = 0; i < feature.geometry.coordinates.length; i += 1) {
+           bounds = centroidPolygon(feature.geometry.coordinates[i]);
+         }
+      }
+
+      if (feature.geometry.type === "Polygon") {
+         bounds = centroidPolygon(feature.geometry.coordinates);
+      }
+        // Future: Extendable for other geometry types
+    }
+
+    if ("maxX" in bounds) {
+      return {
+        "x": Math.round(((bounds.maxX + bounds.minX) / 2) * 1e5) / 1e5,
+        "y": Math.round(((bounds.maxY + bounds.minY) / 2) * 1e5) / 1e5
+          // Unweighted centroids. Rounded to 5 decimal places
+      };
+    } else {
+      return null;
+    }
+  }
+
+  function populateNodes(out, options) {
+    /**
+     * Creates and populates aquius.place
+     * @param {object} out
+     * @param {object} options
+     * @return {object} out
+     */
 
     var centroid, checked, lastDiff, nodeIndex, population, xyDiff, i, j;
     var centroidStack = {};
@@ -1593,163 +1987,26 @@ var gtfsToAquius = gtfsToAquius || {
       // Index = aquius.place, value = GeojsonLine:aquius.place index
     var maxPopulation = 0;
 
-    out.aquius.place = [];
+    if ("aquius" in out === false) {
+      out.aquius = {};
+    }
+    if ("place" in out.aquius === false) {
+      out.aquius.place = [];
       // x, y, {p: population}
-
-    function pointInGeometry(x, y, feature) {
-
-      var i;
-
-      function insidePolygon(polygonArray) {
-
-        var inside, intersect, xj, xk, yj, yk, i, j, k;
-
-        if (Array.isArray(polygonArray)) {
-          for (i = 0; i < polygonArray.length; i += 1) {
-            if (Array.isArray(polygonArray[i])) {
-
-              // Via https://github.com/substack/point-in-polygon
-              // From http://www.ecse.rpi.edu/Homepages/wrf/Research/Short_Notes/pnpoly.html
-              inside = false;
-              for (j = 0, k = polygonArray[i].length - 1;
-                j < polygonArray[i].length; k = j++) {
-
-                xj = polygonArray[i][j][0];
-                yj = polygonArray[i][j][1];
-                xk = polygonArray[i][k][0];
-                yk = polygonArray[i][k][1];
-
-                intersect = ((yj > y) != (yk > y)) && (x < (xk - xj) * (y - yj) / (yk - yj) + xj);
-                if (intersect) {
-                  inside = !inside;
-                }
-
-              }
-              if (inside) {
-                return true;
-              }
-            }
-          }
-        }
-
-        return false;
-      }
-
-      if ("geometry" in feature === false ||
-        "type" in feature.geometry === false ||
-        "coordinates" in feature.geometry === false ||
-        !Array.isArray(feature.geometry.coordinates)
-      ) {
-        return false;
-      }
-
-      if (feature.geometry.type === "MultiPolygon") {
-        for (i = 0; i < feature.geometry.coordinates.length; i += 1) {
-          if (insidePolygon(feature.geometry.coordinates[i])) {
-            return true;
-          }
-        }
-      }
-
-      if (feature.geometry.type === "Polygon") {
-        return insidePolygon(feature.geometry.coordinates);
-      }
-
-      // Future: Extendable for other geometries, such as nearest point
-      return false;
     }
 
-    function getCentroid(feature) {
 
-      var i;
-      var bounds = {};
-
-      function centroidPolygon(polygonArray) {
-
-        var i, j;
-        var bounds = {};
-
-        if (Array.isArray(polygonArray)) {
-            for (i = 0; i < polygonArray.length; i += 1) {
-              if (Array.isArray(polygonArray[i])) {
-                for (j = 0; j < polygonArray[i].length; j += 1) {
-                  if (Array.isArray(polygonArray[i][j]) &&
-                    polygonArray[i][j].length === 2
-                  ) {
-                    
-                    if ("maxX" in bounds === false) {
-                      // First entry
-                      bounds.maxX = polygonArray[i][j][0];
-                      bounds.minX = polygonArray[i][j][0];
-                      bounds.maxY = polygonArray[i][j][1];
-                      bounds.minY = polygonArray[i][j][1];
-                    } else {
-
-                      if (polygonArray[i][j][0] > bounds.maxX) {
-                        bounds.maxX = polygonArray[i][j][0];
-                      } else {
-                        if (polygonArray[i][j][0] < bounds.minX) {
-                          bounds.minX = polygonArray[i][j][0];
-                        }
-                      }
-                      if (polygonArray[i][j][1] > bounds.maxY) {
-                        bounds.maxY = polygonArray[i][j][1];
-                      } else {
-                        if (polygonArray[i][j][1] < bounds.minY) {
-                          bounds.minY = polygonArray[i][j][1];
-                        }
-                      }
-
-                    }
-
-                  }
-                }
-              }
-            }
-          }
-
-        return bounds;
-      }
-
-      if ("geometry" in feature &&
-        "type" in feature.geometry &&
-        "coordinates" in feature.geometry &&
-        Array.isArray(feature.geometry.coordinates)
-      ) {
-
-        if (feature.geometry.type === "MultiPolygon") {
-           for (i = 0; i < feature.geometry.coordinates.length; i += 1) {
-             bounds = centroidPolygon(feature.geometry.coordinates[i]);
-           }
-        }
-
-        if (feature.geometry.type === "Polygon") {
-           bounds = centroidPolygon(feature.geometry.coordinates);
-        }
-
-        // Future: Extendable for other geometry types
-      }
-
-      if ("maxX" in bounds) {
-        return {
-          "x": Math.round(((bounds.maxX + bounds.minX) / 2) * 1e5) / 1e5,
-          "y": Math.round(((bounds.maxY + bounds.minY) / 2) * 1e5) / 1e5
-            // Unweighted centroids. Rounded to 5 decimal places
-        };
-      } else {
-        return null;
-      }
-    }
-
-    if ("type" in geojson &&
-      geojson.type === "FeatureCollection" &&
-      "features" in geojson &&
-      Array.isArray(geojson.features) &&
-      geojson.features.length > 0
+    if (typeof options === "object" &&
+      "geojson" in options &&
+      "type" in options.geojson &&
+      options.geojson.type === "FeatureCollection" &&
+      "features" in options.geojson &&
+      Array.isArray(options.geojson.features) &&
+      options.geojson.features.length > 0
     ) {
 
-      for (i = 0; i < geojson.features.length; i += 1) {
-        centroid = getCentroid(geojson.features[i]);
+      for (i = 0; i < options.geojson.features.length; i += 1) {
+        centroid = getCentroid(options.geojson.features[i]);
         if (centroid !== null) {
           centroidKeys.push(i);
           centroidStack[i] = centroid;
@@ -1769,7 +2026,7 @@ var gtfsToAquius = gtfsToAquius || {
         thisPlace = -1;
 
         if (pointInGeometry(out.aquius.node[nodeStack[i][1]][0],
-          out.aquius.node[nodeStack[i][1]][1], geojson.features[previousPlace])) {
+          out.aquius.node[nodeStack[i][1]][1], options.geojson.features[previousPlace])) {
           // Often the next node is near the last, so check the last result first
           thisPlace = previousPlace;
 
@@ -1792,7 +2049,7 @@ var gtfsToAquius = gtfsToAquius || {
             ) {
               // Only consider closer centroids than the prior failures. PreviousPlace already checked
               if (pointInGeometry(out.aquius.node[nodeStack[i][1]][0],
-                out.aquius.node[nodeStack[i][1]][1], geojson.features[centroidKeys[j]])
+                out.aquius.node[nodeStack[i][1]][1], options.geojson.features[centroidKeys[j]])
               ) {
                 thisPlace = centroidKeys[j];
                 break;
@@ -1808,11 +2065,11 @@ var gtfsToAquius = gtfsToAquius || {
 
           if (thisPlace === -1) {
             // Low proportion will default to this inefficient loop
-            for (j = 0; j < geojson.features.length; j += 1) {
+            for (j = 0; j < options.geojson.features.length; j += 1) {
 
               if (checked.indexOf(j) === -1 &&
                 pointInGeometry(out.aquius.node[nodeStack[i][1]][0],
-                  out.aquius.node[nodeStack[i][1]][1], geojson.features[j])
+                  out.aquius.node[nodeStack[i][1]][1], options.geojson.features[j])
               ) {
                 thisPlace = j;
                 break;
@@ -1841,10 +2098,10 @@ var gtfsToAquius = gtfsToAquius || {
               out.aquius.node[nodeStack[i][1]][2].p = out.aquius.place.length - 1;
               placeStack.push(thisPlace);
 
-              if ("properties" in geojson.features[thisPlace] &&
-                out.config.populationProperty in geojson.features[thisPlace].properties
+              if ("properties" in options.geojson.features[thisPlace] &&
+                out.config.populationProperty in options.geojson.features[thisPlace].properties
               ) {
-                population = parseFloat(geojson.features[thisPlace].properties[out.config.populationProperty]);
+                population = parseFloat(options.geojson.features[thisPlace].properties[out.config.populationProperty]);
                 if (!Number.isNaN(population)) {
                   out.aquius.place[out.aquius.place.length - 1][2].p = population;
                   if (population > maxPopulation) {
@@ -1859,39 +2116,39 @@ var gtfsToAquius = gtfsToAquius || {
         }
       }
 
-    }
+      if (maxPopulation > 0 &&
+        "placeScale" in out.config.option === false
+      ) {
+        out.config.option.placeScale = Math.round((1 / (maxPopulation / 2e6)) * 1e5) / 1e5;
+          // Scaled relative to 2 million maximum. Rounded to 5 decimal places
+        out.aquius.option.placeScale = out.config.option.placeScale;
+      }
 
-    if (maxPopulation > 0 &&
-      "placeScale" in out.config.option === false
-    ) {
-      out.config.option.placeScale = Math.round((1 / (maxPopulation / 2e6)) * 1e5) / 1e5;
-        // Scaled relative to 2 million maximum. Rounded to 5 decimal places
-      out.aquius.option.placeScale = out.config.option.placeScale;
     }
 
     return out;
   }
 
-
-  if (typeof geojson !== "object"){
-    geojson = {};
-  }
-  if (typeof config !== "object"){
-    config = {};
-  }
-
-  out = parseConfig(out, config);
+  out = parseConfig(out, options);
   out = parseGtfs(out, gtfs);
-  if (out.error.length > 0) {
-    return cleanup(out);
+
+  if ("error" in out) {
+    return finish(out, gtfs, options);
   }
+
   out = createMeta(out);
   out = createProduct(out);
-  out = groupNodes(out);
-  out = wanderRoutes(out);
-  out = populateNodes(out, geojson);
 
-  return cleanup(out);
+  out = parentStops(out);
+  out = transferStops(out);
+  out = regularStops(out);
+
+  out = aquiusLink(out, createLink(out, createTrip(out, createFrequencies(out),
+    createServiceDays(out)), createRoutes(out)));
+
+  out = populateNodes(out, options);
+
+  return finish(out, gtfs, options);
 }
 
 

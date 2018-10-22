@@ -1895,8 +1895,18 @@ var aquius = aquius || {
   function walkRoutes(raw, dataObject, options) {
     // Adds serviceLink and serviceNode matrices to raw, filtered for here and product
 
-    var destination, origin, pickup, pickupIndex, products, reference, route, serviceCircular,
-      serviceDirection, serviceLevel, serviceLevelLink, serviceSplit, serviceSplitIndex, services, i, j, k;
+    var destination, keys, origin, pickupIndex, products, property, route, serviceCircular,
+      serviceDirection, serviceLevel, serviceLevelLink, serviceSplit, services, i, j, k;
+    var propertyEquiv = {
+      "circular": "c",
+      "direction": "d",
+      "pickup": "u",
+      "reference": "r",
+      "setdown": "s",
+      "shared": "h",
+      "split": "t"
+    };
+      // Original: Compute-as
     
     raw.serviceLink = [];
       // Service by link [from[to[service]]] - with voids undefined
@@ -1927,37 +1937,37 @@ var aquius = aquius || {
 
     for (i = 0; i < dataObject.link.length; i += 1) {
 
+      property = {};
+      keys = Object.keys(dataObject.link[i][3]);
+      if (keys.length > 0) {
+        for (j = 0; j < keys.length; j += 1) {
+          if (keys[j] in propertyEquiv) {
+            property[propertyEquiv[keys[j]]] = dataObject.link[i][3][keys[j]];
+          } else {
+            property[keys[j]] = dataObject.link[i][3][keys[j]];
+          }
+        }
+      }
+
       if ((products.length === 0 ||
         ((products.filter( function (value) {
           return dataObject.link[i][0].indexOf(value) !== -1;
         })).length > 0) ) &&
           // Product included
-
-        (("shared" in dataObject.link[i][3] === false ||
-          products.indexOf(dataObject.link[i][3].shared) === -1) ||
-          ("h" in dataObject.link[i][3] === false &&
-          products.indexOf(dataObject.link[i][3].h) === -1)) &&
+        ("h" in property === false &&
+          products.indexOf(property.h) === -1) &&
           // Share not included as parent
-
         (dataObject.link[i][2].filter( function (value) {
           return raw.hereNodes.indexOf(value) !== -1;
         })).length > 0 &&
           // Node within here
-
-        (("setdown" in dataObject.link[i][3] === false ||
+        ("s" in property === false ||
           (raw.hereNodes.filter( function (value) {
             return (dataObject.link[i][2].filter( function (valued) {
-              return dataObject.link[i][3].setdown.indexOf(valued) < 0;
+              return property.s.indexOf(valued) < 0;
             })).indexOf(value) !== -1;
-          })).length > 0) &&
-          ("s" in dataObject.link[i][3] === false ||
-          (raw.hereNodes.filter( function (value) {
-            return (dataObject.link[i][2].filter( function (valued) {
-              return dataObject.link[i][3].s.indexOf(valued) < 0;
-            })).indexOf(value) !== -1;
-          })).length > 0))
+          })).length > 0)
           // At least one here node is not setdown only
-
       ) {
         // Process this link line, otherwise ignore
 
@@ -1972,29 +1982,13 @@ var aquius = aquius || {
 
         if (serviceLevel > 0) {
 
-          reference = [];
           route = [];
           serviceCircular = null;
           serviceDirection = null;
           serviceSplit = null;
-          serviceSplitIndex = [];
 
-          if ("reference" in dataObject.link[i][3] &&
-            Array.isArray(dataObject.link[i][3]["reference"])
-          ) {
-            reference = dataObject.link[i][3]["reference"];
-          } else {
-            if ("r" in dataObject.link[i][3] &&
-              Array.isArray(dataObject.link[i][3]["r"])
-            ) {
-              reference = dataObject.link[i][3]["r"];
-            }
-          }
-
-          if (("split" in dataObject.link[i][3] &&
-            Array.isArray(dataObject.link[i][3]["split"])) ||
-            ("t" in dataObject.link[i][3] &&
-            Array.isArray(dataObject.link[i][3].t))
+          if ("t" in property &&
+            Array.isArray(property.t)
           ) {
             /**
              * splits (split === 1) only contributes to service count at nodes within unique sections,
@@ -2002,14 +1996,9 @@ var aquius = aquius || {
              * splits (split === 1) only plotted in unique sections,
              * unless (split === 2) fromNodes contains no common sections
              */
-            if ("split" in dataObject.link[i][3]) {
-              serviceSplitIndex = dataObject.link[i][3]["split"];
-            } else {
-              serviceSplitIndex = dataObject.link[i][3].t;
-            }
             if (
               (dataObject.link[i][2].filter( function (value) {
-              return serviceSplitIndex.indexOf(value) === -1;
+              return property.t.indexOf(value) === -1;
               }))
               .filter( function (value) {
                 return raw.hereNodes.indexOf(value) !== -1;
@@ -2026,23 +2015,17 @@ var aquius = aquius || {
             raw.summary.link += serviceLevel;
           }
 
-          if (("circular" in dataObject.link[i][3] &&
-            (dataObject.link[i][3].circular === true ||
-            dataObject.link[i][3].circular === 1)) ||
-            ("c" in dataObject.link[i][3] &&
-            (dataObject.link[i][3].c === true ||
-            dataObject.link[i][3].c === 1))
+          if ("c" in property &&
+            (property.c === true ||
+            property.c === 1)
           ) {
             serviceCircular = dataObject.link[i][2].length - 1;
               // Exclude the final node on a circular
           }
 
-          if (("direction" in dataObject.link[i][3] &&
-            (dataObject.link[i][3].direction === true ||
-            dataObject.link[i][3].direction === 1)) ||
-            ("d" in dataObject.link[i][3] &&
-            (dataObject.link[i][3].d === true ||
-            dataObject.link[i][3].d === 1))
+          if ("d" in property &&
+            (property.d === true ||
+            property.d === 1)
           ) {
             serviceDirection = 1;
 
@@ -2073,17 +2056,11 @@ var aquius = aquius || {
             route = dataObject.link[i][2];
           }
 
-          if ("pickup" in dataObject.link[i][3] ||
-            "u" in dataObject.link[i][3]
-          ) {
-            if ("pickup" in dataObject.link[i][3]) {
-              pickup = dataObject.link[i][3].pickup;
-            } else {
-              pickup = dataObject.link[i][3].u;
-            }
-            for (j = 0; j < pickup.length; j += 1) {
-              if (raw.hereNodes.indexOf(pickup[j]) === -1) {
-                pickupIndex = route.indexOf(pickup[j]);
+          if ("u" in property) {
+
+            for (j = 0; j < property.u.length; j += 1) {
+              if (raw.hereNodes.indexOf(property.u[j]) === -1) {
+                pickupIndex = route.indexOf(property.u[j]);
                 if (pickupIndex !== -1) {
                   // Pickup-only nodes are removed from route unless within here
                   route.splice(pickupIndex, 1);
@@ -2095,7 +2072,7 @@ var aquius = aquius || {
           for (j = 0; j < route.length; j += 1) {
 
             if ((serviceSplit !== 1 ||
-              serviceSplitIndex.indexOf(route[j]) !== -1) &&
+              property.t.indexOf(route[j]) !== -1) &&
               (serviceCircular !== j)
             ) {
 
@@ -2114,9 +2091,11 @@ var aquius = aquius || {
               } else {
                 raw.serviceNode[route[j]].service += serviceLevelLink;
               }
-              if (reference.length > 0) {
-                for (k = 0; k < reference.length; k += 1) {
-                  raw.serviceNode[route[j]].reference.push(reference[k]);
+              if (Array.isArray(property.r) &&
+                property.r.length > 0
+              ) {
+                for (k = 0; k < property.r.length; k += 1) {
+                  raw.serviceNode[route[j]].reference.push(property.r[k]);
                     // May contains duplicates
                 }
               }
@@ -2125,12 +2104,13 @@ var aquius = aquius || {
 
             if (route.length - 1 > j &&
               (serviceSplit !== 1 ||
-              serviceSplitIndex.indexOf(route[j]) !== -1 ||
-              serviceSplitIndex.indexOf(route[j + 1]) !== -1)
+              property.t.indexOf(route[j]) !== -1 ||
+              property.t.indexOf(route[j + 1]) !== -1)
             ) {
 
               if (serviceDirection === 1 ||
-                (raw.hereNodes.indexOf(route[j]) !== -1 && raw.hereNodes.indexOf(route[j + 1]) !== -1)
+                (raw.hereNodes.indexOf(route[j]) !== -1 &&
+                raw.hereNodes.indexOf(route[j + 1]) !== -1)
               ) {
                 serviceLevelLink = serviceLevel;
               } else {
@@ -2159,9 +2139,11 @@ var aquius = aquius || {
               } else {
                 raw.serviceLink[origin][destination].service += serviceLevelLink;
               }
-              if (reference.length > 0) {
-                for (k = 0; k < reference.length; k += 1) {
-                  raw.serviceLink[origin][destination].reference.push(reference[k]);
+              if (Array.isArray(property.r) &&
+                property.r.length > 0
+              ) {
+                for (k = 0; k < property.r.length; k += 1) {
+                  raw.serviceLink[origin][destination].reference.push(property.r[k]);
                     // May contains duplicates
                 }
               }
