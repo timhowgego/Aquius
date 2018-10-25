@@ -72,14 +72,14 @@ Others options are documented in the [Configuration](#configuration) section bel
   async></script>
 <script>window.addEventListener("load", function() {
   aquius.init("aquius", {
-    "dataset": "https://timhowgego.github.io/Aquius/data/es-rail-20-jul-2018.json",
+    "dataset": "https://timhowgego.github.io/AquiusData/es-rail/20-jul-2018.json",
     "locale": "es-ES",
     "uiHash": true
   });
 });</script>
 ```
 
-[Current script files can be found on Github](https://github.com/timhowgego/Aquius/tree/master/dist). [Sample datasets are also available](https://github.com/timhowgego/Aquius/tree/master/data).
+[Current script files can be found on Github](https://github.com/timhowgego/Aquius/tree/master/dist). [Sample datasets are also available](https://github.com/timhowgego/AquiusData).
 
 *Tip:* Aquius can also be [used as a stand-alone library](#here-queries): `aquius.here()` accepts and returns data objects without script loading or user interface. Alternatively, Aquius can be built into an existing Leaflet map object by sending that object to `aquius.init()` as the value of [Configuration](#configuration) key `map`.
 
@@ -88,13 +88,11 @@ Others options are documented in the [Configuration](#configuration) section bel
 * Aquius is conceptually inaccessible to those with severe visual impairment ("blind people"), with no non-visual alternative available.
 * Internet Explorer 9 is the oldest vintage of browser theoretically supported, although a modern browser will be faster (both in use of `Promise` to load data and `Canvas` to render data). Mobile and tablet devices are supported, although older devices may lag when interacting with the map interface.
 * Aquius is written in pure Javascript, automatically loading its one dependency at runtime, [Leaflet](https://github.com/Leaflet/Leaflet). Aquius can produce graphically intensive results, so be cautious before embedding multiple instances in the same page, or adding Aquius to pages that are already cluttered.
-* Aquius works adequately within large conurbations, or for inter-regional networks, but might become more technically problematic should multiple large networks be deposited into one unfiltered dataset. As is, a 2010-era computer mapping every rail service from Madrid takes about 100ms to do the calculations and another 100ms to map the result, which can then lag slightly when moved.
+* Aquius works efficiently for practical queries within large conurbations, or for inter-regional networks. The current extreme test case is a single query containing _every_ bus stop and weekly bus service in the whole of Greater Manchester - a network consisting of about 5 million different stop-time combinations: This takes just under a second for Aquius to query on a slow 2010-era computer. A third of that second is for processing, and two thirds for map rendering: Aquius' primary bottleneck is the ability of the browser to render large numbers of visual objects on a canvas.
 
 ## Known Issues
 
-This section tries to explain the reasoning behind particular quirks.
-
-### General
+This section tries to explain the reasoning behind particular quirks:
 
 Aquius is fundamentally inaccessible to those with severe visual impairment: The limitation lay in the concept, not primarily the implementation. Aquius can't even read out the stop names, since it doesn't necessarily know anything about them except their coordinates. Genuine solutions are more radical than marginal, implying a quite separate application. For example, conversion of the map into a 3D soundscape, or allowing users to walk a route as if playing a [MUD](https://en.wikipedia.org/wiki/MUD).
 
@@ -105,12 +103,6 @@ Population bubbles are not necessarily centered on towns: These are typically lo
 Circular services that constitute two routes in different directions, that share some stops but not all, display with the service in both directions serving the entire shared part of the loop: Circular services normally halve the total service to represent the journey possibilities either clockwise or counter-clockwise, without needing to decide which direction to travel in to reach any one stop. Circular services that take different routes depending on their direction cannot simply be halved in this manner, even over the common section, because the service level in each direction is not necessarily the same. Consequently Aquius would have to understand which direction to travel in order to reach each destination the fastest. That would be technically possible by calculating distance, but would remain prone to misinterpretation, because a service with a significantly higher service frequency in one direction might reasonably be used to make journeys round almost the entire loop, regadless of distance. The safest assumption is that services can be ridden round the loop in either direction. In practice this issue only arises [in Parla](https://timhowgego.github.io/Aquius/live/es-rail-20-jul-2018/#x-3.76265/y40.23928/z14/c-3.7669/k40.2324/m10/s5/vlphn/n2).
 
 Aquius will summarise cabotaged routes accurately where only one node on the route is within _here_, but may over-count the service total when multiple nodes with different cabotage rules for the same vehicle journey are included in _here_. Cabotaged routes are those where pickup and setdown restrictions vary depending on the passenger journey being undertaken, not the vehicle journey. For example, an international or inter-regional operator may be forbidden from carrying passengers solely within one nation or region. Flixbus, for example, define these restrictions by creating multiple copies of each vehicle journey, each copy with different pickup and setdown conditions. This poses a logical problem for Aquius, since it needs to both display the links from each separate node _and_ acknowledge that these separate links are provided by the exact same vehicle journey. Currently Aquius opts to show the links and over-count the journeys. This could be improved by counting common sections and nodes accurately, perhaps by defining a parent link that serves as a lookup for the entire stop sequence - although the basic conflict between link display and service count would remain a source of confusion.
-
-### Spain
-
-Spanish Railway dataset services are not totally accurate: The network was research in one direction (away from Madrid), during academic holidays, and with a Cercanías journey planner that only showed origin/destination and not the stops inbetween. Likewise service totals for many city metros were calculated from average headways, so won't be perfectly accurate. Tourist-type services have been excluded. International services only within Spain. For an introduction to the dataset, see [Disassembling Trenes](https://timhowgego.wordpress.com/2018/09/04/disassembling-trenes/).
-
-Spanish Railway dataset summarises certain circular service incorrectly: Madrid's C-7 at Atocha is a specific exception to the rule that circular services are counted just once, because each C-7 loop serves different stations, and consequently the count of trains specifically at Atocha (the total arrival/departure in all directions) differs from the count of trains in the bottom-left panel (the total number of unique services involved). The quirks of the Parla tram, which is both circular and differs by direction, were discussed above.
 
 ## Configuration
 
@@ -263,6 +255,7 @@ Aquius can also be used as a stand-alone library via `aquius.here()`, which acce
 
 Possible `options`:
 
+* `callback` - function to receive the result, which should accept 3 `Object`: `error` (javascript Error), `output` (as returned without callback, described below), `options` (as submitted, which also allows bespoke objects to be passed through to the callback).
 * `filter` - `integer` index of network to filter by.
 * `geoJSON` - `Array` of strings describing map layers to be outputted in GeoJSON format ("here", "link", "node" and/or "place").
 * `sanitize` - `boolean` check data integrity. Checks occur unless set to `false`. Repeat queries with the same dataObject can safely set sanitize to false.
@@ -270,39 +263,39 @@ Possible `options`:
 
 **Caution:** Sanitize does not fix logical errors within the dataObject, and should not be used to check data quality. Sanitize merely replaces missing or incomplete structures with zero-value defaults, typically causing bad data to be ignored without throwing errors.
 
-Calls to `aquius.here()` return a JSON-like Object. On error, that Object contains one key `error`.
+Without a callback, calls to `aquius.here()` return a JSON-like Object. On error, that Object contains a key `error`.
 
-Otherwise, if `geoJSON` is specified a GeoJSON-style Object with a `FeatureCollection` is returned. In addition to [the standard geometry data](https://tools.ietf.org/html/rfc7946), each `Feature` has two or more properties, which can be referenced when applying styling in your GIS application:
+If `geoJSON` is specified a GeoJSON-style Object with a `FeatureCollection` is returned. In addition to [the standard geometry data](https://tools.ietf.org/html/rfc7946), each `Feature` has two or more properties, which can be referenced when applying styling in your GIS application:
 
-* `type` - "here", "link" (routes), "node" (stops), "place" (demographics)
-* `value` - numeric value associated with each (such as daily services or resident population)
-* `node` - array of reference data objects relating to the node itself
-* `link` - array of reference data objects relating to the links at the node, or the links contained on the line
+* `type` - "here", "link" (routes), "node" (stops), "place" (demographics).
+* `value` - numeric value associated with each (such as daily services or resident population).
+* `node` - array of reference data objects relating to the node itself.
+* `link` - array of reference data objects relating to the links at the node, or the links contained on the line.
 
 The information contained within keys `node` and `link` is that otherwise displayed in popup boxes when clicking on nodes or links in the map view. The existence of keys `node` and `link` will depend on the dataset. The potential format of the objects that described for the `reference` property of `node` and `link` in the [Data Structure](#data-structure).
 
-Otherwise the JSON-like Object will contain `summary`, is an Object containing link, node and place totals, and geometry for `here`, `link`, `node` and `place`. Each geometry key contains an Array of features, where each feature is an Object with a key `value` (the associated numeric value, such as number of services) and either `circle` (here, node, place) or `polyline` (link). Circles consist of an Array containing a single x, y pair of WGS 84 coordinates. Polylines consist of an Array of Arrays in route order, each child Array containing a similar pair of x, y coordinates. Unless `sanitize` is false, the sanitized `dataObject` will be returned as a key, allowing subsequent queries with the returned dataObject to be passed with `sanitize` false, which speeds up the query slighty.
+Otherwise the JSON-like Object will contain `summary`, is an Object containing link, node and place totals, and geometry for `here`, `link`, `node` and `place`. Each geometry key contains an Array of features, where each feature is an Object with a key `value` (the associated numeric value, such as number of services) and either `circle` (here, node, place) or `polyline` (link). Circles consist of an Array containing a single x, y pair of WGS 84 coordinates. Polylines consist of an Array of Arrays in route order, each child Array containing a similar pair of x, y coordinates. The (sanitized) `dataObject` will also be returned as a key, allowing subsequent queries with the returned dataObject to be passed with `sanitize` false, which speeds up the query slighty.
 
 **Caution:** Both `link` outputs mirrors the internal construction of Aquius' map, which tries to find adjoining links with the same service frequency and attach them to one continuous polyline. The logic reduces the number of objects, but does not find all logical links, nor does it necessarily links the paths taken by individual services. If you need to map individual routes interrogate the original link in the original `dataObject`.
 
 ## GTFS To Aquius
 
-[General Transit Feed Specification](https://developers.google.com/transit/gtfs/reference/) is the most widely used interchange format for public transport schedule data. A [script is available](https://github.com/timhowgego/Aquius/tree/master/dist) that automatically converts single GTFS archives into Aquius datasets. This script is currently under development, requiring both features and testing, so check the output carefully. [A live demonstration is available here](https://timhowgego.github.io/Aquius/live/gtfs/). Alternatively, run the `gtfs.min.js` file privately:
+[General Transit Feed Specification](https://developers.google.com/transit/gtfs/reference/) is the most widely used interchange format for public transport schedule data. A [script is available](https://github.com/timhowgego/Aquius/tree/master/dist) that automatically converts single GTFS archives into Aquius datasets. This script is currently under development, requiring both features and testing, so check the output carefully. [A live demonstration is available here](https://timhowgego.github.io/Aquius/live/gtfs/). Alternatively, run the `gtfs.min.js` file privately, either: 
 
-* With a user interface: Within a webpage, load the script and call `gtfsToAquius.init("aquius-div-id")`, where "aquius-div-id" is the ID of an empty element on the page.
-* From another script: Call `gtfsToAquius.process(gtfs, options)`. Required value `gtfs` is an `Object` consisting of keys representing the name of the GTFS file without extension, whose value is the raw text content of the GTFS file - for example, `"calendar": "raw,csv,string,data"`. `options` is an optional `Object` that may contain the following keys, each value itself an `Object`:
+1. With a user interface: Within a webpage, load the script and call `gtfsToAquius.init("aquius-div-id")`, where "aquius-div-id" is the ID of an empty element on the page.
+1. From another script: Call `gtfsToAquius.process(gtfs, options)`. Required value `gtfs` is an `Object` consisting of keys representing the name of the GTFS file without extension, whose value is the raw text content of the GTFS file - for example, `"calendar": "raw,csv,string,data"`. `options` is an optional `Object` that may contain the following keys, each value itself an `Object`:
 
-* `callback` - function to receive the result - function should accept 3 `Object`: `error` (javascript Error), `output` (as returned without callback, described below), `options` (as submitted, which also allows bespoke objects to be passed through to the callback)
-* `config` - contains key:value pairs for optional configuration settings, as described in the next section
-* `geojson` - is the content of a GeoJSON file pre-parsed into an `Object`, as detailed in a subsequent section
+* `callback` - function to receive the result, which should accept 3 `Object`: `error` (javascript Error), `output` (as returned without callback, described below), `options` (as submitted, which also allows bespoke objects to be passed through to the callback).
+* `config` - contains key:value pairs for optional configuration settings, as described in the next section.
+* `geojson` - is the content of a GeoJSON file pre-parsed into an `Object`, as detailed in a subsequent section.
 
 Without callback, the function returns an `Object` with possible keys:
 
-* `aquius` - as `dataObject`
-* `config` - as `config`, but with defaults or calculated values applied
-* `error` - `Array` of error message strings
-* `gtfs` - `Object` containing GTFS data parsed into arrays
-* `gtfsHead` - `Object` describing the column indices of values in gtfs
+* `aquius` - as `dataObject`.
+* `config` - as `config`, but with defaults or calculated values applied.
+* `error` - `Array` of error message strings.
+* `gtfs` - `Object` containing GTFS data parsed into arrays.
+* `gtfsHead` - `Object` describing the column indices of values in gtfs.
 
 **Caution:** Runtime is typically about a second per 10 megabytes of GTFS text data (with roughly half that time spent processing the Comma Separated Values), plus time to assign stops (nodes) to population (places). The single-operator networks found in most GTFS archives should process within about 5 seconds, but very complex multi-operator conurbations may take longer. Specifying a callback is therefore recommended to avoid browser crashes.
 
@@ -327,8 +320,8 @@ translation|object|{}|As [Configuration](#configuration)/[Data Structure](#data-
 
 `productFilter` currently supports one of two `type` values:
 
-* "agency", which assigns a product code for each operator identified in the GTFS (default)
-* "mode", which assigns a product code for each vehicle type identified in the GTFS (only the original types and "supported" [extensions](https://developers.google.com/transit/gtfs/reference/extended-route-types) will be named)
+* "agency", which assigns a product code for each operator identified in the GTFS (default).
+* "mode", which assigns a product code for each vehicle type identified in the GTFS (only the original types and "supported" [extensions](https://developers.google.com/transit/gtfs/reference/extended-route-types) will be named).
 
 By default GTFS To Aquius will create network filters consisting of all and each (with every filter named in en-US locale), and add keys `index` (list of all GTFS codes) and `network` (arrays structured like the [Data Structure](#data-structure) network key, except references are to GTFS codes, not numerical indices) to the `productFilter` `Object`. The easiest way to build bespoke network filters is to process the GTFS data once, then manually edit the `config.json` produced. If using GTFS To Aquius via its user interface, a rough count of routes and services by each `productFilter` will be produced after processing, allowing the most important categories to be identified. **Caution:** Pre-defining the `productFilter` will prevent GTFS To Aquius adding or removing entries, so any new operators or modes subsequently added to the GTFS source will need to be added to the `productFilter` manually.
 
@@ -398,18 +391,21 @@ Each `link` (detailed below) is categorised with an `integer` product ID. The de
 
 The dataset's `network` key consists of an `Array` of network filters, in the order they are to be presented in the User Interface. This order should be kept constant once the dataset is released, since each network filter is referenced in hashable options by its index in the `Array`. Each network filter itself consists of an `Array` of two parts:
 
-1. An `Array` containing `integer` product IDs of those products that make up the network filter.
-1. An `Object` containing key:text, where locale is the key, and text is a `string` containing the translated network filter name.
+1. `Array` containing `integer` product IDs of those products that make up the network filter.
+1. `Object` containing key:text, where locale is the key, and text is a `string` containing the translated network filter name.
+1. `Object` containing optional properties, reserved for future use.
 
 ```javascript
 "network": [
   [
     [1, 2, 3],
-    {"en-US": "All 3 products"}
+    {"en-US": "All 3 products"},
+    {}
   ],
   [
     [1, 3],
-    {"en-US": "Just 1 and 3"}
+    {"en-US": "Just 1 and 3"},
+    {}
   ]
 ]
 ```
@@ -418,27 +414,34 @@ The dataset's `network` key consists of an `Array` of network filters, in the or
 
 Each `link` (detailed below) is categorised with one or more counts of the number of services (typically vehicle journeys) associated with the link. The precise variable is flexible - for example, it could be used to indicate total vehicle capacity - but ensure the `link` key in `translation` contains an appropriate description.
 
-Networks may be adequately described with just one service count per link. However `service` allows the same link to described for different time periods - for example, 2 journeys in the morning and 3 in the afternoon - especially important to differentiate services that are not provided at marginal times, such as evenings or weekends. The `service` key defines those time periods as service filters. Like `network`, each filter consist of a 2-part `Array`, the first part an `Array` of the index positions within each `link` service array that are to be summed to produce the total service count. The second part, the localised description of the filter. For example:
+Networks may be adequately described with just one service count per link. However `service` allows the same link to described for different time periods - for example, 2 journeys in the morning and 3 in the afternoon - especially important to differentiate services that are not provided at marginal times, such as evenings or weekends. The `service` key defines those time periods as service filters. Like `network`, each filter consist of a 3-part `Array`:
+
+1. `Array` of the index positions within each `link` service array that are to be summed to produce the total service count.
+1. `Object` containing the localised description of the filter.
+1. `Object` containing optional properties, reserved for future use.
+
+In the example below, the corresponding `link` service array would consist of an `Array` of two numbers, the first morning, and second afternoon. The first filter would sum both, while the second "morning" filter would take only the first service count, the third "afternoon" filter only the second count.
 
 ```javascript
 "service": [
   [
     [0, 1],
       // Index positions in link service array
-    {"en-US": "All day"}
+    {"en-US": "All day"},
+    {}
   ],
   [
     [0],
-    {"en-US": "Morning"}
+    {"en-US": "Morning"},
+    {}
   ],
   [
     [1],
-    {"en-US": "Afternoon"}
+    {"en-US": "Afternoon"},
+    {}
   ]
 ]
 ```
-
-The corresponding `link` service array would consist of an `Array` of two numbers, the first morning, and second afternoon. The first filter would sum both, while the second "morning" filter would take only the first service count, the third "afternoon" filter only the second count.
 
 ### Link
 
@@ -506,11 +509,7 @@ Optional `properties` keys are:
 
 Aquius, with no dataset, is freely reusable and modifiable under a [MIT License](https://opensource.org/licenses/MIT).
 
-Dataset copyright will differ, and no licensing guarantees can be given unless made explicit by all entities represented within the dataset. Be warned that no protection is afforded by the _logical nonsense_ of a public transport operator attempting to deny the public dissemination of their public operations. Nor should government-owned companies or state concessionaires be naively presumed to operate in some kind of public domain. Railways, in particular, can accumulate all manner of arcane legislation and strategic national paranoias. In the era of Google many public transport operators have grown less controlling of their information channels, but some traditional entities, [such as Renfe](https://www.elconfidencial.com/espana/madrid/2018-07-17/transparencia-retrasos-cercanias-madrid_1593408/), are not yet beyond claiming basic observable information to be a trade secret. Your mileage may vary.
-
-### Spanish Railways
-
-The Spanish Railway dataset is a creative work of academic curiosity, a limited snapshot of one day in history. The original creator makes no claim of ownership to any data therein, nor should be held responsible for its accuracy. Such can therefore be used as "freely" as its source. In particular, note that the contents of Renfe's website is claimed as an intellectual property whose reuse is "[totalmente prohibida](http://www.renfe.com/empresa/informacion_legal/CGUsoWeb.html)", however the work of the dataset may reasonably be judged creative, with no specific items of Renfe Operadora data reused in their original form. Non-operational information is based on sources whose reused is licensed more freely: Population data is "Prepared with data extracted from the INE website: [www.ine.es](http://www.ine.es/)", apparently with no restriction on reuse beyond that statement. Municipality centroids CC BY 4.0 from [Instituto Geográfico Nacional de España](http://www.ign.es/). National network station nodes were originally from the [IDEAADIF](http://ideadif.adif.es/) (INSPIRE) dataset, apparently under the same license.
+[Dataset](https://github.com/timhowgego/AquiusData) copyright will differ, and no licensing guarantees can be given unless made explicit by all entities represented within the dataset. Be warned that no protection is afforded by the _logical nonsense_ of a public transport operator attempting to deny the public dissemination of their public operations. Nor should government-owned companies or state concessionaires be naively presumed to operate in some kind of public domain. Railways, in particular, can accumulate all manner of arcane legislation and strategic national paranoias. In the era of Google many public transport operators have grown less controlling of their information channels, but some traditional entities, [such as Renfe](https://www.elconfidencial.com/espana/madrid/2018-07-17/transparencia-retrasos-cercanias-madrid_1593408/), are not yet beyond claiming basic observable information to be a trade secret. Your mileage may vary.
 
 ## Contributing
 

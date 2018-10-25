@@ -17,33 +17,33 @@ var gtfsToAquius = gtfsToAquius || {
    */
    "use strict";
 
-  function createElement(elementType, value, style) {
+  function createElement(elementType, valueObject, styleObject) {
     /**
      * Helper: Creates DOM element
      * @param {string} elementType
-     * @param {object} value - optional DOM value:content pairs
-     * @param {object} style - optional DOM style value:content pairs
+     * @param {object} valueObject - optional DOM value:content pairs
+     * @param {object} styleObject - optional DOM style value:content pairs
      * @return {object} DOM element
      */
 
-    var theseValues, v;
-    var thisElement = document.createElement(elementType);
+    var values, styles, i;
+    var element = document.createElement(elementType);
 
-    if (typeof value !== "undefined") {
-      theseValues = Object.keys(value);
-      for (v = 0; v < theseValues.length; v += 1) {
-        thisElement[theseValues[v]] = value[theseValues[v]];
+    if (typeof valueObject !== "undefined") {
+      values = Object.keys(valueObject);
+      for (i = 0; i < values.length; i += 1) {
+        element[values[i]] = valueObject[values[i]];
       }
     }
 
-    if (typeof style !== "undefined") {
-      theseValues = Object.keys(style);
-      for (v = 0; v < theseValues.length; v += 1) {
-        thisElement.style[theseValues[v]] = style[theseValues[v]];
+    if (typeof styleObject !== "undefined") {
+      styles = Object.keys(styleObject);
+      for (i = 0; i < styles.length; i += 1) {
+        element.style[styles[i]] = styleObject[styles[i]];
       }
     }
 
-    return thisElement;
+    return element;
   }
 
   function createTabulation(tableData, tableHeader, tableDataStyle) {
@@ -138,7 +138,7 @@ var gtfsToAquius = gtfsToAquius || {
       "type": "file"
     });
     button.addEventListener("change", (function(){
-      manageProcess(vars);
+      initialiseProcess(vars);
     }), false);
     label.appendChild(button);
 
@@ -157,51 +157,7 @@ var gtfsToAquius = gtfsToAquius || {
     return true;
   }
 
-  function outputError(error, vars) {
-    /**
-     * Output errors to user interface, destroying any prior Output
-     * @param {object} error - error Object
-     * @param {object} vars - internal data references
-     */
-    
-    var message;
-    var fileDOM = document.getElementById(vars.configId + "ImportFiles");
-    var outputDOM = document.getElementById(vars.configId + "Output");
-    var progressDOM = document.getElementById(vars.configId + "Progress");
-    
-    if (error !== undefined &&
-      outputDOM !== null
-    ) {
-
-      while (outputDOM.firstChild) {
-        outputDOM.removeChild(outputDOM.firstChild);
-      }
-
-      outputDOM.className = vars.configId + "OutputError";
-
-      if ("message" in error) {
-        message = error.message;
-      } else {
-        message = JSON.stringify(error);
-      }
-
-      outputDOM.appendChild(createElement("p", {
-        "textContent": "Error: " + message
-      }));
-
-      if (progressDOM !== null) {
-        while (progressDOM.firstChild) {
-          progressDOM.removeChild(progressDOM.firstChild);
-        }
-        progressDOM.textContent = "Failed";
-      }
-      if (fileDOM !== null) {
-        fileDOM.disabled = false;
-      }
-    }
-  }
-
-  function manageProcess(vars) {
+  function initialiseProcess(vars) {
     /**
      * Initiates file import and Aquius creation
      * @param {object} vars - internal data references
@@ -212,7 +168,7 @@ var gtfsToAquius = gtfsToAquius || {
     var fileDOM = document.getElementById(vars.configId + "ImportFiles");
     var options = {
       "_vars": vars,
-      "callback": postProcess
+      "callback": outputProcess
     };
     var processedFiles = 0;
     var progressDOM = document.getElementById(vars.configId + "Progress");
@@ -307,7 +263,7 @@ var gtfsToAquius = gtfsToAquius || {
     }
   }
 
-  function postProcess(error, out, options) {
+  function outputProcess(error, out, options) {
     /**
      * Called after Aquius creation
      * @param {object} error - Error object or undefined 
@@ -416,6 +372,50 @@ var gtfsToAquius = gtfsToAquius || {
     }
   }
 
+  function outputError(error, vars) {
+    /**
+     * Output errors to user interface, destroying any prior Output
+     * @param {object} error - error Object
+     * @param {object} vars - internal data references
+     */
+    
+    var message;
+    var fileDOM = document.getElementById(vars.configId + "ImportFiles");
+    var outputDOM = document.getElementById(vars.configId + "Output");
+    var progressDOM = document.getElementById(vars.configId + "Progress");
+    
+    if (error !== undefined &&
+      outputDOM !== null
+    ) {
+
+      while (outputDOM.firstChild) {
+        outputDOM.removeChild(outputDOM.firstChild);
+      }
+
+      outputDOM.className = vars.configId + "OutputError";
+
+      if ("message" in error) {
+        message = error.message;
+      } else {
+        message = JSON.stringify(error);
+      }
+
+      outputDOM.appendChild(createElement("p", {
+        "textContent": "Error: " + message
+      }));
+
+      if (progressDOM !== null) {
+        while (progressDOM.firstChild) {
+          progressDOM.removeChild(progressDOM.firstChild);
+        }
+        progressDOM.textContent = "Failed";
+      }
+      if (fileDOM !== null) {
+        fileDOM.disabled = false;
+      }
+    }
+  }
+
   return initialiseUI({
     "configId": configId,
     "process": this.process
@@ -425,7 +425,7 @@ var gtfsToAquius = gtfsToAquius || {
 
 "process": function process(gtfs, options) {
   /**
-   * Creates Aquius dataObject
+   * Creates Aquius dataObject. May be called independently
    * @param {object} gtfs - key per GTFS file slug, value raw text content of GTFS file
    * @param {object} options - geojson, config, callback
    * @return {object} without callback: possible keys aquius, config, error, gtfs, gtfsHead
@@ -435,33 +435,44 @@ var gtfsToAquius = gtfsToAquius || {
 
   var out = {};
 
-  function finish(out, gtfs, options) {
+    function formatGtfsDate(dateMS) {
     /**
-     * Called to exit
-     * @param {object} out - internal data references
-     * @param {object} gtfs
-     * @param {object} options
+     * Helper: Converts millisecond date to GTFS date
+     * @param {integer} dateMS - milliseconds from epoch
+     * @return {string} date in GTFS (YYYYMMDD) format
      */
 
-    var error, i;
-    var clean = ["node", "nodeLookup"];
-      // Out objects to be destroyed once processing is complete
+    var dateDate = new Date(dateMS);
+    var dateString = dateDate.getFullYear().toString();
+    if (dateDate.getMonth() < 9) {
+      dateString += "0";
+    }
+    dateString += (dateDate.getMonth() + 1).toString();
+    if (dateDate.getDate() < 10) {
+      dateString += "0";
+    }
+    dateString += dateDate.getDate().toString();
 
-    for (i = 0; i < clean.length; i += 1) {
-      if (clean[i] in out) {
-        delete out[clean[i]];
-      }
+    return dateString;
+  }
+
+  function unformatGtfsDate(dateString) {
+    /**
+     * Helper: Converts GTFS date to millisecond date
+     * @param{string} dateString - date in GTFS (YYYYMMDD) format
+     * @return {integer} milliseconds from epoch
+     */
+
+    if (dateString.length < 8) {
+      return 0;
+        // Fallback to 1970
     }
 
-    if (typeof options === "object" &&
-      "callback" in options
-    ) {
-      if ("error" in out) {
-        error = new Error(out.error.join(". "));
-      }
-      return options.callback(error, out, options);
-    }
-    return out;
+    return Date.UTC(
+      dateString.slice(0, 4),
+      dateString.slice(4, 6) - 1,
+      dateString.slice(6, 8)
+    );
   }
 
   function parseConfig(out, options) {
@@ -482,7 +493,7 @@ var gtfsToAquius = gtfsToAquius || {
         // Include route-specific short names
       "allowURL": true,
         // Include stop and service URLs (increases file size)
-      "fromDate": formatDate(Date.now()),
+      "fromDate": formatGtfsDate(Date.now()),
         // Start date for service pattern analysis (inclusive)
       "meta": {
         "schema": "0"
@@ -498,16 +509,14 @@ var gtfsToAquius = gtfsToAquius || {
         // Group services by, including network definitions (see docs)
       "servicePer": 1,
         // Service average per period in days (1 gives daily totals, 7 gives weekly totals)
-      "toDate": formatDate(Date.now() + 5184e5),
+      "toDate": formatGtfsDate(Date.now() + 5184e5),
         // End date for service pattern analysis (inclusive), thus +6 days for 1 week
       "translation": {}
         // As Data Structure/Configuration translation key
     };
     var keys = Object.keys(defaults);
 
-    if ("config" in out === false) {
-      out.config = {};
-    }
+    out.config = {};
 
     if (typeof options !== "object") {
       options = {};
@@ -564,69 +573,67 @@ var gtfsToAquius = gtfsToAquius || {
 
     var content, keys, required, i, j;
 
-    if ("gtfsHead" in out === false) {
-      out.gtfsHead = {
-        // Numbers record column position, or -1 if missing
-        "calendar": {
-          "service_id": -1,
-          "monday": -1,
-          "tuesday": -1,
-          "wednesday": -1,
-          "thursday": -1,
-          "friday": -1,
-          "saturday": -1,
-          "sunday": -1,
-          "start_date": -1,
-          "end_date": -1
-        },
-        "calendar_dates": {
-          "service_id": -1,
-          "date": -1,
-          "exception_type": -1
-        },
-        "frequencies": {
-          "trip_id": -1,
-          "start_time": -1,
-          "end_time": -1,
-          "headway_secs": -1
-        },
-        "routes": {
-          "route_color": -1,
-          "route_id": -1,
-          "route_long_name": -1,
-          "route_short_name": -1,
-          "route_text_color": -1,
-          "route_url": -1
-        },
-        "stop_times": {
-          "trip_id": -1,
-          "stop_id": -1,
-          "stop_sequence": -1,
-          "pickup_type": -1,
-          "drop_off_type": -1
-        },
-        "stops": {
-          "stop_code": -1,
-          "stop_id": -1,
-          "stop_lat": -1,
-          "stop_lon": -1,
-          "stop_name": -1,
-          "stop_url": -1,
-          "location_type": -1,
-          "parent_station": -1
-        },
-        "transfers": {
-          "from_stop_id": -1,
-          "to_stop_id": -1,
-          "transfer_type": -1
-        },
-        "trips": {
-          "route_id": -1,
-          "service_id": -1,
-          "trip_id": -1
-        }
-      };
-    }
+    out.gtfsHead = {
+      // Numbers record column position, or -1 if missing
+      "calendar": {
+        "service_id": -1,
+        "monday": -1,
+        "tuesday": -1,
+        "wednesday": -1,
+        "thursday": -1,
+        "friday": -1,
+        "saturday": -1,
+        "sunday": -1,
+        "start_date": -1,
+        "end_date": -1
+      },
+      "calendar_dates": {
+        "service_id": -1,
+        "date": -1,
+        "exception_type": -1
+      },
+      "frequencies": {
+        "trip_id": -1,
+        "start_time": -1,
+        "end_time": -1,
+        "headway_secs": -1
+      },
+      "routes": {
+        "route_color": -1,
+        "route_id": -1,
+        "route_long_name": -1,
+        "route_short_name": -1,
+        "route_text_color": -1,
+        "route_url": -1
+      },
+      "stop_times": {
+        "trip_id": -1,
+        "stop_id": -1,
+        "stop_sequence": -1,
+        "pickup_type": -1,
+        "drop_off_type": -1
+      },
+      "stops": {
+        "stop_code": -1,
+        "stop_id": -1,
+        "stop_lat": -1,
+        "stop_lon": -1,
+        "stop_name": -1,
+        "stop_url": -1,
+        "location_type": -1,
+        "parent_station": -1
+      },
+      "transfers": {
+        "from_stop_id": -1,
+        "to_stop_id": -1,
+        "transfer_type": -1
+      },
+      "trips": {
+        "route_id": -1,
+        "service_id": -1,
+        "trip_id": -1
+      }
+    };
 
     required = {
       // Files and fields that MUST be present
@@ -666,9 +673,7 @@ var gtfsToAquius = gtfsToAquius || {
     }
       // Extendable for further product filters
 
-    if("gtfs" in out === false) {
-      out.gtfs = {};
-    }
+    out.gtfs = {};
 
     keys = Object.keys(out.gtfsHead);
     for (i = 0; i < keys.length; i += 1) {
@@ -712,47 +717,7 @@ var gtfsToAquius = gtfsToAquius || {
     return out;
   }
 
-  function formatDate(dateMS) {
-    /**
-     * Helper: Converts millisecond date to GTFS date
-     * @param {integer} dateMS - milliseconds from epoch
-     * @return {string} date in GTFS (YYYYMMDD) format
-     */
-
-    var dateDate = new Date(dateMS);
-    var dateString = dateDate.getFullYear().toString();
-    if (dateDate.getMonth() < 9) {
-      dateString += "0";
-    }
-    dateString += (dateDate.getMonth() + 1).toString();
-    if (dateDate.getDate() < 10) {
-      dateString += "0";
-    }
-    dateString += dateDate.getDate().toString();
-
-    return dateString;
-  }
-
-  function unformatDate(dateString) {
-    /**
-     * Helper: Converts GTFS date to millisecond date
-     * @param{string} dateString - date in GTFS (YYYYMMDD) format
-     * @return {integer} milliseconds from epoch
-     */
-
-    if (dateString.length < 8) {
-      return 0;
-        // Fallback to 1970
-    }
-
-    return Date.UTC(
-      dateString.slice(0, 4),
-      dateString.slice(4, 6) - 1,
-      dateString.slice(6, 8)
-    );
-  }
-
-  function createMeta(out) {
+  function buildHeader(out) {
     /**
      * Creates out.aquius header keys - meta, option, translation
      * @param {object} out
@@ -842,7 +807,7 @@ var gtfsToAquius = gtfsToAquius || {
     return out;
   }
 
-  function createProduct(out) {
+  function buildNetwork(out) {
     /**
      * Creates out.aquius.network from config.productFilter
      * @param {object} out
@@ -1014,9 +979,7 @@ var gtfsToAquius = gtfsToAquius || {
     if ("aquius" in out === false) {
       out.aquius = {};
     }
-    if ("network" in out.aquius === false) {
-      out.aquius.network = [];
-    }
+    out.aquius.network = [];
 
     for (i = 0; i < out.config.productFilter.network.length; i += 1) {
       if (out.config.productFilter.network[i].length > 1 &&
@@ -1028,14 +991,14 @@ var gtfsToAquius = gtfsToAquius || {
           route.push(out.config.productFilter.index.indexOf(
             out.config.productFilter.network[i][0][j]));
         }
-        out.aquius.network.push([route, out.config.productFilter.network[i][1]]);
+        out.aquius.network.push([route, out.config.productFilter.network[i][1], {}]);
       }
     }
 
     return out;
   }
 
-  function getStopProperties(out, stopObject) {
+  function createNodeProperties(out, stopObject) {
     /**
      * Helper: Create node property key, with key "r" if relevant contents in stopObject
      * @param {object} out
@@ -1047,21 +1010,21 @@ var gtfsToAquius = gtfsToAquius || {
 
     if (out.config.allowName === true &&
       out.gtfsHead.stops.stop_name !== -1 &&
-      stopObject[out.gtfsHead.stops.stop_name] !== ""
+      stopObject[out.gtfsHead.stops.stop_name].trim() !== ""
     ) {
-      properties.n = stopObject[out.gtfsHead.stops.stop_name];
+      properties.n = stopObject[out.gtfsHead.stops.stop_name].trim();
       if (out.gtfsHead.stops.stop_code !== -1 &&
-        stopObject[out.gtfsHead.stops.stop_code] !== ""
+        stopObject[out.gtfsHead.stops.stop_code].trim() !== ""
       ) {
-        properties.n += " (" + stopObject[out.gtfsHead.stops.stop_code] +")";
+        properties.n += " (" + stopObject[out.gtfsHead.stops.stop_code].trim() +")";
       }
     }
 
     if (out.config.allowURL === true &&
       out.gtfsHead.stops.stop_url !== -1 &&
-      stopObject[out.gtfsHead.stops.stop_url] !== ""
+      stopObject[out.gtfsHead.stops.stop_url].trim() !== ""
     ) {
-      properties.u = stopObject[out.gtfsHead.stops.stop_url];
+      properties.u = stopObject[out.gtfsHead.stops.stop_url].trim();
     }
 
     if (Object.keys(properties).length > 0) {
@@ -1070,7 +1033,7 @@ var gtfsToAquius = gtfsToAquius || {
     return {};
   }
 
-  function formatCoordinateNumber(coord) {
+  function forceCoordinate(coord) {
     /**
      * Helper: Forces value into a number rounded to 5 decimal places
      * @param {string} coord - raw number as string
@@ -1086,7 +1049,7 @@ var gtfsToAquius = gtfsToAquius || {
       // Round to 5 decimal places
   }
 
-  function parentStops(out) {
+  function parentStopsToNode(out) {
     /**
      * Parses gtfs.stops parent stations and groups nodes within together
      * @param {object} out
@@ -1117,9 +1080,9 @@ var gtfsToAquius = gtfsToAquius || {
           // Is parent
           out.nodeLookup[out.gtfs.stops[i][out.gtfsHead.stops.stop_id]] = out.aquius.node.length;
           out.aquius.node.push([
-            formatCoordinateNumber(out.gtfs.stops[i][out.gtfsHead.stops.stop_lon]),
-            formatCoordinateNumber(out.gtfs.stops[i][out.gtfsHead.stops.stop_lat]),
-            getStopProperties(out, out.gtfs.stops[i])
+            forceCoordinate(out.gtfs.stops[i][out.gtfsHead.stops.stop_lon]),
+            forceCoordinate(out.gtfs.stops[i][out.gtfsHead.stops.stop_lat]),
+            createNodeProperties(out, out.gtfs.stops[i])
           ]);
         } else {
           if (out.gtfs.stops[i][out.gtfsHead.stops.parent_station] !== "") {
@@ -1144,7 +1107,7 @@ var gtfsToAquius = gtfsToAquius || {
     return out;
   }
 
-  function transferStops(out) {
+  function transferStopsToNode(out) {
     /**
      * Parses gtfs.stops transfer stations and groups nodes within together
      * @param {object} out
@@ -1198,9 +1161,9 @@ var gtfsToAquius = gtfsToAquius || {
                         out.nodeLookup[fromStop] = out.aquius.node.length;
                         out.nodeLookup[toStop] = out.aquius.node.length;
                         out.aquius.node.push([
-                          formatCoordinateNumber(out.gtfs.stops[j][out.gtfsHead.stops.stop_lon]),
-                          formatCoordinateNumber(out.gtfs.stops[j][out.gtfsHead.stops.stop_lat]),
-                          getStopProperties(out, out.gtfs.stops[j])
+                          forceCoordinate(out.gtfs.stops[j][out.gtfsHead.stops.stop_lon]),
+                          forceCoordinate(out.gtfs.stops[j][out.gtfsHead.stops.stop_lat]),
+                          createNodeProperties(out, out.gtfs.stops[j])
                         ]);
                         break;
                       }
@@ -1219,7 +1182,7 @@ var gtfsToAquius = gtfsToAquius || {
     return out;
   }
 
-  function regularStops(out) {
+  function regularStopsToNode(out) {
     /**
      * Parses gtfs.stops for unprocessed nodes (call after parentStops and transferStops)
      * @param {object} out
@@ -1244,9 +1207,9 @@ var gtfsToAquius = gtfsToAquius || {
         out.gtfs.stops[i][out.gtfsHead.stops.stop_id] !== "") {
         out.nodeLookup[out.gtfs.stops[i][out.gtfsHead.stops.stop_id]] = out.aquius.node.length;
         out.aquius.node.push([
-          formatCoordinateNumber(out.gtfs.stops[i][out.gtfsHead.stops.stop_lon]),
-          formatCoordinateNumber(out.gtfs.stops[i][out.gtfsHead.stops.stop_lat]),
-          getStopProperties(out, out.gtfs.stops[i])
+          forceCoordinate(out.gtfs.stops[i][out.gtfsHead.stops.stop_lon]),
+          forceCoordinate(out.gtfs.stops[i][out.gtfsHead.stops.stop_lat]),
+          createNodeProperties(out, out.gtfs.stops[i])
         ]);
       }
     }
@@ -1265,10 +1228,10 @@ var gtfsToAquius = gtfsToAquius || {
     var serviceDays = {};
     var calendarDates = {};
       // All formatted days to be sampled date:millseconds
-    var fromDateMS = unformatDate(out.config.fromDate);
-    var toDateMS = unformatDate(out.config.toDate);
+    var fromDateMS = unformatGtfsDate(out.config.fromDate);
+    var toDateMS = unformatGtfsDate(out.config.toDate);
 
-    function getDay(dateMS) {
+    function getGtfsDay(dateMS) {
       // Returns GTFS header day corresponding to milliseconds since epoch
 
       var days = ["sunday", "monday", "tuesday",
@@ -1279,7 +1242,7 @@ var gtfsToAquius = gtfsToAquius || {
     }
 
     while (toDateMS >= fromDateMS) {
-      calendarDates[formatDate(fromDateMS)] = fromDateMS;
+      calendarDates[formatGtfsDate(fromDateMS)] = fromDateMS;
       fromDateMS += 864e5;
     }
 
@@ -1289,15 +1252,15 @@ var gtfsToAquius = gtfsToAquius || {
       for (i = 0; i < out.gtfs.calendar.length; i += 1) {
 
         dayCount = 0;
-        startDateMS = unformatDate(out.gtfs.calendar[i][out.gtfsHead.calendar.start_date]);
-        endToDateMS = unformatDate(out.gtfs.calendar[i][out.gtfsHead.calendar.end_date]);
+        startDateMS = unformatGtfsDate(out.gtfs.calendar[i][out.gtfsHead.calendar.start_date]);
+        endToDateMS = unformatGtfsDate(out.gtfs.calendar[i][out.gtfsHead.calendar.end_date]);
 
         dates = Object.keys(calendarDates);
         for (j = 0; j < dates.length; j += 1) {
           if (calendarDates[dates[j]] >= startDateMS &&
             calendarDates[dates[j]] <= endToDateMS
           ) {
-            today = parseInt(out.gtfs.calendar[i][out.gtfsHead.calendar[getDay(calendarDates[dates[j]])]], 10);
+            today = parseInt(out.gtfs.calendar[i][out.gtfsHead.calendar[getGtfsDay(calendarDates[dates[j]])]], 10);
             if (!Number.isNaN(today)) {
               dayCount += today;
             }
@@ -1518,54 +1481,54 @@ var gtfsToAquius = gtfsToAquius || {
 
       if (out.config.allowRoute === true) {
         if (out.gtfsHead.routes.route_short_name !== -1 &&
-          out.gtfs.routes[i][out.gtfsHead.routes.route_short_name] !== ""
+          out.gtfs.routes[i][out.gtfsHead.routes.route_short_name].trim() !== ""
         ) {
           routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.n =
-            out.gtfs.routes[i][out.gtfsHead.routes.route_short_name];
+            out.gtfs.routes[i][out.gtfsHead.routes.route_short_name].trim();
           routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.slug +=
-            out.gtfs.routes[i][out.gtfsHead.routes.route_short_name];
+            out.gtfs.routes[i][out.gtfsHead.routes.route_short_name].trim();
         } else {
           // Long name only if short name unavailable
           if (out.config.allowName === true &&
             out.gtfsHead.routes.route_long_name !== -1 &&
-            out.gtfs.routes[i][out.gtfsHead.routes.route_long_name] !== ""
+            out.gtfs.routes[i][out.gtfsHead.routes.route_long_name].trim() !== ""
           ) {
             routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.n =
-              out.gtfs.routes[i][out.gtfsHead.routes.route_long_name];
+              out.gtfs.routes[i][out.gtfsHead.routes.route_long_name].trim();
             routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.slug +=
-              out.gtfs.routes[i][out.gtfsHead.routes.route_long_name];
+              out.gtfs.routes[i][out.gtfsHead.routes.route_long_name].trim();
           }
         }
       }
 
       if (out.config.allowColor === true &&
         out.gtfsHead.routes.route_color !== -1 &&
-        out.gtfs.routes[i][out.gtfsHead.routes.route_color] !== ""
+        out.gtfs.routes[i][out.gtfsHead.routes.route_color].trim() !== ""
       ) {
         routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.c =
-          out.gtfs.routes[i][out.gtfsHead.routes.route_color];
+          out.gtfs.routes[i][out.gtfsHead.routes.route_color].trim();
         routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.slug +=
-          out.gtfs.routes[i][out.gtfsHead.routes.route_color];
+          out.gtfs.routes[i][out.gtfsHead.routes.route_color].trim();
       }
 
       if (out.config.allowColor === true &&
         out.gtfsHead.routes.route_text_color !== -1 &&
-        out.gtfs.routes[i][out.gtfsHead.routes.route_text_color] !== ""
+        out.gtfs.routes[i][out.gtfsHead.routes.route_text_color].trim() !== ""
       ) {
         routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.t =
-          out.gtfs.routes[i][out.gtfsHead.routes.route_text_color];
+          out.gtfs.routes[i][out.gtfsHead.routes.route_text_color].trim();
         routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.slug +=
-          out.gtfs.routes[i][out.gtfsHead.routes.route_text_color];
+          out.gtfs.routes[i][out.gtfsHead.routes.route_text_color].trim();
       }
 
       if (out.config.allowURL === true &&
         out.gtfsHead.routes.route_url !== -1 &&
-        out.gtfs.routes[i][out.gtfsHead.routes.route_url] !== ""
+        out.gtfs.routes[i][out.gtfsHead.routes.route_url].trim() !== ""
       ) {
         routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.u =
-          out.gtfs.routes[i][out.gtfsHead.routes.route_url];
+          out.gtfs.routes[i][out.gtfsHead.routes.route_url].trim();
         routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.slug +=
-          out.gtfs.routes[i][out.gtfsHead.routes.route_url];
+          out.gtfs.routes[i][out.gtfsHead.routes.route_url].trim();
       }
 
       if (out.config.productFilter.type === "agency") {
@@ -1730,7 +1693,7 @@ var gtfsToAquius = gtfsToAquius || {
     return link;
   }
 
-  function aquiusLink(out, link) {
+  function buildLink(out, link) {
     /**
      * Creates and populates aquius.link
      * @param {object} out
@@ -1741,15 +1704,13 @@ var gtfsToAquius = gtfsToAquius || {
     var line, service, i, j;
     var keys = Object.keys(link);
     var serviceFactor = out.config.servicePer /
-      (1 + ((unformatDate(out.config.toDate) - unformatDate(out.config.fromDate)) / 864e5));
+      (1 + ((unformatGtfsDate(out.config.toDate) - unformatGtfsDate(out.config.fromDate)) / 864e5));
       // Day plus difference start to end milliseconds to days
     
     if ("aquius" in out === false) {
       out.aquius = {};
     }
-    if ("link" in out.aquius === false) {
-      out.aquius.link = [];
-    }
+    out.aquius.link = [];
 
     for (i = 0; i < keys.length; i += 1) {
 
@@ -1809,7 +1770,7 @@ var gtfsToAquius = gtfsToAquius || {
     return out;
   }
 
-  function pointInGeometry(x, y, feature) {
+  function isPointInFeature(x, y, feature) {
     /**
      * Helper: Check if x,y point is in GeoJSON feature. Supports Polygon, MultiPolygon
      * @param {float} x - x (longitude) coordinate
@@ -1820,7 +1781,7 @@ var gtfsToAquius = gtfsToAquius || {
 
     var i;
 
-    function insidePolygon(polygonArray) {
+    function isPointInPolygon(x, y, polygonArray) {
 
       var inside, intersect, xj, xk, yj, yk, i, j, k;
 
@@ -1865,20 +1826,20 @@ var gtfsToAquius = gtfsToAquius || {
 
     if (feature.geometry.type === "MultiPolygon") {
       for (i = 0; i < feature.geometry.coordinates.length; i += 1) {
-        if (insidePolygon(feature.geometry.coordinates[i])) {
+        if (isPointInPolygon(x, y, feature.geometry.coordinates[i])) {
           return true;
         }
       }
     }
 
     if (feature.geometry.type === "Polygon") {
-      return insidePolygon(feature.geometry.coordinates);
+      return isPointInPolygon(x, y, feature.geometry.coordinates);
     }
       // Future: Extendable for other geometries, such as nearest point
     return false;
   }
 
-  function getCentroid(feature) {
+  function getCentroidFromFeature(feature) {
     /**
      * Helper: Calculate centroid of GeoJSON feature. Supports Polygon, MultiPolygon
      * @param {object} feature - single GeoJSON feature array
@@ -1888,7 +1849,7 @@ var gtfsToAquius = gtfsToAquius || {
     var i;
     var bounds = {};
 
-    function centroidPolygon(polygonArray) {
+    function getCentroidFromPolygon(polygonArray) {
 
       var i, j;
       var bounds = {};
@@ -1943,12 +1904,12 @@ var gtfsToAquius = gtfsToAquius || {
 
       if (feature.geometry.type === "MultiPolygon") {
          for (i = 0; i < feature.geometry.coordinates.length; i += 1) {
-           bounds = centroidPolygon(feature.geometry.coordinates[i]);
+           bounds = getCentroidFromPolygon(feature.geometry.coordinates[i]);
          }
       }
 
       if (feature.geometry.type === "Polygon") {
-         bounds = centroidPolygon(feature.geometry.coordinates);
+         bounds = getCentroidFromPolygon(feature.geometry.coordinates);
       }
         // Future: Extendable for other geometry types
     }
@@ -1964,7 +1925,7 @@ var gtfsToAquius = gtfsToAquius || {
     }
   }
 
-  function populateNodes(out, options) {
+  function buildPlace(out, options) {
     /**
      * Creates and populates aquius.place
      * @param {object} out
@@ -1990,11 +1951,8 @@ var gtfsToAquius = gtfsToAquius || {
     if ("aquius" in out === false) {
       out.aquius = {};
     }
-    if ("place" in out.aquius === false) {
-      out.aquius.place = [];
+    out.aquius.place = [];
       // x, y, {p: population}
-    }
-
 
     if (typeof options === "object" &&
       "geojson" in options &&
@@ -2006,7 +1964,7 @@ var gtfsToAquius = gtfsToAquius || {
     ) {
 
       for (i = 0; i < options.geojson.features.length; i += 1) {
-        centroid = getCentroid(options.geojson.features[i]);
+        centroid = getCentroidFromFeature(options.geojson.features[i]);
         if (centroid !== null) {
           centroidKeys.push(i);
           centroidStack[i] = centroid;
@@ -2025,7 +1983,7 @@ var gtfsToAquius = gtfsToAquius || {
       for (i = 0; i < nodeStack.length; i += 1) {
         thisPlace = -1;
 
-        if (pointInGeometry(out.aquius.node[nodeStack[i][1]][0],
+        if (isPointInFeature(out.aquius.node[nodeStack[i][1]][0],
           out.aquius.node[nodeStack[i][1]][1], options.geojson.features[previousPlace])) {
           // Often the next node is near the last, so check the last result first
           thisPlace = previousPlace;
@@ -2048,7 +2006,7 @@ var gtfsToAquius = gtfsToAquius || {
               checked.indexOf(centroidKeys[j]) === -1
             ) {
               // Only consider closer centroids than the prior failures. PreviousPlace already checked
-              if (pointInGeometry(out.aquius.node[nodeStack[i][1]][0],
+              if (isPointInFeature(out.aquius.node[nodeStack[i][1]][0],
                 out.aquius.node[nodeStack[i][1]][1], options.geojson.features[centroidKeys[j]])
               ) {
                 thisPlace = centroidKeys[j];
@@ -2068,7 +2026,7 @@ var gtfsToAquius = gtfsToAquius || {
             for (j = 0; j < options.geojson.features.length; j += 1) {
 
               if (checked.indexOf(j) === -1 &&
-                pointInGeometry(out.aquius.node[nodeStack[i][1]][0],
+                isPointInFeature(out.aquius.node[nodeStack[i][1]][0],
                   out.aquius.node[nodeStack[i][1]][1], options.geojson.features[j])
               ) {
                 thisPlace = j;
@@ -2129,26 +2087,57 @@ var gtfsToAquius = gtfsToAquius || {
     return out;
   }
 
+  function exitProcess(out, gtfs, options) {
+    /**
+     * Called to exit
+     * @param {object} out - internal data references
+     * @param {object} gtfs
+     * @param {object} options
+     */
+
+    var error, i;
+    var clean = ["node", "nodeLookup"];
+      // Out objects to be destroyed once processing is complete
+
+    for (i = 0; i < clean.length; i += 1) {
+      if (clean[i] in out) {
+        delete out[clean[i]];
+      }
+    }
+
+    if (typeof options === "object" &&
+      "callback" in options
+    ) {
+      if ("error" in out) {
+        error = new Error(out.error.join(". "));
+      }
+      options.callback(error, out, options);
+      return true;
+    } else {
+      return out;
+    }
+  }
+
   out = parseConfig(out, options);
   out = parseGtfs(out, gtfs);
 
   if ("error" in out) {
-    return finish(out, gtfs, options);
+    return exitProcess(out, gtfs, options);
   }
 
-  out = createMeta(out);
-  out = createProduct(out);
+  out = buildHeader(out);
+  out = buildNetwork(out);
 
-  out = parentStops(out);
-  out = transferStops(out);
-  out = regularStops(out);
+  out = parentStopsToNode(out);
+  out = transferStopsToNode(out);
+  out = regularStopsToNode(out);
 
-  out = aquiusLink(out, createLink(out, createTrip(out, createFrequencies(out),
+  out = buildLink(out, createLink(out, createTrip(out, createFrequencies(out),
     createServiceDays(out)), createRoutes(out)));
 
-  out = populateNodes(out, options);
+  out = buildPlace(out, options);
 
-  return finish(out, gtfs, options);
+  return exitProcess(out, gtfs, options);
 }
 
 
