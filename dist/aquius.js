@@ -236,20 +236,25 @@ var aquius = aquius || {
     return element;
   }
 
-  function createRadioElement(optionObject, baseName, selectedValue) {
+  function createRadioElement(optionObject, baseName, selectedValue, style) {
     /**
      * Helper: Creates DOM radio element
      * @param {object} optionObject - array of radio options, each array an object with keys:
      *   value (returned on selection), label (not localised), id (localisation referenced)
      * @param {string} baseName - for containing DOM div id and input name
      * @param {string} selectedValue - optional, currently selected value, type matching
+     * @param {object} style - styling of containing div
      * @return {object} DOM div containing radio
      */
 
-    var input, label, span, i;
-    var div = createElement("div", {
+    var div, input, label, span, i;
+    if (typeof style === "undefined") {
+      style = {};
+    }
+
+    div = createElement("div", {
       "id": baseName
-    });
+    }, style);
 
     for (i = 0; i < optionObject.length; i += 1) {
       label = createElement("label");
@@ -765,34 +770,35 @@ var aquius = aquius || {
      * @return {object} configOptions
      */
 
-    var storeObject, storeNames, translationObjects, translationLocales, translationNames, i, j, k;
+    var specialKeys, storeObject, storeNames, translationObjects, translationLocales,
+      translationNames, i, j, k;
     var defaultOptions = getDefaultOptions();
     var defaultLocale = "en-US";
     var defaultNames = Object.keys(defaultOptions);
     var localeNames = [];
 
-    function networkTranslation(configOptions) {
-      // Returns dummy translation block containing _networkI, where I is index position
+    function specialTranslation(configOptions, key) {
+      // Returns dummy translation block containing _keyI, where I is index position
 
-      var networkTranslationNames, i, j;
-      var networkTranslationObject = {};
+      var specialTranslationNames, i, j;
+      var specialTranslationObject = {};
 
-      for (i = 0; i < configOptions.dataObject.network.length; i += 1) {
-        if (configOptions.dataObject.network[i].length > 1 &&
-          typeof configOptions.dataObject.network[i][1] === "object"
+      for (i = 0; i < configOptions.dataObject[key].length; i += 1) {
+        if (configOptions.dataObject[key][i].length > 1 &&
+          typeof configOptions.dataObject[key][i][1] === "object"
         ) {
-          networkTranslationNames = Object.keys(configOptions.dataObject.network[i][1]);
-          for (j = 0; j < networkTranslationNames.length; j += 1) {
-            if (networkTranslationNames[j] in networkTranslationObject === false) {
-              networkTranslationObject[networkTranslationNames[j]] = {};
+          specialTranslationNames = Object.keys(configOptions.dataObject[key][i][1]);
+          for (j = 0; j < specialTranslationNames.length; j += 1) {
+            if (specialTranslationNames[j] in specialTranslationObject === false) {
+              specialTranslationObject[specialTranslationNames[j]] = {};
             }
-            networkTranslationObject[networkTranslationNames[j]]["_network" + i] =
-              configOptions.dataObject.network[i][1][networkTranslationNames[j]];
+            specialTranslationObject[specialTranslationNames[j]]["_" + key + i] =
+              configOptions.dataObject[key][i][1][specialTranslationNames[j]];
           }
         }
       }
 
-      return networkTranslationObject;
+      return specialTranslationObject;
     }
 
     function attributionTranslation(configOptions) {
@@ -923,9 +929,6 @@ var aquius = aquius || {
       }
     }
 
-    configOptions = rangeIndexedOption(configOptions, "n", "network");
-    configOptions = rangeIndexedOption(configOptions, "r", "service");
-
     if (configOptions.z < configOptions.minZoom) {
       configOptions.z = configOptions.minZoom;
     }
@@ -938,11 +941,20 @@ var aquius = aquius || {
     if ("translation" in configOptions.dataObject) {
       translationObjects.push(configOptions.dataObject.translation);
     }
-    if ("network" in configOptions.dataObject &&
-      Array.isArray(configOptions.dataObject.network)
-    ) {
-      translationObjects.push(networkTranslation(configOptions));
+
+    specialKeys = [
+      ["network", "n"],
+      ["service", "r"]
+    ];
+    for (i = 0; i < specialKeys.length; i += 1) {
+      configOptions = rangeIndexedOption(configOptions, specialKeys[i][1], specialKeys[i][0]);
+      if (specialKeys[i][0] in configOptions.dataObject &&
+        Array.isArray(configOptions.dataObject[specialKeys[i][0]])
+      ) {
+        translationObjects.push(specialTranslation(configOptions, specialKeys[i][0]));
+      }
     }
+
     if ("meta" in configOptions.dataObject &&
       ("name" in configOptions.dataObject.meta ||
       "attribution" in configOptions.dataObject.meta)
@@ -1136,7 +1148,11 @@ var aquius = aquius || {
           configOptions._toLocale[configOptions._id + dataObjectKey + i] = "_" + dataObjectKey + i;
         }
 
-        element = createRadioElement(selection, configOptions._id + dataObjectKey, configOptions[option]);
+        element = createRadioElement(selection, configOptions._id + dataObjectKey, configOptions[option], {
+          "border-top": "1px solid #ddd",
+          "margin-top": "3px",
+          "padding-top": "3px"
+        });
         element.addEventListener("change", function () {
           configOptions[option] = parseInt(document.querySelector("input[name='" +
             configOptions._id + dataObjectKey + "']:checked").value, 10);
@@ -1358,6 +1374,9 @@ var aquius = aquius || {
         label.appendChild(createElement("div", {
           "id": id
         }, {
+          "border-top": "1px solid #ddd",
+          "margin-top": "3px",
+          "padding-top": "3px",
           "text-align": "center"
         }));
         configOptions._toLocale[id] = "scale";
@@ -1399,6 +1418,9 @@ var aquius = aquius || {
       ) {
         // IE<10 has no Blob support
         div = createElement("div", {}, {
+          "border-top": "1px solid #ddd",
+          "margin-top": "3px",
+          "padding-top": "3px",
           "text-align": "center"
         });
 
