@@ -152,8 +152,10 @@ The extension of `network` allow extra network filters to be appended to the def
   [ 
     [14],
       // Product ID(s)
-    {"en-US": "FEVE"}
+    {"en-US": "FEVE"},
       // Locale:Name, must include the default locale
+    {}
+      // Optional properties
   ] 
   // Extendable for multiple networks
 ],
@@ -255,7 +257,7 @@ Aquius can also be used as a stand-alone library via `aquius.here()`, which acce
 
 Possible `options`:
 
-* `callback` - function to receive the result, which should accept 3 `Object`: `error` (javascript Error), `output` (as returned without callback, described below), `options` (as submitted, which also allows bespoke objects to be passed through to the callback).
+* `callback` - function to receive the result, which should accept `Object` (0) `error` (javascript Error), (1) `output` (as returned without callback, described below), and (2) `options` (as submitted, which also allows bespoke objects to be passed through to the callback).
 * `filter` - `integer` index of network to filter by.
 * `geoJSON` - `Array` of strings describing map layers to be outputted in GeoJSON format ("here", "link", "node" and/or "place").
 * `sanitize` - `boolean` check data integrity. Checks occur unless set to `false`. Repeat queries with the same dataObject can safely set sanitize to false.
@@ -296,6 +298,7 @@ Without callback, the function returns an `Object` with possible keys:
 * `error` - `Array` of error message strings.
 * `gtfs` - `Object` containing GTFS data parsed into arrays.
 * `gtfsHead` - `Object` describing the column indices of values in gtfs.
+* `summary` - `Object` containing summary `network` (productFilter-serviceFilter matrix) and `service` (service histogram).
 
 **Caution:** Runtime is typically about a second per 10 megabytes of GTFS text data (with roughly half that time spent processing the Comma Separated Values), plus time to assign stops (nodes) to population (places). The single-operator networks found in most GTFS archives should process within about 5 seconds, but very complex multi-operator conurbations may take longer. Specifying a callback is therefore recommended to avoid browser crashes.
 
@@ -313,19 +316,63 @@ fromDate|YYYYMMDD dateString|Today|Start date for service pattern analysis (incl
 meta|object|{"schema": "0"}|As [Data Structure](#data-structure) meta key
 option|object|{}|As [Configuration](#configuration)/[Data Structure](#data-structure) option key
 populationProperty|string|"population"|Field name in GeoJSON properties containing the number of people (or equivalent demographic statistic)
-productFilter|object|{"type": "agency"}|Group services by, including network definitions, detailed below
+productFilter|object|{"type": "agency"}|Group services by, using network definitions, detailed below
+serviceFilter|object|{}|Group services by, usingservice definitions, detailed below
 servicePer|integer|1|Service average per period in days (1 gives daily totals, 7 gives weekly totals), regardless of fromDate/toDate
 toDate|YYYYMMDD dateString|Next week|End date for service pattern analysis (inclusive)
 translation|object|{}|As [Configuration](#configuration)/[Data Structure](#data-structure) translation key
+
+*Tip:* The fastest way to start building a `config.json` file is to run GTFS To Aquius once, download and edit the resulting `config.json`, then use that file in subsequent GTFS To Aquius processing. 
+
+#### Product Filter
 
 `productFilter` currently supports one of two `type` values:
 
 * "agency", which assigns a product code for each operator identified in the GTFS (default).
 * "mode", which assigns a product code for each vehicle type identified in the GTFS (only the original types and "supported" [extensions](https://developers.google.com/transit/gtfs/reference/extended-route-types) will be named).
 
-By default GTFS To Aquius will create network filters consisting of all and each (with every filter named in en-US locale), and add keys `index` (list of all GTFS codes) and `network` (arrays structured like the [Data Structure](#data-structure) network key, except references are to GTFS codes, not numerical indices) to the `productFilter` `Object`. The easiest way to build bespoke network filters is to process the GTFS data once, then manually edit the `config.json` produced. If using GTFS To Aquius via its user interface, a rough count of routes and services by each `productFilter` will be produced after processing, allowing the most important categories to be identified. **Caution:** Pre-defining the `productFilter` will prevent GTFS To Aquius adding or removing entries, so any new operators or modes subsequently added to the GTFS source will need to be added to the `productFilter` manually.
+By default GTFS To Aquius will create network filters consisting of all and each (with every filter named in en-US locale), including a `productFilter.network` key of arrays structured like the [Data Structure](#data-structure) network key (except references are to GTFS codes, not numerical indices). The easiest way to build bespoke network filters is to process the GTFS data once, then manually edit the `config.json` produced. If using GTFS To Aquius via its user interface, a rough count of routes and services by each `productFilter` will be produced after processing, allowing the most important categories to be identified.
 
-*Tip:* The fastest way to start building a `config.json` file is to run GTFS To Aquius once, download and edit the resulting `config.json`, then use that file in subsequent GTFS To Aquius processing. 
+**Caution:** Pre-defining the `productFilter` will prevent GTFS To Aquius adding or removing entries, so any new operators or modes subsequently added to the GTFS source will need to be added to the `productFilter` manually.
+
+#### Service Filter
+
+`serviceFilter` can be used (in addition to any productFilter) to summarises the number of service by different time period. `serviceFilter` is an `Object` consisting keys:
+
+* `type` - `string` currently always "period".
+* `period` - `Array` of time period definitions which are applied in GTFS processing.
+
+The `period` is an `Object` consisting one or more keys:
+
+* `day` - `Array` of days of the week, lowercase English (as used in GTFS Calendar headers). The `day` evaluated is that assigned by date in the GTFS.
+* `time` - `Array` of time periods, each an `Object` with optional keys: `start` and `end` are strings in the format "HH:MM:SS" (as in GTFS times). Multiple sets of time periods can be specified as separate objects in the array.
+* `name` - `Object` consisting locale:name in that locale.
+
+In categorising services by time, GTFS To Aquius interprets times as equal to or after `start`, but before `end`. Only the keys specified are evaluated, thus a `start` time with no `end` time will analyse the entire service at and after that start time. For scheduled trips, each vehicle journey is evaluated based by mean time - the average of the earliest and latest times in the trip schedule. For example, a trip that leaves its first stop at 09:00:00 and arrives at its final stop at 10:00:00 would match any `time` criteria that included 09:30:00. Frequency-based services count the number of services based on the average headway(s) during the time period defined.
+
+**Caution:** GTFS to Aquius naively mirrors whatever convention the GTFS file has used for handling services operated wholly or partly after midnight: Some operators consider all trips that commence after midnight to be on a new day. Others continue the previous day into the next until a notional "end of service". Days are continued into the next by adding 24 hours to the clock time (for example 01:10:00 on the _next_ day becomes 25:10:00 on the _original_ day). Early morning services may require two time conditions, as shown in the example below. Night services are easily double-counted, so if in doubt spot-check the output of such periods against published timetables.
+
+```javascript
+{
+  "serviceFilter": {
+    "type": "period",
+    "period": {
+      "name": {"en-US": "00:00-06:00 Catchall"},
+      "time": [
+        {"end": "06:00:00"},
+          // Before 06:00, as today
+        {"start": "24:00:00", "end": "30:00:00"}
+          // Midnight until before 06:00, as tomorrow
+      ]
+      // No "day" key = all days
+    }
+  }
+}
+```
+
+**Caution:** The `serviceFilter` always applies a single time criteria to the whole journey, an assumption that will become progressively less realistic the longer the GTFS network's average vehicle journey. For example, an urban network may be usefully differentiated between morning peak and inter-peak because most vehicle journey on urban networks are completed within an hour, and thus the resulting analysis will be accurate within 30 minutes at all nodes on the route. In contrast, inter-regional vehicle journey duration may be much longer, and such detailed time periods risk misrepresenting passenger journey opportunities at certain nodes: For example, a 4-hour vehicle journey are commences at 07:30 might match a morning peak definition at its origin, but not by the time it reaches its final destination at 11.30. Such networks may be better summarised more broadly - perhaps morning, afternoon and evening. Long-distance or international networks, where vehicle journeys routinely span whole days, may be unsuitable for any form of `serviceFilter`.
+
+*Tip:* Service totals within defined time periods are still calculated as specified by `servicePer` - with default 1, the total service per day. This is a pragmatic way of fairly summarising unfamiliar networks with different periods of operation. However if serviceFilter periods exclude the times of day when the network is closed, the `servicePer` setting may be set per hour (0.04167), which may make it easier to compare periods of unequal duration, especially on metro networks with defined opening and closing times.
 
 ### GeoJSON File
 
@@ -443,6 +490,8 @@ In the example below, the corresponding `link` service array would consist of an
 ]
 ```
 
+**Caution:** Providing more that one index position in link service array should only be done where the values sum without invalidating the service count metric used. For example, if the metric used is "services per day", summing two days together will falsely double the service level "per day". Aquius does not know how the original metric was constructed, so cannot make logical assumptions such as averaging instead of summing.
+
 ### Link
 
 The `link` key contains an `Array` of lines of link data. Each line of link data is defined as a route upon which the entire service has identical stopping points and identical product. On some networks, every daily service will become a separate line of link data, on others almost the whole day's service can be attached to a single line of link data. Each line of link data is itself an `Array` consisting 4 parts:
@@ -452,7 +501,7 @@ The `link` key contains an `Array` of lines of link data. Each line of link data
 1. Nodes served (`Array` of `integer`) - the Node ID of each point the services stops to serve passengers, in order. Routes are presumed to also operate in the reverse direction, but, as described below, the route can be define as one direction only, in which case the start point is only the first point in the `Array`. Node IDs reference an index position in `node`, and if the `link` is populated with data, so must `node` (and in turn `place`).
 1. Properties (`Object`) - an extendable area for keys containing optional data or indicating special processing conditions. In many cases this will be empty, vis: `{}`. Optional keys are described below:
 
-* `circular` or `c` - `boolean` true or `integer` 1 indicates operation is actually a continuous loop, where the start and end points are the same station. Only the nodes for one complete loop should be included - the notional start and end stop thus included twice. Circular services are processed so that their duplicated start/end station is only counted once. Figure-of-eight loops are intentionally double-counted at the midpoint each service passes twice per journey, since such services may reasonably be considered to offer two completely different routes to passengers, however this does result in arithmetic quirks (as demonstrated by Atocha's C-7, described in [Known Issues](#known-issues)).
+* `circular` or `c` - `boolean` true or `integer` 1 indicates operation is actually a continuous loop, where the start and end points are the same node. Only the nodes for one complete loop should be included - the notional start and end node thus included twice. Circular services are processed so that their duplicated start/end node is only counted once. Figure-of-eight loops are intentionally double-counted at the midpoint each service passes twice per journey, since such services may reasonably be considered to offer two completely different routes to passengers, however this does result in arithmetic quirks (as demonstrated by Madrid Atocha's C-7).
 * `direction` or `d` - `boolean` true or `integer` 1 indicates operation is only in the direction recorded, not also in the opposite direction. As noted under [Known Issues](#known-issues), services that are both circular and directional will produce numeric quirks. *Tip:* Services that loop only at one end of a route (sometimes seen in tram operation) should be recorded as uni-directional with nodes on the common section recorded twice, once in each direction - not recorded as circular.
 * `pickup` or `u` - `Array` containing `integer` Node IDs describing nodes on the service's route where passengers can only board (get on), not alight (get off).
 * `reference` or `r` - `Array` containing one or more `Object` of descriptive data associated with the routes within the link - for example, route headcodes or display colors. Possible keys and values are described below.
@@ -501,7 +550,7 @@ The `place` key has a similar structure to `node` above - each place an `Array` 
 
 Optional `properties` keys are:
 
-* `population` or `p` - `integer` total resident population, or equivalent statistic. Recommended.
+* `population` or `p` - `integer` total resident population, or equivalent statistic (recommended).
 
 *Tip:* For bespoke analysis, the population can be hacked for any geospatial data that sums.
 
