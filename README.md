@@ -58,10 +58,9 @@ In its most basic form, Aquius simply builds into a specific `HTML` element on a
 
 Note older browsers also require the `html` and `body` elements to be styled with a `height` of 100% before correctly displaying the `div` at 100%. Absolute paths are recommended to produce portable embedded code, but not enforced.
 
-The first argument of the function `aquius.init()` requires a valid `id` refering to an empty element on the page. The second optional argument is an `Object` containing keyed options which override the default configuration. Three option keys are worth introducing here:
+The first argument of the function `aquius.init()` requires a valid `id` refering to an empty element on the page. The second optional argument is an `Object` containing keyed options which override the default configuration. Two option keys are worth introducing here:
 
 * `dataset`: `String` (quoted) of the full path and filename of the JSON file containing the network data (the default is empty).
-* `locale`: `String` (quoted) of the initial [BCP 47-style](https://en.wikipedia.org/wiki/IETF_language_tag) locale, currently `en-US` or `es-ES`. Users may choose their language - this option simply defines the initial state.
 * `uiHash`: `Boolean` (true or false, no quotes) indicating whether Aquius records its current state as a hash in the browser's URL bar (great for sharing, but may interfere with other elements of web page design).
 
 Others options are documented in the [Configuration](#configuration) section below. Here is an example with the Spanish Railway dataset:
@@ -73,7 +72,6 @@ Others options are documented in the [Configuration](#configuration) section bel
 <script>window.addEventListener("load", function() {
   aquius.init("aquius", {
     "dataset": "https://timhowgego.github.io/AquiusData/es-rail/20-jul-2018.json",
-    "locale": "es-ES",
     "uiHash": true
   });
 });</script>
@@ -91,8 +89,6 @@ Others options are documented in the [Configuration](#configuration) section bel
 * Aquius works efficiently for practical queries within large conurbations, or for inter-regional networks. The current extreme test case is a single query containing _every_ bus stop and weekly bus service in the whole of Greater Manchester - a network consisting of about 5 million different stop-time combinations: This takes just under a second for Aquius to query on a slow 2010-era computer. A third of that second is for processing, and two thirds for map rendering: Aquius' primary bottleneck is the ability of the browser to render large numbers of visual objects on a canvas.
 
 ## Known Issues
-
-This section tries to explain the reasoning behind particular quirks:
 
 Aquius is fundamentally inaccessible to those with severe visual impairment: The limitation lay in the concept, not primarily the implementation. Aquius can't even read out the stop names, since it doesn't necessarily know anything about them except their coordinates. Genuine solutions are more radical than marginal, implying a quite separate application. For example, conversion of the map into a 3D soundscape, or allowing users to walk a route as if playing a [MUD](https://en.wikipedia.org/wiki/MUD).
 
@@ -250,9 +246,6 @@ z|integer|6|Map view zoom
 Aquius can also be used as a stand-alone library via `aquius.here()`, which accepts and returns data Objects without script loading or user interface. Arguments, in order:
 
 1. `dataObject` - `Object` containing a [Data Structure](#data-structure).
-1. `x` - `float` longitude of _here_ in WGS 84.
-1. `y` - `float` latitude of _here_ in WGS 84.
-1. `range` - `float` distance from _here_ to be searched for nodes, in metres.
 1. `options` - optional `Object` of key:value pairs.
 
 Possible `options`:
@@ -260,8 +253,11 @@ Possible `options`:
 * `callback` - function to receive the result, which should accept `Object` (0) `error` (javascript Error), (1) `output` (as returned without callback, described below), and (2) `options` (as submitted, which also allows bespoke objects to be passed through to the callback).
 * `filter` - `integer` index of network to filter by.
 * `geoJSON` - `Array` of strings describing map layers to be outputted in GeoJSON format ("here", "link", "node" and/or "place").
+* `range` - `float` distance from _here_ to be searched for nodes, in metres.
 * `sanitize` - `boolean` check data integrity. Checks occur unless set to `false`. Repeat queries with the same dataObject can safely set sanitize to false.
 * `service` - `integer` index of service to restrict by.
+* `x` - `float` longitude of _here_ in WGS 84.
+* `y` - `float` latitude of _here_ in WGS 84.
 
 **Caution:** Sanitize does not fix logical errors within the dataObject, and should not be used to check data quality. Sanitize merely replaces missing or incomplete structures with zero-value defaults, typically causing bad data to be ignored without throwing errors.
 
@@ -300,7 +296,7 @@ Without callback, the function returns an `Object` with possible keys:
 * `gtfsHead` - `Object` describing the column indices of values in gtfs.
 * `summary` - `Object` containing summary `network` (productFilter-serviceFilter matrix) and `service` (service histogram).
 
-**Caution:** Runtime is typically about a second per 10 megabytes of GTFS text data (with roughly half that time spent processing the Comma Separated Values), plus time to assign stops (nodes) to population (places). The single-operator networks found in most GTFS archives should process within about 5 seconds, but very complex multi-operator conurbations may take longer. Specifying a callback is therefore recommended to avoid browser crashes.
+**Caution:** Runtime is typically about a second per 10 megabytes of GTFS text data (with roughly half that time spent processing the Comma Separated Values), plus time to assign stops (nodes) to population (places). The single-operator networks found in most GTFS archives should process within about 5 seconds, but very complex multi-operator conurbations may take longer.
 
 ### Configuration File
 
@@ -317,7 +313,7 @@ meta|object|{"schema": "0"}|As [Data Structure](#data-structure) meta key
 option|object|{}|As [Configuration](#configuration)/[Data Structure](#data-structure) option key
 populationProperty|string|"population"|Field name in GeoJSON properties containing the number of people (or equivalent demographic statistic)
 productFilter|object|{"type": "agency"}|Group services by, using network definitions, detailed below
-serviceFilter|object|{}|Group services by, usingservice definitions, detailed below
+serviceFilter|object|{}|Group services by, using service definitions, detailed below
 servicePer|integer|1|Service average per period in days (1 gives daily totals, 7 gives weekly totals), regardless of fromDate/toDate
 toDate|YYYYMMDD dateString|Next week|End date for service pattern analysis (inclusive)
 translation|object|{}|As [Configuration](#configuration)/[Data Structure](#data-structure) translation key
@@ -432,6 +428,14 @@ An optional key `translation` may contain an `Object` with the same structure as
 
 An optional key `option` may contain an `Object` with the same structure as the [Configuration](#configuration) second argument of `aquius.init()`, described earlier. Keys `id`, `dataset`, `network` and `translation` are ignored, all in their own way redundant. It is recommended to set a sensible initial User State for the map (map view, _here_ click), but this key can also be used to apply Styling (color, scale), or even control the User Interface or set alternative base mapping. The `option` key only takes precedence over Aquius' defaults, not over valid hash or Configuration options.
 
+### Reference
+
+An optional key `reference` may contain an `Object`, itself containing keys whose value is an `Array` of verbose recurrent data. Specific values within the `dataset` may reference this recurrent data by index position, which avoids repeating identical data throughout the `dataset` and thus reduces filesize. Possible `reference` keys are:
+
+* `color` - `Array` of `string` HTML color codes. Currently only 6-hexadecimal styles are supported, including the leading hash, for example `#1e00ff`.
+* `product` - `Array` of `Object` translations of product names, for example `{"en-US":"English Name"}`, whose index position corresponds to product ID.
+* `url` - `Array` of `string` URLs. URLs may contain one or more expression `[*]` which will be automatically replaced by a link/node specific identifier, such as the route number.
+
 ### Network
 
 Each `link` (detailed below) is categorised with an `integer` product ID. The definition of a product is flexible: The network might be organised by different brands, operators, or vehicles. One or more products ID(s) are grouped into network filters, each network filter becoming an option for the user. Products can be added to more than one network filter, and there is no limit on the total number of filters, beyond practical usability: An interface with a hundred network filters would be hard to both digest and navigate.
@@ -509,12 +513,13 @@ The `link` key contains an `Array` of lines of link data. Each line of link data
 * `shared` or `h` - `integer` Product ID of the parent service. Shared allows an existing parent service to be assigned an additional child service of a different product category. The specific parent service is not specifically identified, only its product. Over common sections of route, only the parent will be processed and shown, however if the network is filtered to exclude the parent, the child is processed. The parent service should be defined as the longer of the two routes, such that the parent includes all the stops of the child. Shared was originally required to describe Renfe's practice of selling (state supported) local journey fare products on sections of (theoretically commercial) long distance services, but such operations are also common in aviation, where a single flight may carry seats sold by more than one airline.
 * `split` or `t` - `Array` containing `integer` Node IDs describing the unique nodes on the service's route. Split is assigned to one half of a service operated as two portions attached together over a common part of route. Splits can be affected at either or both ends of the route. In theory more than two portions can be handled by assigning a split to every portion except the first. Like `shared` services, and companion service is not specifically identified, however a `split` should be of the same Product ID as its companion service (else to avoid miscalculations `network` needs to be constructed so that both Product IDs fall into the same categories). Railway services south of London were built on this style of operation, while operators such as Renfe only split trains operated on _very_ long distance routes.
 
-Possible keys within the `reference` Object - all values are `string`:
+Possible keys within the `reference` Object, all optional, although `n` is strongly recommended:
 
-* `c` - 6-hexadecimal HTML-style color associated with the route line
-* `n` - short name or human-readable reference code (recommended)
-* `t` - 6-hexadecimal HTML-style color associated with the route text (must contrast against the color of the line)
-* `u` - URL link for further human-readable information
+* `c` - `reference.color` index associated with the route line.
+* `i` - reference code used in URL (see `u` below).
+* `n` - short name or human-readable reference code.
+* `t` - `reference.color` index associated with the route text (must contrast against the color of the line).
+* `u` - `reference.url` index of link providing further human-readable information. The optional `[*]` in that URL will be replaced by `i` if available, else `n`, else removed.
 
 References should be consistently presented across the dataset - for example always "L1", not also "l1" and "line one". References should also be unique within localities - for example, the dataset may contain several different services referenced "L1", but should they serve the same node they will be aggregated together as "L1".
 
@@ -533,10 +538,11 @@ Optional `properties` keys are:
 * `place` or `p` - `integer` index position in `place` (described below) for the place that contains this node. Recommended.
 * `reference` or `r` - `Array` containing one or more `Object` of descriptive data associated with the stop or stops within the node - for example, names or URLs containing further information.
 
-Possible `reference` keys and values are described below - all values are `string`:
+Possible `reference` keys and values are described below, all optional, although `n` is strongly recommended:
 
-* `n` - short name or human-readable reference code (recommended)
-* `u` - URL link for further human-readable information
+* `i` - reference code used in URL (see `u` below).
+* `n` - short name or human-readable reference code.
+* `u` - `reference.url` index of link providing further human-readable information. The optional `[*]` in that URL will be replaced by `i` if available, else `n`, else removed.
 
 *Tip:* To reduce `dataset` file size, restrict the accuracy of coordinates to only that needed - metres, not millmetres. Likewise, while URLs and detailed names may provide useful reference information, these can inflate file size dramatically when lengthy or when attached to every node or service.
 

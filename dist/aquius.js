@@ -1150,8 +1150,8 @@ var aquius = aquius || {
 
         element = createRadioElement(selection, configOptions._id + dataObjectKey, configOptions[option], {
           "border-top": "1px solid #ddd",
-          "margin-top": "3px",
-          "padding-top": "3px"
+          "margin-top": "4px",
+          "padding-top": "4px"
         });
         element.addEventListener("change", function () {
           configOptions[option] = parseInt(document.querySelector("input[name='" +
@@ -1375,8 +1375,8 @@ var aquius = aquius || {
           "id": id
         }, {
           "border-top": "1px solid #ddd",
-          "margin-top": "3px",
-          "padding-top": "3px",
+          "margin-top": "4px",
+          "padding-top": "4px",
           "text-align": "center"
         }));
         configOptions._toLocale[id] = "scale";
@@ -1419,8 +1419,8 @@ var aquius = aquius || {
         // IE<10 has no Blob support
         div = createElement("div", {}, {
           "border-top": "1px solid #ddd",
-          "margin-top": "3px",
-          "padding-top": "3px",
+          "margin-top": "4px",
+          "padding-top": "4px",
           "text-align": "center"
         });
 
@@ -1458,7 +1458,10 @@ var aquius = aquius || {
           options = {
             "filter": configOptions.n,
             "geoJSON": [],
-            "service": configOptions.r
+            "range": 5e6 / Math.pow(2, configOptions.m),
+            "service": configOptions.r,
+            "x": configOptions.c,
+            "y": configOptions.k
           };
 
           for (i = 0; i < layerNames.length; i += 1) {
@@ -1478,13 +1481,7 @@ var aquius = aquius || {
           }
 
           aExport.href = window.URL.createObjectURL(
-            new Blob([JSON.stringify(configOptions._call(
-              dataObject,
-              configOptions.c,
-              configOptions.k,
-              5e6 / Math.pow(2, configOptions.m),
-              options
-            ))],
+            new Blob([JSON.stringify(configOptions._call(dataObject, options))],
             {type: "application/json;charset=utf-8"})
           );
             // Future: Export should execute with callback
@@ -1549,7 +1546,11 @@ var aquius = aquius || {
         "_configOptions": configOptions,
         "callback": postHereQuery,
         "filter": configOptions.n,
-        "service": configOptions.r
+        "range": 5e6 / Math.pow(2, configOptions.m),
+          // Range factor duplicated in export
+        "service": configOptions.r,
+        "x": configOptions.c,
+        "y": configOptions.k
       };
 
       if (typeof configOptions._here === "object" &&
@@ -1562,14 +1563,7 @@ var aquius = aquius || {
         options.sanitize = true;
       }
 
-      configOptions._call(
-        dataObject,
-        configOptions.c,
-        configOptions.k,
-        5e6 / Math.pow(2, configOptions.m),
-          // Range factor duplicated in export
-        options
-      );
+      configOptions._call(dataObject, options);
 
     } else {
 
@@ -1608,18 +1602,20 @@ var aquius = aquius || {
       var colors = [];
 
       function mergeColors(colors) {
-        // Array of 6-hex colors, no hash
+        // Array of hashed 6-hex colors
 
         var averageColor, i;
         var mixedColor = "#";
         var rgbStack = [[], [], []];
 
         for (i = 0; i < colors.length; i += 1) {
-          if (colors[i].length === 6) {
-            // Currently supports only original HTML hex style colors, GTFS-compatible
-            rgbStack[0].push(parseInt(colors[i].slice(0, 2), 16));
-            rgbStack[1].push(parseInt(colors[i].slice(2, 4), 16));
-            rgbStack[2].push(parseInt(colors[i].slice(4, 6), 16));
+          if (colors[i].length === 7 &&
+            colors[i][0] === "#"
+          ) {
+            // 6-hex style colors, GTFS-compatible
+            rgbStack[0].push(parseInt(colors[i].slice(1, 3), 16));
+            rgbStack[1].push(parseInt(colors[i].slice(3, 5), 16));
+            rgbStack[2].push(parseInt(colors[i].slice(5, 7), 16));
           }
         }
 
@@ -1648,9 +1644,13 @@ var aquius = aquius || {
 
       for (i = 0; i < referenceObject.length; i += 1) {
         if ("c" in referenceObject[i] &&
-          colors.indexOf(referenceObject[i].c) === -1
+          "reference" in configOptions.dataObject &&
+          "color" in configOptions.dataObject.reference &&
+          referenceObject[i].c >= 0 &&
+          referenceObject[i].c < configOptions.dataObject.reference.color.length &&
+          colors.indexOf(configOptions.dataObject.reference.color[referenceObject[i].c]) === -1
         ) {
-          colors.push(referenceObject[i].c);
+          colors.push(configOptions.dataObject.reference.color[referenceObject[i].c]);
         }
       }
 
@@ -1658,16 +1658,17 @@ var aquius = aquius || {
         return configOptions.linkColor;
       }
       if (colors.length === 1) {
-        return "#" + colors[0];
+        return colors[0];
         // Future: Check link color !== node color
       }
 
       return mergeColors(colors);
     }
 
-  function getLinkOrNodePopupContent(statName, statValue, linkObject, nodeObject) {
+  function getLinkOrNodePopupContent(configOptions, statName, statValue, linkObject, nodeObject) {
     /**
      * Helper: Content for map link/node popup. Generated on-click for efficiency
+     * @param {object} configOptions
      * @param {string} statName - pre-translated name of value (eg "Daily Services")
      * @param {number} statValue - numeric associated with statName
      * @param {object} linkObject - link reference object, including key n
@@ -1675,12 +1676,13 @@ var aquius = aquius || {
      * @return {object} DOM div element
      */
 
-    var popupDiv;
+    var keys, noProductLink, popupDiv, productLink, i, j;
 
-    function buildPopupData(referenceObject, popupDiv, isNode) {
-      // Object, DOM, boolean. Fills content for one Object
+    function buildPopupData(configOptions, referenceObject, popupDiv, isNode, name) {
+      // Object, Object, DOM, boolean, optional string. Fills content for one Object
 
       var div, divider, element, i;
+      var wildcard = "[*]";
 
       if (typeof referenceObject !== "undefined" &&
         Array.isArray(referenceObject)
@@ -1689,19 +1691,50 @@ var aquius = aquius || {
         div = createElement("div", {}, {
           "margin": "0.3em 0"
         });
+
         if (isNode) {
           div.style["font-weight"] = "bold";
         } else {
-          div.style["line-height"] = "2.3em";
+          div.style["line-height"] = "2em";
+        }
+
+        if (typeof name !== "undefined" &&
+          name !== ""
+        ) {
+          div.appendChild(createElement("div", {
+            "textContent": name
+          }, {
+            "line-height": "1.2em",
+            "margin": "0"
+          }));
         }
 
         for (i = 0; i < referenceObject.length; i += 1) {
           if ("n" in referenceObject[i]) {
 
-            if ("u" in referenceObject[i]) {
+            if ("u" in referenceObject[i] &&
+              "reference" in configOptions.dataObject &&
+              "url" in configOptions.dataObject.reference &&
+              referenceObject[i].u >= 0 &&
+              referenceObject[i].u < configOptions.dataObject.reference.url.length
+            ) {
+
               element = createElement("a", {
-                "href": referenceObject[i].u
+                "href": configOptions.dataObject.reference.url[referenceObject[i].u]
               });
+
+              if (element.href.lastIndexOf(wildcard) !== -1) {
+                if ("i" in referenceObject[i]) {
+                  element.href = element.href.replace(wildcard, referenceObject[i].i);
+                } else {
+                  if ("n" in referenceObject[i]) {
+                    element.href = element.href.replace(wildcard, referenceObject[i].n);
+                  } else {
+                    element.href = element.href.replace(wildcard, "");
+                  }
+                }
+              }
+
               if (!isNode) {
                 element.style.color = "#000";
                 element.style["text-decoration"] = "none";
@@ -1713,15 +1746,27 @@ var aquius = aquius || {
             element.textContent = referenceObject[i].n;
 
             if (!isNode) {
+              element.style.padding = "0.2em 0.3em";
               element.style.border = "1px solid #000";
-              element.style.padding = "0.3em 0.5em";
               element.style["white-space"] = "nowrap";
-              if ("c" in referenceObject[i]) {
-                element.style["background-color"] = "#" + referenceObject[i].c;
-              }
-              if ("t" in referenceObject[i]) {
-                element.style.color = "#" + referenceObject[i].t;
-                element.style["border-color"] = "#" + referenceObject[i].t;
+              if ("reference" in configOptions.dataObject &&
+                "color" in configOptions.dataObject.reference
+              ) {
+                if ("c" in referenceObject[i] &&
+                  referenceObject[i].c >= 0 &&
+                  referenceObject[i].c < configOptions.dataObject.reference.color.length
+                ) {
+                  element.style["background-color"] =
+                    configOptions.dataObject.reference.color[referenceObject[i].c];
+                  element.style["border-color"] =
+                    configOptions.dataObject.reference.color[referenceObject[i].c];
+                }
+                if ("t" in referenceObject[i] &&
+                  referenceObject[i].t >= 0 &&
+                  referenceObject[i].t < configOptions.dataObject.reference.color.length
+                ) {
+                  element.style.color = configOptions.dataObject.reference.color[referenceObject[i].t];
+                }
               }
             }
 
@@ -1749,7 +1794,7 @@ var aquius = aquius || {
       "color": "#000"
     });
 
-    popupDiv = buildPopupData(nodeObject, popupDiv, true);
+    popupDiv = buildPopupData(configOptions, nodeObject, popupDiv, true);
 
     if (statValue < 10 &&
       statValue % 1 !== 0
@@ -1765,7 +1810,66 @@ var aquius = aquius || {
       "margin": "0.3em 0"
     }));
 
-    popupDiv = buildPopupData(linkObject, popupDiv, false);
+    if ("reference" in configOptions.dataObject &&
+      "product" in configOptions.dataObject.reference &&
+      configOptions.dataObject.reference.product.length > 1 &&
+      configOptions.uiNetwork === true
+    ) {
+
+      noProductLink = [];
+      productLink = [];
+
+      for (i = 0; i < linkObject.length; i += 1) {
+        if ("p" in linkObject[i]) {
+          for (j = 0; j < linkObject[i].p.length; j += 1) {
+            if (productLink[linkObject[i].p[j]] === undefined) {
+              productLink[linkObject[i].p[j]] = [];
+            }
+            productLink[linkObject[i].p[j]].push(linkObject[i]);
+          }
+        } else {
+          noProductLink.push(linkObject[i]);
+        }
+      }
+
+      for (i = 0; i < productLink.length; i += 1) {
+        if (productLink[i] !== undefined) {
+          if (i < configOptions.dataObject.reference.product.length) {
+            if (configOptions.t in configOptions.dataObject.reference.product[i]) {
+              productLink[i].unshift(configOptions.dataObject.reference.product[i][configOptions.t]);
+            } else {
+              if (configOptions.locale in configOptions.dataObject.reference.product[i]) {
+                productLink[i].unshift(configOptions.dataObject.reference.product[i][configOptions.locale]);
+              } else {
+                keys = Object.keys(configOptions.dataObject.reference.product[i]);
+                if (keys.length > 0) {
+                  productLink[i].unshift(configOptions.dataObject.reference.product[i][keys[0]]);
+                } else {
+                  productLink[i].unshift("");
+                }
+              }
+            }
+          } else {
+            noProductLink = noProductLink.concat(productLink[i]);
+              // Unknown products first
+          }
+        }
+      }
+
+      productLink.sort();
+      for (i = 0; i < productLink.length; i += 1) {
+        if (productLink[i] !== undefined) {
+          popupDiv = buildPopupData(configOptions, productLink[i].slice(1), popupDiv, false, productLink[i][0]);
+        }
+      }
+
+    } else {
+      noProductLink = linkObject;
+    }
+
+    if (noProductLink.length > 0) {
+      popupDiv = buildPopupData(configOptions, noProductLink, popupDiv, false);
+    }
 
     return popupDiv;
   }
@@ -1871,8 +1975,8 @@ var aquius = aquius || {
             var index = parseInt(popup.getContent(), 10);
             if (!Number.isNaN(index)) {
               // Else already processed
-              popup.setContent(getLinkOrNodePopupContent(
-                statName, configOptions._here.link[index].value, configOptions._here.link[index].link));
+              popup.setContent(getLinkOrNodePopupContent(configOptions, statName,
+                configOptions._here.link[index].value, configOptions._here.link[index].link));
               popup.update();
             }
           })
@@ -1911,8 +2015,9 @@ var aquius = aquius || {
             var index = parseInt(popup.getContent(), 10);
             if (!Number.isNaN(index)) {
               // Else already processed
-              popup.setContent(getLinkOrNodePopupContent(
-                statName, configOptions._here.node[index].value, configOptions._here.node[index].link, configOptions._here.node[index].node));
+              popup.setContent(getLinkOrNodePopupContent(configOptions, statName,
+                configOptions._here.node[index].value, configOptions._here.node[index].link,
+                configOptions._here.node[index].node));
               popup.update();
             }
           })
@@ -2048,15 +2153,13 @@ var aquius = aquius || {
 },
 
 
-"here": function here(dataObject, x, y, range, options) {
+"here": function here(dataObject, options) {
   /**
    * Here Query. May be called independently
    * @param {Object} dataObject - as init() option dataObject
-   * @param {number} x - longitude
-   * @param {number} y - latitude
-   * @param {number} range - metres from lat,lng
-   * @param {Object} options - filter:network index, geoJSON:array layernames, sanitize:boolean,
-   *   service:service index, callback:function(error, output, options)
+   * @param {Object} options -  callback:function(error, output, options), filter:network index,
+   *   geoJSON:array layernames, range:metres-from-center, sanitize:boolean, service:service index,
+   *   x:center-longitude, y:center-latitude
    * @return {Object} key:values or callback
    */
   "use strict";
@@ -2188,13 +2291,10 @@ var aquius = aquius || {
     return raw;
   }
 
-  function walkRoutes(raw, x, y, range, options) {
+  function walkRoutes(raw, options) {
     /**
      * Adds raw.serviceLink and raw.serviceNode matrices, filtered
      * @param {object} raw - internal working data
-     * @param {number} x - x (longitude) coordinate
-     * @param {number} y - y (latitude) coordinate
-     * @param {number} range - metres from lat,lng
      * @param {object} options
      * @return {object} raw
      */
@@ -2213,7 +2313,7 @@ var aquius = aquius || {
       return 6371000 * c;
     }
 
-    function createLinkChecks(raw, x, y, range, options) {
+    function createLinkChecks(raw, options) {
       // Key=value indices optimised for fast confirmation of the existence of a value
 
       var i;
@@ -2228,7 +2328,8 @@ var aquius = aquius || {
         linkChecks.product = {};
           // Product
         for (i = 0; i < raw.dataObject.network[options.filter][0].length; i += 1) {
-          linkChecks.product[raw.dataObject.network[options.filter][0][i]] = raw.dataObject.network[options.filter][0][i];
+          linkChecks.product[raw.dataObject.network[options.filter][0][i]] =
+            raw.dataObject.network[options.filter][0][i];
         }
       }
 
@@ -2236,7 +2337,11 @@ var aquius = aquius || {
         // Here Nodes
       for (i = 0; i < raw.dataObject.node.length; i += 1) {
         if (raw.dataObject.node[i].length > 1 &&
-          range >= haversineDistance(y, x, raw.dataObject.node[i][1], raw.dataObject.node[i][0])
+          ("range" in options === false ||
+          "x" in options === false ||
+          "y" in options === false ||
+          options.range >=
+            haversineDistance(options.y, options.x, raw.dataObject.node[i][1], raw.dataObject.node[i][0]))
         ) {
           linkChecks.here[i] = i;
         }
@@ -2490,8 +2595,10 @@ var aquius = aquius || {
       return service;
     }
 
-    function addServiceReferences(service, linkPropertiesObject) {
-      // Saves constant rechecking of r property
+    function addServiceReferences(service, linkPropertiesObject, productArray) {
+      // Saves constant rechecking of r property, and add productArray as reference.p
+
+      var i;
 
       if ("reference" in linkPropertiesObject) {
         linkPropertiesObject.r = linkPropertiesObject.reference;
@@ -2502,6 +2609,9 @@ var aquius = aquius || {
         linkPropertiesObject.r.length > 0
       ) {
         service.reference = linkPropertiesObject.r;
+        for (i = 0; i <  service.reference.length; i += 1) {
+          service.reference[i].p = productArray;
+        }
       }
 
       return service;
@@ -2520,16 +2630,23 @@ var aquius = aquius || {
 
       for (i = 0; i < addReference.length; i += 1) {
 
-        if ("n" in addReference[i]) {
-          // Group by name
-          if (addReference[i].n in masterReference === false) {
-            masterReference[addReference[i].n] = addReference[i];
+        if ("i" in addReference[i]) {
+          // Group by id
+          if (addReference[i].i in masterReference === false) {
+            masterReference[addReference[i].i] = addReference[i];
           }
         } else {
-          if ("c" in addReference[i]) {
-            // Group by color
-            if (addReference[i].c in masterReference === false) {
-              masterReference[addReference[i].c] = addReference[i];
+          if ("n" in addReference[i]) {
+            // Group by name
+            if (addReference[i].n in masterReference === false) {
+              masterReference[addReference[i].n] = addReference[i];
+            }
+          } else {
+            if ("c" in addReference[i]) {
+              // Group by color
+              if (addReference[i].c in masterReference === false) {
+                masterReference[addReference[i].c] = addReference[i];
+              }
             }
           }
         }
@@ -2630,7 +2747,7 @@ var aquius = aquius || {
       // Service by link [from[to[service]]] - with voids undefined
     raw.serviceNode = [];
       // Service by node [node[service]] - with voids undefined
-    linkChecks = createLinkChecks(raw, x, y, range, options);
+    linkChecks = createLinkChecks(raw, options);
 
     for (i = 0; i < raw.dataObject.link.length; i += 1) {
 
@@ -2649,7 +2766,7 @@ var aquius = aquius || {
           service = addServiceDirection(service, linkChecks, raw.dataObject.link[i][2], raw.dataObject.link[i][3]);
           service = addServicePickup(service, linkChecks, raw.dataObject.link[i][3]);
           service = addServiceSplits(service, linkChecks, raw.dataObject.link[i][2], raw.dataObject.link[i][3]);
-          service = addServiceReferences(service, raw.dataObject.link[i][3]);
+          service = addServiceReferences(service, raw.dataObject.link[i][3], raw.dataObject.link[i][0]);
 
           if ("splits" in service === false ||
             service.splits !== 1
@@ -3014,9 +3131,12 @@ var aquius = aquius || {
     return exitHere(error, raw, options);
   }
 
-  if (typeof x !== "number" ||
-    typeof y !== "number" ||
-    typeof range !== "number"
+  if (("x" in options &&
+    typeof options.x !== "number") ||
+    ("y" in options &&
+    typeof options.y !== "number") ||
+    ("range" in options &&
+    typeof options.range !== "number")
   ) {
     raw.error = "Here parameters not numeric";
     return exitHere(error, raw, options);
@@ -3028,10 +3148,15 @@ var aquius = aquius || {
 
   raw.dataObject = dataObject;
 
-  raw.here = [{
-    "circle": [x, y],
-    "value": range
-  }];
+  if ("x" in options &&
+    "y" in options &&
+    "range" in options
+  ) {
+    raw.here = [{
+      "circle": [options.x, options.y],
+      "value": options.range
+    }];
+  }
 
   raw.summary = {
     "link": 0,
@@ -3045,7 +3170,7 @@ var aquius = aquius || {
   try {
 
     raw = parseDataObject(raw, options);
-    raw = walkRoutes(raw, x, y, range, options);
+    raw = walkRoutes(raw, options);
     raw = pathRoutes(raw);
     raw = conjureGeometry(raw, options);
 

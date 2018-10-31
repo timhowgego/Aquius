@@ -941,8 +941,14 @@ var gtfsToAquius = gtfsToAquius || {
     if ("type" in out.config.productFilter === false) {
       out.config.productFilter.type = "agency";
     }
+    if ("reference" in out.config.productFilter === false) {
+      out.config.productFilter.reference = [];
+    }
 
     out._.productIndex = {};
+    if ("reference" in out.aquius === false) {
+      out.aquius.reference = {};
+    }
 
     switch (out.config.productFilter.type) {
       // Extendable for more product filters. Add complementary code to wanderRoutes()
@@ -954,7 +960,15 @@ var gtfsToAquius = gtfsToAquius || {
           index = 0;
           for (i = 0; i < out.gtfs.routes.length; i += 1) {
             if (out.gtfs.routes[i][out.gtfsHead.routes.route_type] in out._.productIndex === false) {
-              out._.productIndex[out.gtfs.routes[i][out.gtfsHead.routes.route_type]] = index
+              out._.productIndex[out.gtfs.routes[i][out.gtfsHead.routes.route_type]] = index;
+              if (index >= out.config.productFilter.reference.length) {
+                if (out.gtfs.routes[i][out.gtfsHead.routes.route_type] in modeLookup) {
+                  out.config.productFilter.reference[index] = 
+                    modeLookup[out.gtfs.routes[i][out.gtfsHead.routes.route_type]];
+                } else {
+                  out.config.productFilter.reference[index] = {};
+                }
+              }
               index += 1;
             }
           }
@@ -973,16 +987,28 @@ var gtfsToAquius = gtfsToAquius || {
           for (i = 0; i < out.gtfs.agency.length; i += 1) {
             if (out.gtfs.agency[i][out.gtfsHead.agency.agency_id] in out._.productIndex === false) {
               out._.productIndex[out.gtfs.agency[i][out.gtfsHead.agency.agency_id]] = index;
+              if (index >= out.config.productFilter.reference.length) {
+                if (out.gtfsHead.agency.agency_name !== -1) {
+                  out.config.productFilter.reference[index] = 
+                    {"en-US": out.gtfs.agency[i][out.gtfsHead.agency.agency_name]};
+                } else {
+                  out.config.productFilter.reference[index] = 
+                    {"en-US": out.gtfs.agency[i][out.gtfsHead.agency.agency_id]};
+                }
+              }
               index += 1;
             }
           }
         } else {
           out._.productIndex.agency = 0;
             // Uncoded single agency GTFS
+          out.aquius.reference.product.push({});
         }
         break;
 
     }
+
+    out.aquius.reference.product = out.config.productFilter.reference;
 
     if ("network" in out.config.productFilter === false ||
       !Array.isArray(out.config.productFilter.network)
@@ -1122,39 +1148,114 @@ var gtfsToAquius = gtfsToAquius || {
     return out; 
    }
 
-  function createNodeProperties(out, stopObject) {
+  function addToReference(out, key, value) {
     /**
-     * Helper: Create node property key, with key "r" if relevant contents in stopObject
+     * Helper: Adds value to out.aquius.reference[key] and out._[key] if not already present
      * @param {object} out
-     * @param {object} stopObject - gtfs.stops array (line)
-     * @return {object} "r" key
+     * @param {string} key - reference key (color, url)
+     * @param {string} value - reference content
+     * @return {object} out
      */
 
+    if ("reference" in out.aquius === false) {
+      out.aquius.reference = {};
+    }
+
+    if (key in out.aquius.reference === false) {
+      out.aquius.reference[key] = [];
+      out._[key] = {};
+    }
+
+    if (value in out._[key] === false) {
+      out.aquius.reference[key].push(value);
+      out._[key][value] = out.aquius.reference[key].length - 1;
+    }
+
+    return out;
+  }
+
+  function createNodeProperties(out, stopObject) {
+    /**
+     * Helper: Adds node properties r key to final out.aquius.node, if relevant contents in stopObject
+     * @param {object} out
+     * @param {object} stopObject - gtfs.stops array (line)
+     * @return {object} out
+     */
+
+    var codeString, contentString, position, wildcard;
     var properties = {};
 
-    if (out.config.allowName === true &&
-      out.gtfsHead.stops.stop_name !== -1 &&
-      stopObject[out.gtfsHead.stops.stop_name].trim() !== ""
-    ) {
-      properties.n = stopObject[out.gtfsHead.stops.stop_name].trim();
-      if (out.gtfsHead.stops.stop_code !== -1 &&
-        stopObject[out.gtfsHead.stops.stop_code].trim() !== ""
-      ) {
-        properties.n += " (" + stopObject[out.gtfsHead.stops.stop_code].trim() +")";
+    if (out.config.allowName === true) {
+      contentString = "";
+
+      if (out.gtfsHead.stops.stop_name !== -1) {
+        contentString = stopObject[out.gtfsHead.stops.stop_name].trim();
       }
+      if (out.gtfsHead.stops.stop_code !== -1) {
+        codeString = stopObject[out.gtfsHead.stops.stop_code].trim();
+        if (codeString !== "") {
+          if (contentString === "") {
+            contentString = codeString;
+          } else {
+            contentString += " (" + codeString + ")";
+          }
+        }
+      }
+
+      if (contentString !== "") {
+        properties.n = contentString;
+      }
+
     }
 
     if (out.config.allowURL === true &&
-      out.gtfsHead.stops.stop_url !== -1 &&
-      stopObject[out.gtfsHead.stops.stop_url].trim() !== ""
+      out.gtfsHead.stops.stop_url !== -1
     ) {
-      properties.u = stopObject[out.gtfsHead.stops.stop_url].trim();
+      contentString = stopObject[out.gtfsHead.stops.stop_url].trim();
+      if (contentString !== "") {
+
+        wildcard = "[*]";
+        position = contentString.lastIndexOf(wildcard);
+          // Cannot use wildcard if already contains it (unlikely)
+
+        if (position === -1 &&
+          out.gtfsHead.stops.stop_code !== -1
+        ) {
+          codeString = stopObject[out.gtfsHead.stops.stop_code].trim();
+          position = contentString.lastIndexOf(codeString);
+            // Human logic: Stop code within URL format
+          if (position !== -1) {
+            contentString = contentString.substring(0, position) + wildcard +
+              contentString.substring(position + wildcard.length + 1);
+            properties.i = codeString;
+          }
+        }
+
+        if (position === -1 &&
+          out.gtfsHead.stops.stop_id !== -1
+        ) {
+          codeString = stopObject[out.gtfsHead.stops.stop_id].trim();
+          position = contentString.lastIndexOf(codeString);
+            // Operator logic: Internal ID within format
+          if (position !== -1) {
+            contentString = contentString.substring(0, position) + wildcard +
+              contentString.substring(position + wildcard.length + 1);
+            properties.i = codeString;
+          }
+        }
+
+        out = addToReference(out, "url", contentString);
+        properties.u = out._.url[contentString];
+
+      }
     }
 
     if (Object.keys(properties).length > 0) {
-      return {"r": [properties]};
+      out.aquius.node[out.aquius.node.length - 1][2].r = [properties];
+        // Future: Nodes currently have one set of properties only,
+        //   but expandable if in future stops are combined into nodes
     }
-    return {};
+    return out;
   }
 
   function forceCoordinate(coord) {
@@ -1204,8 +1305,9 @@ var gtfsToAquius = gtfsToAquius || {
           out.aquius.node.push([
             forceCoordinate(out.gtfs.stops[i][out.gtfsHead.stops.stop_lon]),
             forceCoordinate(out.gtfs.stops[i][out.gtfsHead.stops.stop_lat]),
-            createNodeProperties(out, out.gtfs.stops[i])
+            {}
           ]);
+          out = createNodeProperties(out, out.gtfs.stops[i]);
         } else {
           if (out.gtfs.stops[i][out.gtfsHead.stops.parent_station] !== "") {
             // Is child
@@ -1283,8 +1385,9 @@ var gtfsToAquius = gtfsToAquius || {
                         out.aquius.node.push([
                           forceCoordinate(out.gtfs.stops[j][out.gtfsHead.stops.stop_lon]),
                           forceCoordinate(out.gtfs.stops[j][out.gtfsHead.stops.stop_lat]),
-                          createNodeProperties(out, out.gtfs.stops[j])
+                          {}
                         ]);
+                        out = createNodeProperties(out, out.gtfs.stops[j]);
                         break;
                       }
 
@@ -1327,8 +1430,9 @@ var gtfsToAquius = gtfsToAquius || {
         out.aquius.node.push([
           forceCoordinate(out.gtfs.stops[i][out.gtfsHead.stops.stop_lon]),
           forceCoordinate(out.gtfs.stops[i][out.gtfsHead.stops.stop_lat]),
-          createNodeProperties(out, out.gtfs.stops[i])
+          {}
         ]);
+        out = createNodeProperties(out, out.gtfs.stops[i]);
       }
     }
 
@@ -1858,7 +1962,7 @@ var gtfsToAquius = gtfsToAquius || {
      * @return {object} out
      */
 
-    var i;
+    var contentString, position, wildcard, i;
 
     out._.routes = {};
       // route_id: {product, reference{n, c, u}}
@@ -1872,55 +1976,93 @@ var gtfsToAquius = gtfsToAquius || {
       };
 
       if (out.config.allowRoute === true) {
-        if (out.gtfsHead.routes.route_short_name !== -1 &&
-          out.gtfs.routes[i][out.gtfsHead.routes.route_short_name].trim() !== ""
-        ) {
-          out._.routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.n =
-            out.gtfs.routes[i][out.gtfsHead.routes.route_short_name].trim();
-          out._.routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.slug +=
-            out.gtfs.routes[i][out.gtfsHead.routes.route_short_name].trim();
-        } else {
-          // Long name only if short name unavailable
-          if (out.config.allowName === true &&
-            out.gtfsHead.routes.route_long_name !== -1 &&
-            out.gtfs.routes[i][out.gtfsHead.routes.route_long_name].trim() !== ""
+        contentString = "";
+
+        if (out.gtfsHead.routes.route_short_name !== -1) {
+          contentString = out.gtfs.routes[i][out.gtfsHead.routes.route_short_name].trim();
+
+          if (contentString === "" &&
+            out.config.allowName === true &&
+            out.gtfsHead.routes.route_long_name !== -1
           ) {
-            out._.routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.n =
-              out.gtfs.routes[i][out.gtfsHead.routes.route_long_name].trim();
-            out._.routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.slug +=
-              out.gtfs.routes[i][out.gtfsHead.routes.route_long_name].trim();
+            // Long name only if short name unavailable
+            contentString = out.gtfs.routes[i][out.gtfsHead.routes.route_long_name].trim();
           }
+        }
+
+        if (contentString !== "") {
+          out._.routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.n = contentString;
+          out._.routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.slug += contentString;
+        }
+
+      }
+
+      if (out.config.allowColor === true &&
+        out.gtfsHead.routes.route_color !== -1
+      ) {
+        contentString = out.gtfs.routes[i][out.gtfsHead.routes.route_color].trim();
+        if (contentString.length === 6) {
+
+          contentString = "#" + contentString;
+          out = addToReference(out, "color", contentString);
+          out._.routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.c = out._.color[contentString];
+          out._.routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.slug += contentString;
+
         }
       }
 
       if (out.config.allowColor === true &&
-        out.gtfsHead.routes.route_color !== -1 &&
-        out.gtfs.routes[i][out.gtfsHead.routes.route_color].trim() !== ""
+        out.gtfsHead.routes.route_text_color !== -1
       ) {
-        out._.routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.c =
-          out.gtfs.routes[i][out.gtfsHead.routes.route_color].trim();
-        out._.routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.slug +=
-          out.gtfs.routes[i][out.gtfsHead.routes.route_color].trim();
-      }
+        contentString = out.gtfs.routes[i][out.gtfsHead.routes.route_text_color].trim();
+        if (contentString.length === 6) {
 
-      if (out.config.allowColor === true &&
-        out.gtfsHead.routes.route_text_color !== -1 &&
-        out.gtfs.routes[i][out.gtfsHead.routes.route_text_color].trim() !== ""
-      ) {
-        out._.routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.t =
-          out.gtfs.routes[i][out.gtfsHead.routes.route_text_color].trim();
-        out._.routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.slug +=
-          out.gtfs.routes[i][out.gtfsHead.routes.route_text_color].trim();
+          contentString = "#" + contentString;
+          out = addToReference(out, "color", contentString);
+          out._.routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.t = out._.color[contentString];
+          out._.routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.slug += contentString;
+
+        }
       }
 
       if (out.config.allowURL === true &&
-        out.gtfsHead.routes.route_url !== -1 &&
-        out.gtfs.routes[i][out.gtfsHead.routes.route_url].trim() !== ""
+        out.gtfsHead.routes.route_url !== -1
       ) {
-        out._.routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.u =
-          out.gtfs.routes[i][out.gtfsHead.routes.route_url].trim();
-        out._.routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.slug +=
-          out.gtfs.routes[i][out.gtfsHead.routes.route_url].trim();
+        contentString = out.gtfs.routes[i][out.gtfsHead.routes.route_url].trim();
+        if (contentString !== "") {
+
+          wildcard = "[*]";
+          position = contentString.lastIndexOf(wildcard);
+            // Cannot use wildcard if already contains it (unlikely)
+            
+          if (position === -1 &&
+            "n" in out._.routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference
+          ) {
+            position = contentString.lastIndexOf(
+              out._.routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.n);
+              // Human logic: Name within URL format
+            if (position !== -1) {
+              contentString = contentString.substring(0, position) + wildcard +
+                contentString.substring(position + wildcard.length + 1);
+            }
+          }
+
+          if (position === -1) {
+            position = contentString.lastIndexOf(out.gtfs.routes[i][out.gtfsHead.routes.route_id]);
+              // Operator logic: Internal ID within format
+            if (position !== -1) {
+              contentString = contentString.substring(0, position) + wildcard +
+                contentString.substring(position + wildcard.length + 1);
+              out._.routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.i =
+                out.gtfs.routes[i][out.gtfsHead.routes.route_id];
+            }
+          }
+
+          out = addToReference(out, "url", contentString);
+          out._.routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.u = out._.url[contentString];
+          out._.routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.slug += contentString;
+
+        }
       }
 
       if (out.config.productFilter.type === "agency") {
