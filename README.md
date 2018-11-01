@@ -251,11 +251,11 @@ Aquius can also be used as a stand-alone library via `aquius.here()`, which acce
 Possible `options`:
 
 * `callback` - function to receive the result, which should accept `Object` (0) `error` (javascript Error), (1) `output` (as returned without callback, described below), and (2) `options` (as submitted, which also allows bespoke objects to be passed through to the callback).
-* `filter` - `integer` index of network to filter by.
 * `geoJSON` - `Array` of strings describing map layers to be outputted in GeoJSON format ("here", "link", "node" and/or "place").
+* `network` - `integer` index of network to filter by.
 * `range` - `float` distance from _here_ to be searched for nodes, in metres.
 * `sanitize` - `boolean` check data integrity. Checks occur unless set to `false`. Repeat queries with the same dataObject can safely set sanitize to false.
-* `service` - `integer` index of service to restrict by.
+* `service` - `integer` index of service to filter by.
 * `x` - `float` longitude of _here_ in WGS 84.
 * `y` - `float` latitude of _here_ in WGS 84.
 
@@ -310,6 +310,7 @@ allowRoute|boolean|true|Include route-specific short names
 allowURL|boolean|true|Include URLs for stops and services where available (increases file size)
 fromDate|YYYYMMDD dateString|Today|Start date for service pattern analysis (inclusive)
 meta|object|{"schema": "0"}|As [Data Structure](#data-structure) meta key
+networkFilter|object|{"type": "agency"}|Group services by, using network definitions, detailed below
 option|object|{}|As [Configuration](#configuration)/[Data Structure](#data-structure) option key
 populationProperty|string|"population"|Field name in GeoJSON properties containing the number of people (or equivalent demographic statistic)
 productFilter|object|{"type": "agency"}|Group services by, using network definitions, detailed below
@@ -320,25 +321,29 @@ translation|object|{}|As [Configuration](#configuration)/[Data Structure](#data-
 
 *Tip:* The fastest way to start building a `config.json` file is to run GTFS To Aquius once, download and edit the resulting `config.json`, then use that file in subsequent GTFS To Aquius processing. 
 
-#### Product Filter
+#### Network Filter
 
-`productFilter` currently supports one of two `type` values:
+Configuration key `networkFilter` defines groups of product IDs which the user can select to filter the results displayed. These filters are held in the network key of the [Data Structure](#data-structure). `networkFilter` is an `Object` consisting one or more keys:
 
-* "agency", which assigns a product code for each operator identified in the GTFS (default).
-* "mode", which assigns a product code for each vehicle type identified in the GTFS (only the original types and "supported" [extensions](https://developers.google.com/transit/gtfs/reference/extended-route-types) will be named).
+* `type` - `string` either "agency", which assigns a product code for each operator identified in the GTFS (default), or "mode", which assigns a product code for each vehicle type identified in the GTFS (only the original types and "supported" [extensions](https://developers.google.com/transit/gtfs/reference/extended-route-types) will be named).
+* `network` - `Array` containing network filter definitions, each an `Array` consisting: First, an `Array` of the GTFS codes (`agency_id` values for "agency", or `route_type` values for "mode") included in the filter, and second an `Object` of localised names in the style `{"en-US": "English name"}`.
 
-By default GTFS To Aquius will create network filters consisting of all and each (with every filter named in en-US locale), including a `productFilter.network` key of arrays structured like the [Data Structure](#data-structure) network key (except references are to GTFS codes, not numerical indices). The easiest way to build bespoke network filters is to process the GTFS data once, then manually edit the `config.json` produced. If using GTFS To Aquius via its user interface, a rough count of routes and services by each `productFilter` will be produced after processing, allowing the most important categories to be identified.
+*Tip:* The easiest way to build bespoke network filters is to initially specify only `type`, process the GTFS data once, then manually edit the `config.json` produced. If using GTFS To Aquius via its user interface, a rough count of routes and services by each `productFilter` will be produced after processing, allowing the most important categories to be identified.
 
-**Caution:** Pre-defining the `productFilter` will prevent GTFS To Aquius adding or removing entries, so any new operators or modes subsequently added to the GTFS source will need to be added to the `productFilter` manually.
+**Caution:** Pre-defining the `networkFilter` will prevent GTFS To Aquius adding or removing entries, so any new operators or modes subsequently added to the GTFS source will need to be added manually.
+
+#### Product Override
+
+Configuration key `productOverride` allows colors to be applied to all links of the same product, where product is defined by `networkFilter.type` (above). The `productOverride` key's value is is an `Object` whose key names refer to GTFS codes (`agency_id` values for "agency", or `route_type` values for "mode"), and whose values consist of an `Object` of properties to override any (and missing) GTFS values. Currently only two keys are supported: "route_color" and "route_text_color", each value is a `string` containing a 6-character hexadecimal HTML-style color ([matching GTFS specification](https://developers.google.com/transit/gtfs/reference/#routestxt)). These allow colors to be added by product, for example to apply agency-specific colors to their respective operations.
 
 #### Service Filter
 
-`serviceFilter` can be used (in addition to any productFilter) to summarises the number of service by different time period. `serviceFilter` is an `Object` consisting keys:
+Configuration key `serviceFilter` can be used (in addition to any productFilter) to filter or summarise the number of service by different time periods. `serviceFilter` is an `Object` consisting one or more keys:
 
 * `type` - `string` currently always "period".
 * `period` - `Array` of time period definitions which are applied in GTFS processing.
 
-The `period` is an `Object` consisting one or more keys:
+Each time period definition within `period` is an `Object` consisting one or more keys:
 
 * `day` - `Array` of days of the week, lowercase English (as used in GTFS Calendar headers). The `day` evaluated is that assigned by date in the GTFS.
 * `time` - `Array` of time periods, each an `Object` with optional keys: `start` and `end` are strings in the format "HH:MM:SS" (as in GTFS times). Multiple sets of time periods can be specified as separate objects in the array.

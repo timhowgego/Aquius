@@ -575,14 +575,16 @@ var gtfsToAquius = gtfsToAquius || {
         "schema": "0"
       },
         // As Data Structure meta key
+      "networkFilter": {
+        "type": "agency"
+      },
+        // Group services by, using network definitions (see docs)
       "option": {},
         // As Data Structure/Configuration option key
       "populationProperty": "population",
         // Field name in GeoJSON properties containing the number of people
-      "productFilter": {
-        "type": "agency"
-      },
-        // Group services by, using network definitions (see docs)
+      "productOverride": {},
+        // Properties applied to all links with the same product ID (see docs)
       "serviceFilter": {},
         // Group services by, using service definitions (see docs)
       "servicePer": 1,
@@ -727,8 +729,8 @@ var gtfsToAquius = gtfsToAquius || {
       "stop_times": ["trip_id", "stop_id", "stop_sequence"]
     };
 
-    if ("type" in out.config.productFilter &&
-      out.config.productFilter.type === "agency"
+    if ("type" in out.config.networkFilter &&
+      out.config.networkFilter.type === "agency"
     ) {
       out.gtfsHead.agency = {
         "agency_id": -1,
@@ -736,8 +738,8 @@ var gtfsToAquius = gtfsToAquius || {
       };
       out.gtfsHead.routes.agency_id = -1;
     }
-    if ("type" in out.config.productFilter &&
-      out.config.productFilter.type === "mode"
+    if ("type" in out.config.networkFilter &&
+      out.config.networkFilter.type === "mode"
     ) {
       out.gtfsHead.routes.route_type = -1;
     }
@@ -889,7 +891,7 @@ var gtfsToAquius = gtfsToAquius || {
 
   function buildNetwork(out) {
     /**
-     * Creates out.aquius.network from config.productFilter
+     * Creates out.aquius.network from config.networkFilter
      * @param {object} out
      * @return {object} out
      */
@@ -938,11 +940,11 @@ var gtfsToAquius = gtfsToAquius || {
     };
       // Future extended GTFS Route Types will render as "Mode #n", pending manual editing in config
 
-    if ("type" in out.config.productFilter === false) {
-      out.config.productFilter.type = "agency";
+    if ("type" in out.config.networkFilter === false) {
+      out.config.networkFilter.type = "agency";
     }
-    if ("reference" in out.config.productFilter === false) {
-      out.config.productFilter.reference = [];
+    if ("reference" in out.config.networkFilter === false) {
+      out.config.networkFilter.reference = [];
     }
 
     out._.productIndex = {};
@@ -950,7 +952,7 @@ var gtfsToAquius = gtfsToAquius || {
       out.aquius.reference = {};
     }
 
-    switch (out.config.productFilter.type) {
+    switch (out.config.networkFilter.type) {
       // Extendable for more product filters. Add complementary code to wanderRoutes()
 
       case "mode":
@@ -961,12 +963,12 @@ var gtfsToAquius = gtfsToAquius || {
           for (i = 0; i < out.gtfs.routes.length; i += 1) {
             if (out.gtfs.routes[i][out.gtfsHead.routes.route_type] in out._.productIndex === false) {
               out._.productIndex[out.gtfs.routes[i][out.gtfsHead.routes.route_type]] = index;
-              if (index >= out.config.productFilter.reference.length) {
+              if (index >= out.config.networkFilter.reference.length) {
                 if (out.gtfs.routes[i][out.gtfsHead.routes.route_type] in modeLookup) {
-                  out.config.productFilter.reference[index] = 
+                  out.config.networkFilter.reference[index] = 
                     modeLookup[out.gtfs.routes[i][out.gtfsHead.routes.route_type]];
                 } else {
-                  out.config.productFilter.reference[index] = {};
+                  out.config.networkFilter.reference[index] = {};
                 }
               }
               index += 1;
@@ -977,7 +979,7 @@ var gtfsToAquius = gtfsToAquius || {
 
       case "agency":
       default:
-        out.config.productFilter.type = "agency";
+        out.config.networkFilter.type = "agency";
           // Defaults to agency
         if ("agency" in out.gtfs &&
           "agency_id" in out.gtfsHead.agency &&
@@ -987,12 +989,12 @@ var gtfsToAquius = gtfsToAquius || {
           for (i = 0; i < out.gtfs.agency.length; i += 1) {
             if (out.gtfs.agency[i][out.gtfsHead.agency.agency_id] in out._.productIndex === false) {
               out._.productIndex[out.gtfs.agency[i][out.gtfsHead.agency.agency_id]] = index;
-              if (index >= out.config.productFilter.reference.length) {
+              if (index >= out.config.networkFilter.reference.length) {
                 if (out.gtfsHead.agency.agency_name !== -1) {
-                  out.config.productFilter.reference[index] = 
+                  out.config.networkFilter.reference[index] = 
                     {"en-US": out.gtfs.agency[i][out.gtfsHead.agency.agency_name]};
                 } else {
-                  out.config.productFilter.reference[index] = 
+                  out.config.networkFilter.reference[index] = 
                     {"en-US": out.gtfs.agency[i][out.gtfsHead.agency.agency_id]};
                 }
               }
@@ -1008,19 +1010,19 @@ var gtfsToAquius = gtfsToAquius || {
 
     }
 
-    out.aquius.reference.product = out.config.productFilter.reference;
+    out.aquius.reference.product = out.config.networkFilter.reference;
 
-    if ("network" in out.config.productFilter === false ||
-      !Array.isArray(out.config.productFilter.network)
+    if ("network" in out.config.networkFilter === false ||
+      !Array.isArray(out.config.networkFilter.network)
     ) {
-      out.config.productFilter.network = [];
+      out.config.networkFilter.network = [];
       keys = Object.keys(out._.productIndex);
 
-      switch (out.config.productFilter.type) {
+      switch (out.config.networkFilter.type) {
         // Extendable for more product filters
 
         case "mode":
-          out.config.productFilter.network.push([
+          out.config.networkFilter.network.push([
             keys,
               // Config references GTFS Ids
             {"en-US": "All modes"}
@@ -1028,12 +1030,12 @@ var gtfsToAquius = gtfsToAquius || {
           if (keys.length > 1) {
             for (i = 0; i < keys.length; i += 1) {
               if (keys[i] in modeLookup) {
-                out.config.productFilter.network.push([
+                out.config.networkFilter.network.push([
                   [keys[i]],
                   modeLookup[keys[i]]
                 ]);
               } else {
-                out.config.productFilter.network.push([
+                out.config.networkFilter.network.push([
                   [keys[i]],
                   {"en-US": "Mode #"+ keys[i]}
                 ]);
@@ -1043,7 +1045,7 @@ var gtfsToAquius = gtfsToAquius || {
           break;
 
         case "agency":
-          out.config.productFilter.network.push([
+          out.config.networkFilter.network.push([
             keys,
             {"en-US": "All operators"}
           ]);
@@ -1055,7 +1057,7 @@ var gtfsToAquius = gtfsToAquius || {
               ) {
                 for (j = 0; j < out.gtfs.agency.length; j += 1) {
                   if (out.gtfs.agency[j][out.gtfsHead.agency.agency_id] === keys[i]) {
-                    out.config.productFilter.network.push([
+                    out.config.networkFilter.network.push([
                       [keys[i]],
                       {"en-US": out.gtfs.agency[j][out.gtfsHead.agency.agency_name]}
                     ]);
@@ -1063,7 +1065,7 @@ var gtfsToAquius = gtfsToAquius || {
                   }
                 }
               } else {
-                out.config.productFilter.network.push([
+                out.config.networkFilter.network.push([
                   [keys[i]],
                   {"en-US": keys[i]}
                 ]);
@@ -1074,7 +1076,7 @@ var gtfsToAquius = gtfsToAquius || {
 
         default:
           // Fallback only
-          out.config.productFilter.network.push([
+          out.config.networkFilter.network.push([
             keys,
             {"en-US": "All"}
           ]);
@@ -1086,16 +1088,16 @@ var gtfsToAquius = gtfsToAquius || {
 
     out.aquius.network = [];
 
-    for (i = 0; i < out.config.productFilter.network.length; i += 1) {
-      if (out.config.productFilter.network[i].length > 1 &&
-        Array.isArray(out.config.productFilter.network[i][0]) &&
-        typeof out.config.productFilter.network[i][1] === "object"
+    for (i = 0; i < out.config.networkFilter.network.length; i += 1) {
+      if (out.config.networkFilter.network[i].length > 1 &&
+        Array.isArray(out.config.networkFilter.network[i][0]) &&
+        typeof out.config.networkFilter.network[i][1] === "object"
       ) {
         product = [];
-        for (j = 0; j < out.config.productFilter.network[i][0].length; j += 1) {
-          product.push(out._.productIndex[out.config.productFilter.network[i][0][j]]);
+        for (j = 0; j < out.config.networkFilter.network[i][0].length; j += 1) {
+          product.push(out._.productIndex[out.config.networkFilter.network[i][0][j]]);
         }
-        out.aquius.network.push([product, out.config.productFilter.network[i][1], {}]);
+        out.aquius.network.push([product, out.config.networkFilter.network[i][1], {}]);
       }
     }
 
@@ -1962,7 +1964,7 @@ var gtfsToAquius = gtfsToAquius || {
      * @return {object} out
      */
 
-    var contentString, position, wildcard, i;
+    var contentString, position, override, wildcard, i;
 
     out._.routes = {};
       // route_id: {product, reference{n, c, u}}
@@ -1974,6 +1976,22 @@ var gtfsToAquius = gtfsToAquius || {
         "slug": ""
           // Slug is a temporary indexable unique reference
       };
+
+      if (out.config.networkFilter.type === "agency" &&
+        out.gtfsHead.routes.agency_id !== -1 &&
+        out.gtfs.routes[i][out.gtfsHead.routes.agency_id] in out.config.productOverride
+      ) {
+        override = out.config.productOverride[out.gtfs.routes[i][out.gtfsHead.routes.agency_id]];
+      } else {
+        if (out.config.networkFilter.type === "mode" &&
+          out.gtfsHead.routes.route_type !== -1 &&
+          out.gtfs.routes[i][out.gtfsHead.routes.route_type] in out.config.productOverride
+        ) {
+          override = out.config.productOverride[out.gtfs.routes[i][out.gtfsHead.routes.route_type]];
+        } else {
+          override = {};
+        }
+      }
 
       if (out.config.allowRoute === true) {
         contentString = "";
@@ -1998,9 +2016,14 @@ var gtfsToAquius = gtfsToAquius || {
       }
 
       if (out.config.allowColor === true &&
-        out.gtfsHead.routes.route_color !== -1
+        (out.gtfsHead.routes.route_color !== -1 ||
+        "route_color" in override)
       ) {
-        contentString = out.gtfs.routes[i][out.gtfsHead.routes.route_color].trim();
+        if ("route_color" in override) {
+          contentString = override.route_color;
+        } else {
+          contentString = out.gtfs.routes[i][out.gtfsHead.routes.route_color].trim();
+        }
         if (contentString.length === 6) {
 
           contentString = "#" + contentString;
@@ -2012,9 +2035,14 @@ var gtfsToAquius = gtfsToAquius || {
       }
 
       if (out.config.allowColor === true &&
-        out.gtfsHead.routes.route_text_color !== -1
+        (out.gtfsHead.routes.route_text_color !== -1 ||
+        "route_text_color" in override)
       ) {
-        contentString = out.gtfs.routes[i][out.gtfsHead.routes.route_text_color].trim();
+        if ("route_text_color" in override) {
+          contentString = override.route_text_color;
+        } else {
+          contentString = out.gtfs.routes[i][out.gtfsHead.routes.route_text_color].trim();
+        }
         if (contentString.length === 6) {
 
           contentString = "#" + contentString;
@@ -2065,7 +2093,7 @@ var gtfsToAquius = gtfsToAquius || {
         }
       }
 
-      if (out.config.productFilter.type === "agency") {
+      if (out.config.networkFilter.type === "agency") {
         if("agency_id" in out.gtfsHead.routes &&
           out.gtfsHead.routes.agency_id !== -1
         ) {
@@ -2076,7 +2104,7 @@ var gtfsToAquius = gtfsToAquius || {
         }
 
       } else {
-        if (out.config.productFilter.type === "mode" &&
+        if (out.config.networkFilter.type === "mode" &&
           "route_type" in out.gtfsHead.routes &&
           out.gtfsHead.routes.route_type !== -1
         ) {
@@ -2258,7 +2286,7 @@ var gtfsToAquius = gtfsToAquius || {
 
     out.aquius.link = [];
     out.summary.network = [];
-      // Indexed by productFilter, content array of service by serviceFilter index
+      // Indexed by networkFilter, content array of service by serviceFilter index
 
     for (i = 0; i < out.aquius.network.length; i += 1) {
       if ("service" in out.aquius) {

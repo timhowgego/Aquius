@@ -1456,8 +1456,8 @@ var aquius = aquius || {
         aExport.addEventListener("click", function () {
 
           options = {
-            "filter": configOptions.n,
             "geoJSON": [],
+            "network": configOptions.n,
             "range": 5e6 / Math.pow(2, configOptions.m),
             "service": configOptions.r,
             "x": configOptions.c,
@@ -1545,7 +1545,7 @@ var aquius = aquius || {
       options = {
         "_configOptions": configOptions,
         "callback": postHereQuery,
-        "filter": configOptions.n,
+        "network": configOptions.n,
         "range": 5e6 / Math.pow(2, configOptions.m),
           // Range factor duplicated in export
         "service": configOptions.r,
@@ -2157,8 +2157,8 @@ var aquius = aquius || {
   /**
    * Here Query. May be called independently
    * @param {Object} dataObject - as init() option dataObject
-   * @param {Object} options -  callback:function(error, output, options), filter:network index,
-   *   geoJSON:array layernames, range:metres-from-center, sanitize:boolean, service:service index,
+   * @param {Object} options -  callback:function(error, output, options), geoJSON:array layernames,
+   *   network:network index, range:metres-from-center, sanitize:boolean, service:service index,
    *   x:center-longitude, y:center-latitude
    * @return {Object} key:values or callback
    */
@@ -2320,16 +2320,16 @@ var aquius = aquius || {
       var linkChecks = {};
 
 
-      if ("filter" in options &&
-        typeof options.filter === "number" &&
-        options.filter >= 0 &&
-        options.filter < raw.dataObject.network.length
+      if ("network" in options &&
+        typeof options.network === "number" &&
+        options.network >= 0 &&
+        options.network < raw.dataObject.network.length
       ) {
         linkChecks.product = {};
           // Product
-        for (i = 0; i < raw.dataObject.network[options.filter][0].length; i += 1) {
-          linkChecks.product[raw.dataObject.network[options.filter][0][i]] =
-            raw.dataObject.network[options.filter][0][i];
+        for (i = 0; i < raw.dataObject.network[options.network][0].length; i += 1) {
+          linkChecks.product[raw.dataObject.network[options.network][0][i]] =
+            raw.dataObject.network[options.network][0][i];
         }
       }
 
