@@ -96,7 +96,7 @@ Multiple base maps can be added but only one may be displayed: A user selection 
 
 Population bubbles are not necessarily centered on towns: These are typically located at the centroid of the underlying administrative area, which does not necessary relate to the main settlement. Their purpose is simply to indicate the presence of people at a broad scale, not to map nuances in local population distribution.
 
-Circular services that constitute two routes in different directions, that share some stops but not all, display with the service in both directions serving the entire shared part of the loop: Circular services normally halve the total service to represent the journey possibilities either clockwise or counter-clockwise, without needing to decide which direction to travel in to reach any one stop. Circular services that take different routes depending on their direction cannot simply be halved in this manner, even over the common section, because the service level in each direction is not necessarily the same. Consequently Aquius would have to understand which direction to travel in order to reach each destination the fastest. That would be technically possible by calculating distance, but would remain prone to misinterpretation, because a service with a significantly higher service frequency in one direction might reasonably be used to make journeys round almost the entire loop, regadless of distance. The safest assumption is that services can be ridden round the loop in either direction. In practice this issue only arises [in Parla](https://timhowgego.github.io/Aquius/live/es-rail-20-jul-2018/#x-3.76265/y40.23928/z14/c-3.7669/k40.2324/m10/s5/vlphn/n2).
+Circular services that constitute two routes in different directions, that share some stops but not all, display with the service in both directions serving the entire shared part of the loop: Circular services that operate in both directions normally halve the total service to represent the journey possibilities either clockwise or counter-clockwise, without needing to decide which direction to travel in to reach any one stop. Circular services that take different routes depending on their direction cannot simply be halved in this manner, even over the common section, because the service level in each direction is not necessarily the same. Consequently Aquius would have to understand which direction to travel in order to reach each destination the fastest. That would be technically possible by calculating distance, but would remain prone to misinterpretation, because a service with a significantly higher service frequency in one direction might reasonably be used to make journeys round almost the entire loop, regadless of distance. The safest assumption is that services can be ridden round the loop in either direction. In practice this issue only rarely arises, [notably in Parla](https://timhowgego.github.io/Aquius/live/es-rail-20-jul-2018/#x-3.76265/y40.23928/z14/c-3.7669/k40.2324/m10/s5/vlphn/n2).
 
 Aquius will summarise cabotaged routes accurately where only one node on the route is within _here_, but may over-count the service total when multiple nodes with different cabotage rules for the same vehicle journey are included in _here_. Cabotaged routes are those where pickup and setdown restrictions vary depending on the passenger journey being undertaken, not the vehicle journey. For example, an international or inter-regional operator may be forbidden from carrying passengers solely within one nation or region. Flixbus, for example, define these restrictions by creating multiple copies of each vehicle journey, each copy with different pickup and setdown conditions. This poses a logical problem for Aquius, since it needs to both display the links from each separate node _and_ acknowledge that these separate links are provided by the exact same vehicle journey. Currently Aquius opts to show the links and over-count the journeys. This could be improved by counting common sections and nodes accurately, perhaps by defining a parent link that serves as a lookup for the entire stop sequence - although the basic conflict between link display and service count would remain a source of confusion.
 
@@ -118,9 +118,9 @@ dataset|string|""|JSON file containing network data: Recommended full URL, not j
 leaflet|Object|{}|Active Leaflet library Object L: Used in preference to loading own library
 locale|string|"en-US"|Default locale, BCP 47-style. Not to be confused with user selection, `t`
 map|Object|{}|Active Leaflet map Object: Used in preference to own map
-network|Array|[]|Extension of `network`: Array of products, Object of locale keyed names
+network|Array|[]|Extension of `network`: Array of products, Object of locale keyed names, described below
 networkAdd|boolean|true|Append this network extension to dataset defaults. Set false to replace defaults
-translation|Object|{}|Custom translations: Format matching `defaultTranslation` within `aquius.init()`
+translation|Object|{}|Custom translations, format described below
 
 For base mapping, `base` is a complex `Array` containing one or more tile layers, each represented as an `Object`. Within, the key `url` contains a `string` URI of the resource, potentially formatted as [described by Leaflet](https://leafletjs.com/reference-1.3.4.html#tilelayer). WMS layers require a specific key `type`: "wms". Finally a key called `options` may be provided, itself containing an `Object` of keys and values, matching Leaflet's options. Or in summary:
 
@@ -141,7 +141,7 @@ For base mapping, `base` is a complex `Array` containing one or more tile layers
 
 The default `locale` needs to be fully translated, since it becomes the default should any other language choice not be translated.
 
-The extension of `network` allow extra network filters to be appended to the defaults provided in the JSON `dataset`. For example, in the Spanish Railways dataset a separate network filter for [FEVE](https://en.wikipedia.org/wiki/Renfe_Feve) could be created using the product's ID, here 14, and its name. Multiple products or networks can be added in this way. See the [Data Structure](#data-structure) section for more details. To replace the defaults in the dataset, set configuration `networkAdd` to `false`.
+The extension of `network` allows extra network filters to be appended to the defaults provided in the JSON `dataset`. For example, in the Spanish Railways dataset a separate network filter for [FEVE](https://en.wikipedia.org/wiki/Renfe_Feve) could be created using the product's ID, here 14, and its name. Multiple products or networks can be added in this way. See the [Data Structure](#data-structure) section for more details. To replace the defaults in the dataset, set configuration `networkAdd` to `false`.
 
 ```javascript
 "network": [ 
@@ -159,7 +159,7 @@ The extension of `network` allow extra network filters to be appended to the def
   // Replace dataset defaults with this network selection
 ```
 
-The `translation` `Object` allows bespoke locales to be hacked in. Bespoke translations take precedence over everything else. Even network names can be hacked by referencing key `network0`, where the final `integer` is the index position in the network `Array`. While this is not the optimal way to perform proper translation, it may prove convenient. The structure of `translation` matches that of `defaultTranslation` within `aquius.init()`. Currently translatable strings are listed below. Missing translations default to `locale`, else are rendered blank. 
+The `translation` `Object` allows bespoke locales to be hacked in. Bespoke translations take precedence over everything else. Even network names can be hacked by referencing key `network0`, where the final `integer` is the index position in the network `Array`. While this is not the optimal way to perform proper translation, it may prove convenient. The structure of `translation` matches that of `getDefaultTranslation()` within `aquius.init()`. Currently translatable strings are listed below. Missing translations default to `locale`, else are rendered blank. 
 
 ```javascript
 "translation": {
@@ -223,7 +223,7 @@ uiStore|boolean|true|Enables browser [session storage](https://developer.mozilla
 
 ### User State
 
-As seen in the URL hash (if `uiHash` is `true`). Coordinates are always WGS 84. Map click defines the centre of the search.
+As seen in the URL hash (if `uiHash` is `true`). Coordinates are always WGS 84. _Here_ click defines the centre of the search.
 
 Key|Type|Default|Description
 ---|----|-------|-----------
@@ -305,21 +305,35 @@ By default GTFS To Aquius simply analyses services over the next 7 days, produci
 Key|Type|Default|Description
 ---|----|-------|-----------
 allowColor|boolean|true|Include route-specific colors if available
-allowName|boolean|true|Include stop names (increases file size)
+allowName|boolean|true|Include stop names and use long names if route-specific short names are unavailable (increases file size significantly)
 allowRoute|boolean|true|Include route-specific short names
-allowURL|boolean|true|Include URLs for stops and services where available (increases file size)
+allowURL|boolean|true|Include URLs for stops and services where available (can increase file size significantly unless URLs conform to logical repetitive style)
+isCircular|array|[]|GTFS "route_id" (strings) to be referenced as circular. If empty (default), GTFS to Aquius follows its own logic, described below
 fromDate|YYYYMMDD dateString|Today|Start date for service pattern analysis (inclusive)
 meta|object|{"schema": "0"}|As [Data Structure](#data-structure) meta key
 networkFilter|object|{"type": "agency"}|Group services by, using network definitions, detailed below
 option|object|{}|As [Configuration](#configuration)/[Data Structure](#data-structure) option key
 populationProperty|string|"population"|Field name in GeoJSON properties containing the number of people (or equivalent demographic statistic)
-productFilter|object|{"type": "agency"}|Group services by, using network definitions, detailed below
+productOverride|object|{}|Properties applied to all links with the same product ID, detailed below
 serviceFilter|object|{}|Group services by, using service definitions, detailed below
 servicePer|integer|1|Service average per period in days (1 gives daily totals, 7 gives weekly totals), regardless of fromDate/toDate
 toDate|YYYYMMDD dateString|Next week|End date for service pattern analysis (inclusive)
 translation|object|{}|As [Configuration](#configuration)/[Data Structure](#data-structure) translation key
 
 *Tip:* The fastest way to start building a `config.json` file is to run GTFS To Aquius once, download and edit the resulting `config.json`, then use that file in subsequent GTFS To Aquius processing. 
+
+#### Is Circular
+
+Circular services are where one journey seamlessly operates into the next as a contiunous loop. If circular services are not correctly flagged circular, the Aquius output will double-count those services at their start/end node, and (for circular services defined separately in each direction) may imply passenger journey opportunities that are affected only by the least direct of route around the circle.
+
+The key `isCircular` allows specific "route_id" values to be flagged as circular. Values reference the first column of GTFS `routes.txt`. If one or more route is specified in this way, only those routes specified will be flagged as circular. This gives absolute control over what services are assigned circular, and should be used if the default logic fails to correctly differentiate circular routes.
+
+If `isCircular` is empty, GTFS to Aquius will attempt to evaulate whether a route is circular, vis:
+
+1. Start and end stops are the same, and the route contains multiple trips with a shared (non-empty) "block_id". [Loops should be coded](http://gtfs.org/best-practices/#loop-routes) with a single "block_id" that groups all such journeys, but this convention is not universal, and often the "block_id" is empty.
+1. Start and end stops are the same, with the stop immediately after the start and the stop prior to the end greater than 200 metres from each other. Aquius processes basic [lasso routes](http://gtfs.org/best-practices/#lasso-routes) as uni-directional, so should not flag such routes as circular. Complex loops, such as figures-of-eight (dual loop with a common mid-point) or dual lassos (common middle section with loops at each end), should be flagged as circular. Although the "outbound" and "inbound" segment of a lasso route may be serve the same location along the same street, the actual stops served may differ because they are on opposite sides of that street, hence the range test.
+
+*Tip:* To disabled the default logic without actually assigning any route as circular specify `"isCircular": [null]`. This gives the array a length greater than 0 (thus disables the default logic) without ever matching any valid "route_id" (which cannot be null).
 
 #### Network Filter
 
@@ -511,7 +525,7 @@ The `link` key contains an `Array` of lines of link data. Each line of link data
 1. Properties (`Object`) - an extendable area for keys containing optional data or indicating special processing conditions. In many cases this will be empty, vis: `{}`. Optional keys are described below:
 
 * `circular` or `c` - `boolean` true or `integer` 1 indicates operation is actually a continuous loop, where the start and end points are the same node. Only the nodes for one complete loop should be included - the notional start and end node thus included twice. Circular services are processed so that their duplicated start/end node is only counted once. Figure-of-eight loops are intentionally double-counted at the midpoint each service passes twice per journey, since such services may reasonably be considered to offer two completely different routes to passengers, however this does result in arithmetic quirks (as demonstrated by Madrid Atocha's C-7).
-* `direction` or `d` - `boolean` true or `integer` 1 indicates operation is only in the direction recorded, not also in the opposite direction. As noted under [Known Issues](#known-issues), services that are both circular and directional will produce numeric quirks. *Tip:* Services that loop only at one end of a route (sometimes seen in tram operation) should be recorded as uni-directional with nodes on the common section recorded twice, once in each direction - not recorded as circular.
+* `direction` or `d` - `boolean` true or `integer` 1 indicates operation is only in the direction recorded, not also in the opposite direction. As noted under [Known Issues](#known-issues), services that are both circular and directional will produce numeric quirks. *Tip:* Services that loop only at one end of a route ("lasso" routes) should be recorded as uni-directional with nodes on the common section recorded twice, once in each direction - not recorded as circular.
 * `pickup` or `u` - `Array` containing `integer` Node IDs describing nodes on the service's route where passengers can only board (get on), not alight (get off).
 * `reference` or `r` - `Array` containing one or more `Object` of descriptive data associated with the routes within the link - for example, route headcodes or display colors. Possible keys and values are described below.
 * `setdown` or `s` - `Array` containing `integer` Node IDs describing nodes on the service's route where passengers can only alight (get off), not board (get on).

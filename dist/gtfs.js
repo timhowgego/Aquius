@@ -571,6 +571,8 @@ var gtfsToAquius = gtfsToAquius || {
         // Include stop and service URLs (increases file size)
       "fromDate": formatGtfsDate(Date.now()),
         // Start date for service pattern analysis (inclusive)
+      "isCircular": [],
+        // GTFS "route_id" (strings) to be referenced as circular. If empty, GTFS to Aquius follows own logic (see docs)
       "meta": {
         "schema": "0"
       },
@@ -609,6 +611,12 @@ var gtfsToAquius = gtfsToAquius || {
       } else {
         out.config[keys[i]] = defaults[keys[i]];
       }
+    }
+
+    out._.circular = {};
+    for (i = 0; i < out.config.isCircular.length; i += 1) {
+       out._.circular[out.config.isCircular[i]] = out.config.isCircular[i];
+       // Indexed for speed
     }
 
     return out;
@@ -717,7 +725,8 @@ var gtfsToAquius = gtfsToAquius || {
       "trips": {
         "route_id": -1,
         "service_id": -1,
-        "trip_id": -1
+        "trip_id": -1,
+        "block_id": -1
       }
     };
 
@@ -1228,7 +1237,7 @@ var gtfsToAquius = gtfsToAquius || {
             // Human logic: Stop code within URL format
           if (position !== -1) {
             contentString = contentString.substring(0, position) + wildcard +
-              contentString.substring(position + wildcard.length + 1);
+              contentString.substring(position + codeString.length);
             properties.i = codeString;
           }
         }
@@ -1241,7 +1250,7 @@ var gtfsToAquius = gtfsToAquius || {
             // Operator logic: Internal ID within format
           if (position !== -1) {
             contentString = contentString.substring(0, position) + wildcard +
-              contentString.substring(position + wildcard.length + 1);
+              contentString.substring(position + codeString.length);
             properties.i = codeString;
           }
         }
@@ -1793,6 +1802,8 @@ var gtfsToAquius = gtfsToAquius || {
     frequencies = createFrequencies(out);
     out._.trip = {};
       // trip_id: {service [numbers], stops [sequence, node], pickup only [], setdown only []}
+    out._.block = {};
+      // block_id: trips blocked
     timeCache = {};
     out.summary.service = [];
       // Hour index position, service total value
@@ -1825,6 +1836,19 @@ var gtfsToAquius = gtfsToAquius || {
         if (out.gtfsHead.stop_times.drop_off_type !== -1) {
           out._.trip[out.gtfs.trips[i][out.gtfsHead.trips.trip_id]].pickup = [];
             // Drop_off_type tested for none, thus pickup only
+        }
+
+        if (out.gtfsHead.trips.block_id !== -1 &&
+          out.gtfs.trips[i][out.gtfsHead.trips.block_id] !== ""
+        ) {
+          // Block_id used later for evaluation of circular
+          out._.trip[out.gtfs.trips[i][out.gtfsHead.trips.trip_id]].block = 
+            out.gtfs.trips[i][out.gtfsHead.trips.block_id];
+          if (out.gtfs.trips[i][out.gtfsHead.trips.block_id] in out._.block) {
+            out._.block[out.gtfs.trips[i][out.gtfsHead.trips.block_id]] += 1;
+          } else {
+            out._.block[out.gtfs.trips[i][out.gtfsHead.trips.block_id]] = 1;
+          }
         }
 
       }
@@ -1949,7 +1973,6 @@ var gtfsToAquius = gtfsToAquius || {
       }
     }
 
-    delete out._.nodeLookup;
     delete out._.serviceDays;
     delete out._.timeFactor;
       // Free memory?
@@ -2071,7 +2094,8 @@ var gtfsToAquius = gtfsToAquius || {
               // Human logic: Name within URL format
             if (position !== -1) {
               contentString = contentString.substring(0, position) + wildcard +
-                contentString.substring(position + wildcard.length + 1);
+                contentString.substring(position +
+                out._.routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.n.length);
             }
           }
 
@@ -2080,7 +2104,7 @@ var gtfsToAquius = gtfsToAquius || {
               // Operator logic: Internal ID within format
             if (position !== -1) {
               contentString = contentString.substring(0, position) + wildcard +
-                contentString.substring(position + wildcard.length + 1);
+                contentString.substring(position + out.gtfs.routes[i][out.gtfsHead.routes.route_id].length);
               out._.routes[out.gtfs.routes[i][out.gtfsHead.routes.route_id]].reference.i =
                 out.gtfs.routes[i][out.gtfsHead.routes.route_id];
             }
@@ -2135,26 +2159,57 @@ var gtfsToAquius = gtfsToAquius || {
       // linkUniqueId: {route array, product id, service count,
       // direction unless both, pickup array, setdown array, reference array}
 
-    function isCircular(nodes) {
-      // Returns 1 if route is circular
+    function isCircular(out, routeId, trip, nodes) {
 
-      var inner, i;
+      function haversineDistance(lat1, lng1, lat2, lng2) {
+        // Earth distance. Modified from Leaflet CRS.Earth.js
+
+        var rad = Math.PI / 180;
+        var sinDLat = Math.sin((lat2 - lat1) * rad / 2);
+        var sinDLon = Math.sin((lng2 - lng1) * rad / 2);
+        var a = sinDLat * sinDLat + Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * sinDLon * sinDLon;
+        var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+        return 6371000 * c;
+      }
+
+      if (out.config.isCircular.length > 0) {
+        if (routeId in out._.circular) {
+          // Predefined circular
+          return true;
+        } else {
+          // Circulars are defined and this is not one
+          return false;
+        }
+      }
 
       if (nodes.length < 3 ||
         nodes[0] !== nodes[nodes.length -1]
       ) {
-        return 0;
+        // Start/end stops differ, or no intermediate stops
+        return false;
       }
 
-      inner = nodes.slice(1, nodes.length - 2);
-      for (i = 0; i < inner.length; i += 1) {
-        if (inner.indexOf(inner[i]) !== inner.lastIndexOf(inner[i])) {
-          // Different results from front and back means not unique
-          return 0;
-        }
+      if ("block" in trip &&
+        out._.block[trip.block] > 1
+      ) {
+        // Block id has multiple trips
+        return true;
       }
 
-      return 1;
+      if (nodes.length < 5) {
+        // Insufficient intermediate stops
+        return false;
+      }
+
+      if (haversineDistance(out.aquius.node[nodes[1]][1], out.aquius.node[nodes[1]][0],
+        out.aquius.node[nodes[nodes.length - 2]][1], out.aquius.node[nodes.length - 2][0]) > 200
+      ) {
+        // Stop after start and stop prior to end > 200 metres from each other
+        return true;
+      }
+
+      return false;
     }
 
     function mergeService(serviceA, serviceB) {
@@ -2271,7 +2326,9 @@ var gtfsToAquius = gtfsToAquius || {
             ) {
               link[forward].pickup = out._.trip[out.gtfs.trips[i][out.gtfsHead.trips.trip_id]].pickup;
             }
-            if (isCircular(nodes)) {
+            if (isCircular(out, out.gtfs.trips[i][out.gtfsHead.trips.route_id],
+              out._.trip[out.gtfs.trips[i][out.gtfsHead.trips.trip_id]], nodes)
+            ) {
               link[forward].circular = 1;
             }
 
@@ -2281,6 +2338,7 @@ var gtfsToAquius = gtfsToAquius || {
       }
     }
 
+    delete out._.nodeLookup;
     delete out._.routes;
     delete out._.trip;
 
