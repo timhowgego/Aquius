@@ -181,8 +181,9 @@ var gtfsToAquius = gtfsToAquius || {
      * @param {object} vars - internal data references
      */
 
-    var error, reader, i;
+    var reader;
     var gtfs = {};
+    var nonText = {};
     var fileDOM = document.getElementById(vars.configId + "ImportFiles");
     var options = {
       "_vars": vars,
@@ -194,49 +195,77 @@ var gtfsToAquius = gtfsToAquius || {
 
     function loadFiles(files) {
 
-      totalFiles = files.length;
+      var theChunk, chunkedSize, i;
+      var maxFilesize = 1e8;
+        // In bytes, just under 100MB, beyond which source files will be loaded in parts
+      var fileList = [];
+        // [file, part index]
+
+      for (i = 0; i < files.length; i += 1) {
+        chunkedSize = 0
+        while (files[i].size >= chunkedSize) {
+          fileList.push([files[i], parseInt(chunkedSize / maxFilesize, 10)]);
+          chunkedSize += maxFilesize;
+        }
+      }
+
+      totalFiles = fileList.length;
 
       for (i = 0; i < totalFiles; i += 1) {
         reader = new FileReader();
-        reader.onerror = (function(theFile) {
-          error = new Error("Could not read " + theFile.name);
+        reader.onerror = (function(evt, theFile) {
+          outputError(new Error("Could not read " + theFile[0].name), vars);
           reader.abort();
         });
         reader.onload = (function(theFile) {
           return function() {
-            onLoad(theFile.name, this.result);
-            onLoadEnd();
+            try {
+              onLoad(theFile[0].name, theFile[1], this.result);
+            } catch (err) {
+              outputError(err, vars);
+            }
           };
-        })(files[i]);
-        reader.readAsText(files[i]);
+        })(fileList[i]);
+        theChunk = fileList[i][0].slice(fileList[i][1] * maxFilesize,
+          (fileList[i][1] * maxFilesize) + maxFilesize);
+        reader.readAsText(theChunk);
       }
     }
 
-    function onLoad(filename, result) {
+    function onLoad(filename, position, result) {
 
-      var extension, json;
-      var filenameParts = filename.toLowerCase().split(".");
-      
-      if (filenameParts.length > 1) {
-        extension = filenameParts.pop();
+      var filenameParts, json, key, keys, i;
+
+      filenameParts = filename.toLowerCase().split(".");
+
+      if (filenameParts.length > 1 &&
+        filenameParts[filenameParts.length - 1] === "txt"
+      ) {
+
+        key = filenameParts.slice(0, filenameParts.length - 1).join(".");
+        if (key in gtfs === false) {
+          gtfs[key] = [];
+        }
+        gtfs[key][position] = result;
+
       } else {
-        extension = "txt";
-          // Fallback
+
+        key = filenameParts.join(".");
+        if (key in nonText === false) {
+          nonText[key] = [];
+        }
+        nonText[key][position] = result;
+
       }
-      
-      try {
 
-        switch (extension) {
+      processedFiles += 1;
 
-          case "csv":
-          case "txt":
-            gtfs[filenameParts.join("")] = result;
-            break;
+      if (processedFiles === totalFiles) {
 
-          case "geojson":
-          case "js":
-          case "json":
-            json = JSON.parse(result);
+        keys = Object.keys(nonText);
+        for (i = 0; i < keys.length; i += 1) {
+          try {
+            json = JSON.parse(nonText[keys[i]].join(""));
             if ("type" in json &&
               json.type === "FeatureCollection"
             ) {
@@ -244,26 +273,15 @@ var gtfsToAquius = gtfsToAquius || {
             } else {
               options.config = json;
             }
-            break;
-
-          default:
-            break;
-
+          } catch (err) {
+            if (err instanceof SyntaxError === false) {
+              outputError(err, vars);
+            }
+              // Else it not JSON
+          }
         }
 
-      } catch(err) {
-        error = err;
-      }
-    }
-
-    function onLoadEnd() {
-      processedFiles += 1;
-      if (processedFiles === totalFiles) {
-        if (error !== undefined) {
-          outputError(error, vars);
-        } else {
-          vars.process(gtfs, options);
-        }
+        vars.process(gtfs, options);
       }
     }
 
@@ -493,7 +511,7 @@ var gtfsToAquius = gtfsToAquius || {
 "process": function process(gtfs, options) {
   /**
    * Creates Aquius dataObject. May be called independently
-   * @param {object} gtfs - key per GTFS file slug, value raw text content of GTFS file
+   * @param {object} gtfs - key per GTFS file slug, value array of raw text content of GTFS file
    * @param {object} options - geojson, config, callback
    * @return {object} without callback: possible keys aquius, config, error, gtfs, gtfsHead
    * with callback: callback(error, out, options)
@@ -624,32 +642,65 @@ var gtfsToAquius = gtfsToAquius || {
 
   function parseCsv(csv) {
     /**
-     * Helper: Parses CSV string into multi-array
+     * Helper: Parses array of strings into line-by-line-array based on CSV structure
      * Modified from Jezternz. Runtime about 1 second per 20MB of data
-     * @param {string} csv
+     * @param {array} csv
      * @return {object} multi-array of lines[columns]
      */
 
+    
+    var firstLine, lastIndex, match, matches, residual, i;
     var pattern = new RegExp(("(\\,|\\r?\\n|\\r|^)(?:\"([^\"]*(?:\"\"[^\"]*)*)\"|([^\\,\\r\\n]*))"),"gi");
-    var match;
-    var matches = pattern.exec(csv);
     var output = [[]];
 
-    csv = csv.trim();
+    if (!Array.isArray(csv)) {
+      csv = [csv];
+    }
 
-    while (matches !== null) {
-      if (matches[1].length &&
-        matches[1] !== ","
-      ) {
-        output.push([]);
+    for (i = 0; i < csv.length; i += 1) {
+
+      matches = pattern.exec(csv[i]);
+      lastIndex = output[output.length - 1].length - 1;
+      firstLine = true;
+
+      while (matches !== null) {
+
+        if (matches[1].length &&
+          matches[1] !== ","
+        ) {
+          if (i > 0 &&
+            firstLine === true
+          ) {
+            if (output[output.length - 1].length > output[0].length &&
+              lastIndex < output[output.length - 1].length - 1
+            ) {
+              // File split mid-value, so merge lastIndex value and the following index value
+              residual = output[output.length - 1].slice(0, lastIndex);
+              residual.push(output[output.length - 1][lastIndex] + output[output.length - 1][lastIndex + 1]);
+              output[output.length - 1] = residual.concat(output[output.length - 1].slice(lastIndex + 2));
+            }
+            firstLine = false;
+          }
+          output.push([]);
+        }
+
+        if (matches[2]) {
+          match = matches[2].replace(new RegExp( "\"\"", "g" ), "\"");
+        } else {
+          match = matches[3];
+        }
+
+        output[output.length - 1].push(match);
+        matches = pattern.exec(csv[i]);
       }
-      if (matches[2]) {
-        match = matches[2].replace(new RegExp( "\"\"", "g" ), "\"");
-      } else {
-        match = matches[3];
-      }
-      output[output.length - 1].push(match);
-      matches = pattern.exec(csv);
+
+    }
+
+    if (output[output.length - 1].length === 1 &&
+      output[output.length - 1][0].trim() === ""
+    ) {
+      // Remove trailing empty line
+      output.pop();
     }
 
     return output;
