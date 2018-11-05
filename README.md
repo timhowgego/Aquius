@@ -305,11 +305,13 @@ By default GTFS To Aquius simply analyses services over the next 7 days, produci
 Key|Type|Default|Description
 ---|----|-------|-----------
 allowColor|boolean|true|Include route-specific colors if available
+allowHeadsign|boolean|false|Include trip-specific headsigns within link references (information may be redundant if using allowRoute)
 allowName|boolean|true|Include stop names and use long names if route-specific short names are unavailable (increases file size significantly)
 allowRoute|boolean|true|Include route-specific short names
 allowURL|boolean|true|Include URLs for stops and services where available (can increase file size significantly unless URLs conform to logical repetitive style)
-isCircular|array|[]|GTFS "route_id" (strings) to be referenced as circular. If empty (default), GTFS to Aquius follows its own logic, described below
+coordinatePrecision|float|4|Coordinate decimal places (smaller values tend to group clusters of stops)
 fromDate|YYYYMMDD dateString|Today|Start date for service pattern analysis (inclusive)
+isCircular|array|[]|GTFS "route_id" (strings) to be referenced as circular. If empty (default), GTFS to Aquius follows its own logic, described below
 meta|object|{"schema": "0"}|As [Data Structure](#data-structure) meta key
 networkFilter|object|{"type": "agency"}|Group services by, using network definitions, detailed below
 option|object|{}|As [Configuration](#configuration)/[Data Structure](#data-structure) option key
@@ -317,10 +319,13 @@ populationProperty|string|"population"|Field name in GeoJSON properties containi
 productOverride|object|{}|Properties applied to all links with the same product ID, detailed below
 serviceFilter|object|{}|Group services by, using service definitions, detailed below
 servicePer|integer|1|Service average per period in days (1 gives daily totals, 7 gives weekly totals), regardless of fromDate/toDate
+stopOverride|object|{}|Properties applied to stops, by GTFS "stop_id" key, detailed below
 toDate|YYYYMMDD dateString|Next week|End date for service pattern analysis (inclusive)
 translation|object|{}|As [Configuration](#configuration)/[Data Structure](#data-structure) translation key
 
-*Tip:* The fastest way to start building a `config.json` file is to run GTFS To Aquius once, download and edit the resulting `config.json`, then use that file in subsequent GTFS To Aquius processing. 
+*Tip:* The fastest way to start building a `config.json` file is to run GTFS To Aquius once, download and edit the resulting `config.json`, then use that file in subsequent GTFS To Aquius processing.
+
+**Caution:** Lowering the value `coordinatePrecision` reduces the size of the Aquius output file, but not just because the coordinate data stored is shorter: At lower `coordinatePrecision`, stops that are in close proximity will tend to merge into single nodes, which in turn tends to result in fewer unique links between nodes. Such merges reflect mathematical rounding, and will not necessarily group clusters of stops in a way that users or operators might consider logical. If the precise identification of individual stops is important, increase the default `coordinatePrecision` to avoid grouping. Very low `coordinatePrecision` values effectively transform the entire network into a fixed grid, useful for strategic geospatial analysis.
 
 #### Is Circular
 
@@ -335,6 +340,12 @@ If `isCircular` is empty, GTFS to Aquius will attempt to evaulate whether a rout
 
 *Tip:* To disabled the default logic without actually assigning any route as circular specify `"isCircular": [null]`. This gives the array a length greater than 0 (thus disables the default logic) without ever matching any valid "route_id" (which cannot be null).
 
+#### Overrides
+
+Configuration key `productOverride` allows colors to be applied to all links of the same product, where product is defined by `networkFilter.type` (above). The `productOverride` key's value is is an `Object` whose key names refer to GTFS codes (`agency_id` values for "agency", or `route_type` values for "mode"), and whose values consist of an `Object` of properties to override any (and missing) GTFS values. Currently only two keys are supported: "route_color" and "route_text_color", each value is a `string` containing a 6-character hexadecimal HTML-style color ([matching GTFS specification](https://developers.google.com/transit/gtfs/reference/#routestxt)). These allow colors to be added by product, for example to apply agency-specific colors to their respective operations.
+
+Configuration key `stopOverride` allows poorly geocoded stops to be given valid coordinates. The `stopOverride` key's value is is an `Object` whose keys are GTFS "stop_id" values. The value of each "stop_id" key is an `Object` containing override coordinates (WGS 84 floats) `x` and `y`. If GTFS to Aquius encounters invalid (or 0,0) coordinates it will automatically add these stops to `stopOverride` for manual editing.
+
 #### Network Filter
 
 Configuration key `networkFilter` defines groups of product IDs which the user can select to filter the results displayed. These filters are held in the network key of the [Data Structure](#data-structure). `networkFilter` is an `Object` consisting one or more keys:
@@ -345,10 +356,6 @@ Configuration key `networkFilter` defines groups of product IDs which the user c
 *Tip:* The easiest way to build bespoke network filters is to initially specify only `type`, process the GTFS data once, then manually edit the `config.json` produced. If using GTFS To Aquius via its user interface, a rough count of routes and services by each `productFilter` will be produced after processing, allowing the most important categories to be identified.
 
 **Caution:** Pre-defining the `networkFilter` will prevent GTFS To Aquius adding or removing entries, so any new operators or modes subsequently added to the GTFS source will need to be added manually.
-
-#### Product Override
-
-Configuration key `productOverride` allows colors to be applied to all links of the same product, where product is defined by `networkFilter.type` (above). The `productOverride` key's value is is an `Object` whose key names refer to GTFS codes (`agency_id` values for "agency", or `route_type` values for "mode"), and whose values consist of an `Object` of properties to override any (and missing) GTFS values. Currently only two keys are supported: "route_color" and "route_text_color", each value is a `string` containing a 6-character hexadecimal HTML-style color ([matching GTFS specification](https://developers.google.com/transit/gtfs/reference/#routestxt)). These allow colors to be added by product, for example to apply agency-specific colors to their respective operations.
 
 #### Service Filter
 

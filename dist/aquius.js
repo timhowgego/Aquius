@@ -1774,7 +1774,7 @@ var aquius = aquius || {
 
             if (i < referenceObject.length - 1) {
               if (isNode) {
-                divider = "|";
+                divider = ", ";
               } else {
                 divider = " ";
               }
