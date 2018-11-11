@@ -2525,9 +2525,10 @@ var aquius = aquius || {
       return service;
     }
 
-    function addServicePickup(service, linkChecks, linkPropertiesObject) {
+    function addServicePickupSetdown(service, linkChecks, linkPropertiesObject) {
+      // Adds pickupIndex if pickup exists, setdownIndex if setdown exists
 
-      var pickupIndex, i;
+      var i;
 
       if ("pickup" in linkPropertiesObject) {
         linkPropertiesObject.u = linkPropertiesObject.pickup;
@@ -2538,18 +2539,29 @@ var aquius = aquius || {
         linkPropertiesObject.u.length > 0
       ) {
 
+        service.pickupIndex = {};
+
         for (i = 0; i < linkPropertiesObject.u.length; i += 1) {
-
-          if (linkPropertiesObject.u[i] in linkChecks.here === false) {
-            pickupIndex = service.route.indexOf(linkPropertiesObject.u[i]);
-              // Individual routes tend to be short arrays, so this should remain efficient
-            if (pickupIndex !== -1) {
-              // Pickup-only nodes are removed from route unless within here
-              service.route.splice(pickupIndex, 1);
-            }
-          }
-
+          service.pickupIndex[linkPropertiesObject.u[i]] = "";
         }
+
+      }
+
+      if ("setdown" in linkPropertiesObject) {
+        linkPropertiesObject.s = linkPropertiesObject.setdown;
+      }
+
+      if ("s" in linkPropertiesObject &&
+        Array.isArray(linkPropertiesObject.s) &&
+        linkPropertiesObject.s.length > 0
+      ) {
+
+        service.setdownIndex = {};
+
+        for (i = 0; i < linkPropertiesObject.s.length; i += 1) {
+          service.setdownIndex[linkPropertiesObject.s[i]] = "";
+        }
+
       }
 
       return service;
@@ -2574,9 +2586,9 @@ var aquius = aquius || {
       ) {
 
         service.splitsIndex = {};
-          // Key=value for speed, also used in subsequent route loop
+          // Key index for speed, also used in subsequent route loop
         for (i = 0; i < linkPropertiesObject.t.length; i += 1) {
-          service.splitsIndex[linkPropertiesObject.t[i]] = linkPropertiesObject.t[i];
+          service.splitsIndex[linkPropertiesObject.t[i]] = "";
         }
 
         service.splits = 2;
@@ -2584,7 +2596,6 @@ var aquius = aquius || {
           if (linkNodeArray[i] in service.splitsIndex === false &&
             linkNodeArray[i] in linkChecks.here
           ) {
-            // Without splitsIndex could test t.indexOf(linkNodeArray[i]) === -1 &&...
             service.splits = 1;
             break;
           }
@@ -2612,6 +2623,19 @@ var aquius = aquius || {
         for (i = 0; i <  service.reference.length; i += 1) {
           service.reference[i].p = productArray;
         }
+      }
+
+      return service;
+    }
+    
+    function addServiceBlocks(service, linkPropertiesObject) {
+
+      if ("block" in linkPropertiesObject) {
+        linkPropertiesObject.b = linkPropertiesObject.block;
+      }
+
+      if ("b" in linkPropertiesObject) {
+        service.block = linkPropertiesObject.b;
       }
 
       return service;
@@ -2657,87 +2681,227 @@ var aquius = aquius || {
     }
 
     function walkServiceRoutes(raw, service, linkChecks) {
-    
-      var destination, origin, serviceLevel, i;
 
-      for (i = 0; i < service.route.length; i += 1) {
+      var lastIndex, serviceLevel, thisLevel, i;
+      var beenHere = false;
+      var canArrive = false;
+      var countLevel = 0;
+      var countSummary = true;
+      var prevIndex = -1;
+      var prevLevel = 0;
 
-        if ((("splits" in service === false ||
-          service.splits !== 1) ||
+      function addNodeService(raw, service, nodeId, serviceLevel) {
+
+        if ("block" in service) {
+          if ("block" in raw === false) {
+            raw.block = {};
+          }
+          if (service.block in raw.block === false) {
+            raw.block[service.block] = {};
+          }
+          if (nodeId in raw.block[service.block]) {
+            return raw;
+          }
+          raw.block[service.block][nodeId] = "";
+        }
+
+        if (typeof raw.serviceNode[nodeId] === "undefined") {
+          raw.serviceNode[nodeId] = {
+            "reference": {},
+            "service": serviceLevel
+          };
+        } else {
+          raw.serviceNode[nodeId].service += serviceLevel;
+        }
+
+        if ("reference" in service) {
+          raw.serviceNode[nodeId].reference =
+            mergeReference(raw.serviceNode[nodeId].reference, service.reference);
+        }
+
+        return raw;
+      }
+
+      function addLinkService(raw, service, fromNode, toNode, serviceLevel) {
+
+        var destination, origin, key;
+
+        if (fromNode < toNode) {
+          // Origin is largest node first. Skips reverse. Order allows subsequent pop rather than shift
+          origin = toNode;
+          destination = fromNode;
+        } else {
+          origin = fromNode;
+          destination = toNode;
+        }
+        
+        if ("block" in service) {
+          if ("block" in raw === false) {
+            raw.block = {};
+          }
+          if (service.block in raw.block === false) {
+            raw.block[service.block] = {};
+          }
+          key = origin.toString() + ":" + destination.toString();
+          if (key in raw.block[service.block]) {
+            return raw;
+          }
+          raw.block[service.block][key] = "";
+        }
+
+        if (typeof raw.serviceLink[origin] === "undefined") {
+          raw.serviceLink[origin] = [];
+        }
+
+        if (typeof raw.serviceLink[origin][destination] === "undefined") {
+          raw.serviceLink[origin][destination] = {
+            "reference": {},
+            "service": serviceLevel
+          };
+        } else {
+          raw.serviceLink[origin][destination].service += serviceLevel;
+        }
+
+        if ("reference" in service) {
+          raw.serviceLink[origin][destination].reference =
+            mergeReference(raw.serviceLink[origin][destination].reference, service.reference);
+        }
+
+        return raw;
+      }
+
+      if ("pickupIndex" in service &&
+        service.route[service.route.length - 1] in service.pickupIndex
+      ) {
+        for (i = service.route.length - 1; i >= 0; i--) {
+          if (service.route[i] in service.pickupIndex === false) {
+            lastIndex = i;
+            break;
+          }
+        }
+      } else {
+        // Last node on route is almost always the last for passengers
+        lastIndex = service.route.length - 1;
+      }
+
+      if ("block" in service &&
+        "block" in raw &&
+        service.block in raw.block
+      ) {
+        // Will count first occurance of the block
+        countSummary = false;
+      }
+
+      for (i = 0; i <= lastIndex; i += 1) {
+
+        thisLevel = 0;
+
+        if (beenHere === false &&
+          service.route[i] in linkChecks.here
+        ) {
+          beenHere = true;
+        }
+
+        if (service.route[i] in linkChecks.here) {
+
+          if ((canArrive &&
+            ("pickupIndex" in service === false ||
+            service.route[i] in service.pickupIndex === false)) ||
+            (("setdownIndex" in service === false ||
+            service.route[i] in service.setdownIndex === false) &&
+            i !== lastIndex)
+          ) {
+            // Within here, as arrival or departure
+            if ("direction" in service === false &&
+              ((i === 0 &&
+              service.route[i + 1] in linkChecks.here === false) ||
+              (i === lastIndex &&
+              service.route[i - 1] in linkChecks.here === false))
+            ) {
+              // Terminus
+              thisLevel = service.level / 2;
+            } else {
+              thisLevel = service.level;
+            }
+          }
+
+        } else {
+          // Node outside Here
+          if ("direction" in service === false &&
+            ((beenHere &&
+            ("pickupIndex" in service === false ||
+            service.route[i] in service.pickupIndex === false)) ||
+            (beenHere === false &&
+            ("setdownIndex" in service === false ||
+            service.route[i] in service.setdownIndex === false)))
+          ) {
+            // Both directions, halves service outside Here
+            thisLevel = service.level / 2;
+          } else {
+            if (beenHere &&
+              ("pickupIndex" in service === false ||
+              service.route[i] in service.pickupIndex === false)
+            ) {
+              // Uni-directional counts full service after Here
+              thisLevel = service.level;
+            }
+          }
+        }
+
+        if (thisLevel > 0 &&
+          ("splits" in service === false ||
+          service.splits === 2 ||
           service.route[i] in service.splitsIndex) &&
           ("circular" in service === false ||
-            service.circular !== i)
+          i < lastIndex)
         ) {
-
-          if ("direction" in service ||
-            service.route[i] in linkChecks.here
-          ) {
-            serviceLevel = service.level;
-          } else {
-            serviceLevel = service.level / 2;
-          }
-
-          if (typeof raw.serviceNode[service.route[i]] === "undefined") {
-            raw.serviceNode[service.route[i]] = {
-              "reference": {},
-              "service": serviceLevel
-            };
-          } else {
-            raw.serviceNode[service.route[i]].service += serviceLevel;
-          }
-
-          if ("reference" in service) {
-            raw.serviceNode[service.route[i]].reference =
-              mergeReference(raw.serviceNode[service.route[i]].reference, service.reference);
-          }
-
+          raw = addNodeService(raw, service, service.route[i], thisLevel);
         }
 
-        if (service.route.length - 1 > i &&
-          (("splits" in service === false ||
-          service.splits !== 1) ||
+        if (countSummary &&
+          thisLevel > countLevel) {
+          countLevel = thisLevel;
+        }
+
+        // Finally
+        if (canArrive === false &&
+          ("setdownIndex" in service === false ||
+          service.route[i] in service.setdownIndex === false) &&
+          ("direction" in service === false ||
+          service.route[i] in linkChecks.here)
+        ) {
+          canArrive = true;
+            // May be counted as arrival at subsequent nodes
+        }
+
+        if (prevIndex !== -1 &&
+          prevLevel > 0 &&
+          ("splits" in service === false ||
+          service.splits === 2 ||
           service.route[i] in service.splitsIndex ||
-          service.route[i + 1] in service.splitsIndex)
+          service.route[prevIndex] in service.splitsIndex)
         ) {
-
-          if ("direction" in service ||
-            (service.route[i] in linkChecks.here &&
-            service.route[i + 1] in linkChecks.here)
+          // Add link
+          if ("direction" in service === false &&
+            service.route[prevIndex] in linkChecks.here
           ) {
-            serviceLevel = service.level;
+            serviceLevel = thisLevel;
           } else {
-            serviceLevel = service.level / 2;
+            serviceLevel = prevLevel;
           }
-
-          if (service.route[i] < service.route[i + 1]) {
-            // Origin is largest node first. Skips reverse. Order allows subsequent pop rather than shift
-            origin = service.route[i + 1];
-            destination = service.route[i];
-          } else {
-            origin = service.route[i];
-            destination = service.route[i + 1];
-          }
-
-          if (typeof raw.serviceLink[origin] === "undefined") {
-            raw.serviceLink[origin] = [];
-          }
-
-          if (typeof raw.serviceLink[origin][destination] === "undefined") {
-            raw.serviceLink[origin][destination] = {
-              "reference": {},
-              "service": serviceLevel
-            };
-          } else {
-            raw.serviceLink[origin][destination].service += serviceLevel;
-          }
-
-          if ("reference" in service) {
-            raw.serviceLink[origin][destination].reference =
-              mergeReference(raw.serviceLink[origin][destination].reference, service.reference);
-          }
-
+          raw = addLinkService(raw, service, service.route[prevIndex], service.route[i], serviceLevel);
         }
+        if (thisLevel  > 0) {
+          prevLevel = thisLevel;
+        }
+        prevIndex = i;
 
+      }
+
+      if ("splits" in service === false ||
+        service.splits !== 1
+      ) {
+        raw.summary.link += countLevel;
       }
 
       return raw;
@@ -2764,22 +2928,20 @@ var aquius = aquius || {
           // Process this service, else skip
 
           service = addServiceDirection(service, linkChecks, raw.dataObject.link[i][2], raw.dataObject.link[i][3]);
-          service = addServicePickup(service, linkChecks, raw.dataObject.link[i][3]);
+          service = addServicePickupSetdown(service, linkChecks, raw.dataObject.link[i][3]);
           service = addServiceSplits(service, linkChecks, raw.dataObject.link[i][2], raw.dataObject.link[i][3]);
           service = addServiceReferences(service, raw.dataObject.link[i][3], raw.dataObject.link[i][0]);
-
-          if ("splits" in service === false ||
-            service.splits !== 1
-          ) {
-            raw.summary.link += service.level;
-          }
+          service = addServiceBlocks(service, raw.dataObject.link[i][3]);
 
           raw = walkServiceRoutes(raw, service, linkChecks);
-
         }
 
       }
 
+    }
+
+    if ("block" in raw) {
+      delete raw.block;
     }
 
     return raw;
