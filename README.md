@@ -43,7 +43,7 @@ In this document:
 *What is connectivity?* Connectivity factors the population linked (as described above) by the service level linking it - every unique service linking _here_ with the local area is counted once. The Connectivity slider can be moved to reflect one of four broad service expectations, the defaults summarised in the table below (for left to right on the slider, read down the table). The slider attempts to capture broad differences in network perception, for example that 14 trains per day from London to Paris is a "good" service, while 14 operating _within_ either city would be poor. Except for Any, which does not factor population, the precise formula is: 1 - ( 1 / (service * factor)), if the result is greater than 0, with the default factor values: 2 (long distance), 0.2 (local/interurban) and 0.02 (city). The dataset creator or host may change the factor value (see [Configuration](#configuration) key `connectivity`), but not the formula.
 
 Connectivity Expectation|Minimum Service to Factor Population|Service to Factor Population by 95%
-------------------------+------------------------------------+-----------------------------------
+------------------------|------------------------------------|-----------------------------------
 Any|0|Entire population always counted
 Long Distance|0.5|10
 Local/Interurban|5|100
