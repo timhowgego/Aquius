@@ -694,6 +694,22 @@ var gtfsToAquius = gtfsToAquius || {
     var indexColumn = -1;
     var line = [];
 
+    function processLine(out, line, slug, columns, indexColumn) {
+
+      if (line.length === columns) {
+        if (indexColumn !== -1) {
+          if (line[indexColumn] in out.gtfs[slug] === false) {
+            out.gtfs[slug][line[indexColumn]] = [];
+          }
+          out.gtfs[slug][line[indexColumn]].push(line);
+        } else {
+          out.gtfs[slug].push(line);
+        }
+      }
+
+      return out;
+    }
+
     if (!Array.isArray(csv)) {
       csv = [csv];
     }
@@ -759,16 +775,7 @@ var gtfsToAquius = gtfsToAquius || {
             }
           } else {
             // Content
-            if (line.length === columns) {
-              if (indexColumn !== -1) {
-                if (line[indexColumn] in out.gtfs[slug] === false) {
-                  out.gtfs[slug][line[indexColumn]] = [];
-                }
-                out.gtfs[slug][line[indexColumn]].push(line);
-              } else {
-                out.gtfs[slug].push(line);
-              }
-            }
+            out = processLine(out, line, slug, columns, indexColumn);
           }
 
           line = [];
@@ -790,6 +797,9 @@ var gtfsToAquius = gtfsToAquius || {
       }
 
     }
+
+    // Finally
+    out = processLine(out, line, slug, columns, indexColumn);
 
     return out;
   }
@@ -955,7 +965,8 @@ var gtfsToAquius = gtfsToAquius || {
 
     if ("en-US" in out.config.meta.name === false) {
       if ("feed_info" in out.gtfs &&
-        out.gtfsHead.feed_info.feed_publisher_name !== -1
+        out.gtfsHead.feed_info.feed_publisher_name !== -1 &&
+        out.gtfs.feed_info.length > 0
       ) {
         out.config.meta.name["en-US"] = out.gtfs.feed_info[0][out.gtfsHead.feed_info.feed_publisher_name] + " ";
       } else {
@@ -970,7 +981,8 @@ var gtfsToAquius = gtfsToAquius || {
 
     if ("url" in out.config.meta === false &&
       "feed_info" in out.gtfs &&
-      out.gtfsHead.feed_info.feed_publisher_url !== -1
+      out.gtfsHead.feed_info.feed_publisher_url !== -1 &&
+      out.gtfs.feed_info.length > 0
     ) {
       out.config.meta.url = out.gtfs.feed_info[0][out.gtfsHead.feed_info.feed_publisher_url];
     }
@@ -1090,7 +1102,8 @@ var gtfsToAquius = gtfsToAquius || {
 
       case "mode":
         if ("route_type" in out.gtfsHead.routes &&
-          out.gtfsHead.routes.route_type !== -1
+          out.gtfsHead.routes.route_type !== -1 &&
+          out.gtfs.routes.length > 0
         ) {
           index = 0;
           for (i = 0; i < out.gtfs.routes.length; i += 1) {
@@ -1116,7 +1129,8 @@ var gtfsToAquius = gtfsToAquius || {
           // Defaults to agency
         if ("agency" in out.gtfs &&
           "agency_id" in out.gtfsHead.agency &&
-          out.gtfsHead.agency.agency_id !== 1
+          out.gtfsHead.agency.agency_id !== 1 &&
+          out.gtfs.agency.length > 0
         ) {
           index = 0;
           for (i = 0; i < out.gtfs.agency.length; i += 1) {
@@ -1136,8 +1150,9 @@ var gtfsToAquius = gtfsToAquius || {
           }
         } else {
           out._.productIndex.agency = 0;
+          out.config.networkFilter.reference.push({});
             // Uncoded single agency GTFS
-          out.aquius.reference.product.push({});
+          
         }
         break;
 
@@ -3213,6 +3228,8 @@ var gtfsToAquius = gtfsToAquius || {
     if ("_" in out) {
       delete out._;
     }
+    delete out.gtfs;
+    delete out.gtfsHead;
 
     if (typeof options === "object" &&
       "callback" in options

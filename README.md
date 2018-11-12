@@ -38,9 +38,18 @@ In this document:
 
 *How are services counted?* Broadly, every service leaving from a node (stop, station) within _here_ is counted once. If that service also arrives at a node within here, it is additionally counted at that node as an arrival, thus within _here_, services are summarised in both directions. Outside _here_, only services from _here_ to _there_ are summarised. Any specific local setdown and pickup conditions are taken into consideration. Services (typically trains) that split mid-journey are counted once over common sections. Individual services that combine more than one product together on the same vehicle are counted no more than once, by the longer distance component unless that has been filtered out by the choice of network.
 
-*How are people counted?* This varies by dataset, but broadly: Population is that of the local area (municipality or similar) containing one or more stops linked to _here_ by one or more of the services shown. Plus the population of _here_ itself. For example, in the Spanish Railway dataset the population is that of the municipal Padrón at the start of 2017. Long distance services often have a wider population catchment than just the local municipality of the stations they serve, so this count of people must be read with caution. For example, "Camp Tarragona" ostensibly serves long distance travel from Tarragona and Reus, but is located in neither. However Camp Tarragona cannot fairly be attributed the population of its natural hinterland without factoring in penalties for local interchange and travel time: Such advanced analysis would be possible, but complicates the simple message the population bubbles are intended to convey.
+*How are people counted?* The population is that of the local area containing one or more stops linked to _here_ by one or more of the services shown, plus the population of _here_ itself. Each node is assigned to just one such area. The geography of these areas is defined by the dataset creator, but is intended to _broadly_ convey the natural catchment or hinterland of the service. This population may be additionally factored by Connectivity, as described in the next paragraph.
 
-*What do the line widths and circle diameters indicate?* Links and stops are scaled by the logarithm of the service (such as total daily trains), so at high service levels the visual display is only slightly increased. Increasing the scale increases the visual distinction between service levels, but may flood the view in urban areas. The area of each population circle is in proportion to the number of residents. The original numbers are displayed in a tooltip, visible when mousing over (or similar) the line or circle. The here circle defines the exact geographic area of _here_, that searched to find local stops.
+*What is connectivity?* Connectivity factors the population linked (as described above) by the service level linking it - every unique service linking _here_ with the local area is counted once. The Connectivity slider can be moved to reflect one of four broad service expectations, the defaults summarised in the table below (for left to right on the slider, read down the table). The slider attempts to capture broad differences in network perception, for example that 14 trains per day from London to Paris is a "good" service, while 14 operating _within_ either city would be poor. Except for Any, which does not factor population, the precise formula is: 1 - ( 1 / (service * factor)), if the result is greater than 0, with the default factor values: 2 (long distance), 0.2 (local/interurban) and 0.02 (city). The dataset creator or host may change the factor value (see [Configuration](#configuration) key `connectivity`), but not the formula.
+
+Connectivity Expectation|Minimum Service to Factor Population|Service to Factor Population by 95%
+------------+-----------+---------------+-----------------------------------
+Any|0|Entire population always counted
+Long Distance|0.5|10
+Local/Interurban|5|100
+City|50|1000
+
+*What do the line widths and circle diameters indicate?* Links and stops are scaled by the logarithm of the service (such as total daily trains), so at high service levels the visual display is only slightly increased. Increasing the scale increases the visual distinction between service levels, but may flood the view in urban areas. The original numbers are associated reference information can be seen by clickign on the link or node. The area of each population circle is in proportion to the number of residents. The original numbers are displayed in a tooltip, visible when mousing over (or similar) the circle. The here circle defines the exact geographic area of _here_, that searched to find local stops.
 
 *How can everything be displayed?* Zoom out a lot, then click... The result may be visually hard to digest, and laggy - especially with an unfiltered network or when showing multiple map layers: Aquius wasn't really intended to display everything. Hosts can limit this behaviour (by increasing the value of [Configuration](#configuration) key `minZoom`).
 
@@ -113,6 +122,7 @@ All except `dataset`, introduced in the [Quick Setup](#quick-setup) section, can
 Key|Type|Default|Description
 ---|----|-------|-----------
 base|Array|See below|Array of objects containing base layer tile maps, described below
+connectivity|float|1.0|Factor for connectivity calculation: population * ( 1 - ( 1 / ( service * ( 2 / ( power(10, configuration.p) / 10 )) * connectivity))), where p is greater than 0
 dataObject|Object|{}|JSON-like [network data](#data-structure) as an Object: Used in preference to dataset
 dataset|string|""|JSON file containing network data: Recommended full URL, not just filename
 leaflet|Object|{}|Active Leaflet library Object L: Used in preference to loading own library
@@ -167,8 +177,10 @@ The `translation` `Object` allows bespoke locales to be hacked in. Bespoke trans
     // BCP 47-style locale
     "lang": "X-ish",
       // Required language name in that locale
-    "embed": "Embed",
+    "connectivity": "Connectivity",
       // Translate values into locale, leave keys alone
+    "connectivityRange": "Any - Frequent",
+    "embed": "Embed",
     "export": "Export",
     "here": "Location",
     "language": "Language",
@@ -212,11 +224,12 @@ Enable or disable User Interface components. These won't necessarily block the a
 
 Key|Type|Default|Description
 ---|----|-------|-----------
+uiConnectivity|boolean|true|Enables connectivity slider (if the dataset's place has contents)
 uiHash|boolean|false|Enables recording of the user state in the URL's hash
 uiLocale|boolean|true|Enables locale selector
 uiNetwork|boolean|true|Enables network selector
 uiPanel|boolean|true|Enables summary statistic panel
-uiScale|boolean|true|Enables scale selector
+uiScale|boolean|true|Enables scale slider
 uiService|boolean|true|Enables service selector
 uiShare|boolean|true|Enables embed and export
 uiStore|boolean|true|Enables browser [session storage](https://developer.mozilla.org/en-US/docs/Web/API/Window/sessionStorage) of user state
@@ -231,6 +244,7 @@ c|float|-0.89|_Here_ click Longitude
 k|float|41.66|_Here_ click Latitude
 m|integer|11|_Here_ click zoom
 n|integer|0|User selected network filter: Must match range of network in `dataset`
+p|integer|0|User selected connectivity setting
 v|string|"hlnp"|User selected map layers by first letter: here, link, node, place
 r|integer|0|User selected service filter: Must match range of service in `dataset`
 s|integer|5|User selected global scale factor: 0 to 10
@@ -251,6 +265,7 @@ Aquius can also be used as a stand-alone library via `aquius.here()`, which acce
 Possible `options`:
 
 * `callback` - function to receive the result, which should accept `Object` (0) `error` (javascript Error), (1) `output` (as returned without callback, described below), and (2) `options` (as submitted, which also allows bespoke objects to be passed through to the callback).
+* `connectivity` - `float` factor applied to weight population by service level: population * ( 1 - ( 1 / (service * connectivity))), where result is greater than zero. If `connectivity` is missing or less than or equal to 0, population is not factored. The user interface calculates `connectivity` as: configuration.connectivity * ( 2 / ( power(10, configuration.p) / 10 )), producing factors 2, 0.2, and 0.02 - broadly matching long distance, local/inter-urban and city expectations.
 * `geoJSON` - `Array` of strings describing map layers to be outputted in GeoJSON format ("here", "link", "node" and/or "place").
 * `network` - `integer` index of network to filter by.
 * `range` - `float` distance from _here_ to be searched for nodes, in metres.
@@ -292,8 +307,6 @@ Without callback, the function returns an `Object` with possible keys:
 * `aquius` - as `dataObject`.
 * `config` - as `config`, but with defaults or calculated values applied.
 * `error` - `Array` of error message strings.
-* `gtfs` - `Object` containing GTFS data parsed into arrays (likely to be removed in future).
-* `gtfsHead` - `Object` describing the column indices of values in gtfs (likely to be removed in future).
 * `summary` - `Object` containing summary `network` (productFilter-serviceFilter matrix) and `service` (service histogram).
 
 **Caution:** Runtime is typically about a second per 10 megabytes of GTFS text data (with roughly half that time spent processing the Comma Separated Values), plus time to assign stops (nodes) to population (places). The single-operator networks found in most GTFS archives should process within 5-10 seconds, but very complex multi-operator conurbations may take longer. Processing requires operating system memory of up to 10 times the total size of the raw text data. If processing takes more than a minute, it is highly likely that the machine has run out of free physical memory, and processing should be aborted.
@@ -410,7 +423,7 @@ In categorising services by time, GTFS To Aquius interprets times as equal to or
 }
 ```
 
-**Caution:** The `serviceFilter` always applies a single time criteria to the whole journey, an assumption that will become progressively less realistic the longer the GTFS network's average vehicle journey. For example, an urban network may be usefully differentiated between morning peak and inter-peak because most vehicle journey on urban networks are completed within an hour, and thus the resulting analysis will be accurate within 30 minutes at all nodes on the route. In contrast, inter-regional vehicle journey duration may be much longer, and such detailed time periods risk misrepresenting passenger journey opportunities at certain nodes: For example, a 4-hour vehicle journey are commences at 07:30 might match a morning peak definition at its origin, but not by the time it reaches its final destination at 11.30. Such networks may be better summarised more broadly - perhaps morning, afternoon and evening. Long-distance or international networks, where vehicle journeys routinely span whole days, may be unsuitable for any form of `serviceFilter`.
+**Caution:** The `serviceFilter` always applies a single time criteria to the whole journey, an assumption that will become progressively less realistic the longer the GTFS network's average vehicle journey. For example, an urban network may be usefully differentiated between morning peak and inter-peak because most vehicle journeys on urban networks are completed within an hour, and thus the resulting analysis will be accurate within 30 minutes at all nodes on the route. In contrast, inter-regional vehicle journey duration may be much longer, and such detailed time periods risk misrepresenting passenger journey opportunities at certain nodes: For example, a 4-hour vehicle journey are commences at 07:30 might match a morning peak definition at its origin, but not by the time it reaches its final destination at 11.30. Such networks may be better summarised more broadly - perhaps morning, afternoon and evening. Long-distance or international networks, where vehicle journeys routinely span whole days, may be unsuitable for any form of `serviceFilter`.
 
 *Tip:* Service totals within defined time periods are still calculated as specified by `servicePer` - with default 1, the total service per day. This is a pragmatic way of fairly summarising unfamiliar networks with different periods of operation. However if serviceFilter periods exclude the times of day when the network is closed, the `servicePer` setting may be set per hour (0.04167), which may make it easier to compare periods of unequal duration, especially on metro networks with defined opening and closing times.
 

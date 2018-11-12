@@ -35,6 +35,9 @@ var aquius = aquius || {
       "en-US": {
         "lang": "English",
           // This language in that language
+        "connectivity": "Connectivity",
+        "connectivityRange": "Any - Frequent",
+          // Labels UI range bar, so maintain left-right order
         "embed": "Embed",
           // Other strings are to be translated directed
         "export": "Export",
@@ -51,6 +54,8 @@ var aquius = aquius || {
 
       "es-ES": {
         "lang": "Español",
+        "connectivity": "Conectividad",
+        "connectivityRange": "Cualquier - Frecuente",
         "embed": "Insertar",
         "export": "Exportar",
         "here": "Aquí",
@@ -92,6 +97,8 @@ var aquius = aquius || {
         // Base mapping (WMS tiles supported with type: wms)
       "c": -1.43,
         // Here click Longitude
+      "connectivity": 1.0,
+        // Factor for connectivity calculation: population*(1-(1/(service*(2/(pow(10,p)/10))*connectivity)))
       "dataObject": {},
         // JSON network data object: Used in preference to dataset
       "dataset": "",
@@ -126,6 +133,8 @@ var aquius = aquius || {
         // CSS Color for node (stop) layer circle strokes
       "nodeScale": 1.0,
         // Scale factor for node (stop) layer circles: ceil(log(1+(service*(1/(scale*2))))*scale)
+      "p": 0,
+        // User selected connectivity setting: population*(1-(1/(service*(2/(pow(10,p)/10))*connectivity)))
       "panelOpacity": 0.7,
         // CSS Opacity for background of the bottom-left summary panel
       "panelScale": 1.0,
@@ -142,6 +151,8 @@ var aquius = aquius || {
         // User selected service filter
       "s": 5,
         // User selected global scale factor: 0 to 10
+      "uiConnectivity": true,
+        // Enables connectivity slider (if the dataset's place has contents)
       "uiHash": false,
         // Enables recording of the user state in the URL's hash
       "uiLocale": true,
@@ -151,7 +162,7 @@ var aquius = aquius || {
       "uiPanel": true,
         // Enables summary statistic panel
       "uiScale": true,
-        // Enables scale selector
+        // Enables scale slider
       "uiService": true,
         // Enables service selector
       "uiShare": true,
@@ -1206,7 +1217,7 @@ var aquius = aquius || {
     function buildUILocale(configOptions) {
 
       var control, div, id, label, select, selectOptions, i;
-      var keyName = Object.keys(configOptions.translation);
+      var keyName = Object.keys(configOptions.translation).sort();
       
       if (configOptions.uiLocale === true &&
         keyName.length > 1
@@ -1363,14 +1374,14 @@ var aquius = aquius || {
       return configOptions;
     }
 
-    function buildUIScale(configOptions, controlForm) {
+    function buildUIScale(configOptions, controlForm, key, option, uiOption, min, max, rerender, legend) {
 
       var frame, id, input, label;
 
-      if (configOptions.uiScale === true) {
+      if (configOptions[uiOption] === true) {
         label = createElement("label");
 
-        id = configOptions._id + "scalename";
+        id = configOptions._id + key + "name";
         label.appendChild(createElement("div", {
           "id": id
         }, {
@@ -1379,29 +1390,40 @@ var aquius = aquius || {
           "padding-top": "4px",
           "text-align": "center"
         }));
-        configOptions._toLocale[id] = "scale";
+        configOptions._toLocale[id] = key;
 
         frame = createElement("div", {}, {
           "text-align": "center"
         });
         input = createElement("input", {
-          "id": configOptions._id + "scale",
+          "id": configOptions._id + key,
           "type": "range",
             // Range not supported by IE9, but should default to text
-          "min": 0,
-          "max": 10,
-          "value": configOptions.s
+          "min": min,
+          "max": max,
+          "value": configOptions[option]
         });
         input.addEventListener("change", function () {
-          configOptions.s = parseInt(document.getElementById(configOptions._id + "scale").value, 10);
-          userStore(configOptions, {
-            "s": configOptions.s
-          });
-          queryHere(configOptions, true);
+          var opt = {};
+          configOptions[option] = parseInt(document.getElementById(configOptions._id + key).value, 10);
+          opt[option] = configOptions[option];
+          userStore(configOptions, opt);
+          queryHere(configOptions, rerender);
         }, false);
         frame.appendChild(input);
 
         label.appendChild(frame);
+
+        if (typeof legend !== "undefined") {
+          id = configOptions._id + key + "legend";
+          label.appendChild(createElement("div", {
+            "id": id
+          }, {
+            "color": "#888",
+            "text-align": "center"
+          }));
+          configOptions._toLocale[id] = legend;
+        }
 
         controlForm.appendChild(label);
       }
@@ -1464,6 +1486,10 @@ var aquius = aquius || {
             "y": configOptions.k
           };
 
+          if (configOptions.p > 0) {
+            options.connectivity = (2 / (Math.pow(10, configOptions.p) / 10)) * configOptions.connectivity;
+          }
+
           for (i = 0; i < layerNames.length; i += 1) {
             if (configOptions.v.indexOf(layerNames[i].charAt(0)) !== -1) {
               options.geoJSON.push(layerNames[i]);
@@ -1522,7 +1548,11 @@ var aquius = aquius || {
 
     configOptions = buildRadioOnControl(configOptions, controlForm, "network", "n", "uiNetwork");
     configOptions = buildRadioOnControl(configOptions, controlForm, "service", "r", "uiService");
-    configOptions = buildUIScale(configOptions, controlForm);
+    if (configOptions.dataObject.place.length > 0) {
+      buildUIScale(configOptions, controlForm, "connectivity", "p",
+        "uiConnectivity", 0, 3, false, "connectivityRange");
+    }
+    configOptions = buildUIScale(configOptions, controlForm, "scale", "s", "uiScale", 0, 10, true);
     configOptions = buildUIShare(configOptions, controlForm);
 
     return exitBuildUI(configOptions);
@@ -1552,6 +1582,10 @@ var aquius = aquius || {
         "x": configOptions.c,
         "y": configOptions.k
       };
+      
+      if (configOptions.p > 0) {
+        options.connectivity = (2 / (Math.pow(10, configOptions.p) / 10)) * configOptions.connectivity;
+      }
 
       if (typeof configOptions._here === "object" &&
         "dataObject" in configOptions._here
@@ -2157,9 +2191,9 @@ var aquius = aquius || {
   /**
    * Here Query. May be called independently
    * @param {Object} dataObject - as init() option dataObject
-   * @param {Object} options -  callback:function(error, output, options), geoJSON:array layernames,
-   *   network:network index, range:metres-from-center, sanitize:boolean, service:service index,
-   *   x:center-longitude, y:center-latitude
+   * @param {Object} options -  callback:function(error, output, options), connectivity:factor, 
+   *   geoJSON:array layernames, network:network index, range:metres-from-center, sanitize:boolean,
+   *   service:service index, x:center-longitude, y:center-latitude
    * @return {Object} key:values or callback
    */
   "use strict";
@@ -2682,11 +2716,13 @@ var aquius = aquius || {
 
     function walkServiceRoutes(raw, service, linkChecks) {
 
-      var lastIndex, serviceLevel, thisLevel, i;
+      var canConnect, keys, lastIndex, node, place, serviceLevel, thisLevel, i;
       var beenHere = false;
       var canArrive = false;
       var countLevel = 0;
       var countSummary = true;
+      var placed = {};
+        // Place index:service level
       var prevIndex = -1;
       var prevLevel = 0;
 
@@ -2791,24 +2827,34 @@ var aquius = aquius || {
         // Will count first occurance of the block
         countSummary = false;
       }
+      
+      if ("connect" in raw &&
+        ("splits" in service === false ||
+        service.splits === 2)
+      ) {
+        canConnect = true;
+      } else {
+        canConnect = false;
+      }
 
       for (i = 0; i <= lastIndex; i += 1) {
 
         thisLevel = 0;
+        node = service.route[i];
 
         if (beenHere === false &&
-          service.route[i] in linkChecks.here
+          node in linkChecks.here
         ) {
           beenHere = true;
         }
 
-        if (service.route[i] in linkChecks.here) {
+        if (node in linkChecks.here) {
 
           if ((canArrive &&
             ("pickupIndex" in service === false ||
-            service.route[i] in service.pickupIndex === false)) ||
+            node in service.pickupIndex === false)) ||
             (("setdownIndex" in service === false ||
-            service.route[i] in service.setdownIndex === false) &&
+            node in service.setdownIndex === false) &&
             i !== lastIndex)
           ) {
             // Within here, as arrival or departure
@@ -2830,17 +2876,17 @@ var aquius = aquius || {
           if ("direction" in service === false &&
             ((beenHere &&
             ("pickupIndex" in service === false ||
-            service.route[i] in service.pickupIndex === false)) ||
+            node in service.pickupIndex === false)) ||
             (beenHere === false &&
             ("setdownIndex" in service === false ||
-            service.route[i] in service.setdownIndex === false)))
+            node in service.setdownIndex === false)))
           ) {
             // Both directions, halves service outside Here
             thisLevel = service.level / 2;
           } else {
             if (beenHere &&
               ("pickupIndex" in service === false ||
-              service.route[i] in service.pickupIndex === false)
+              node in service.pickupIndex === false)
             ) {
               // Uni-directional counts full service after Here
               thisLevel = service.level;
@@ -2851,11 +2897,11 @@ var aquius = aquius || {
         if (thisLevel > 0 &&
           ("splits" in service === false ||
           service.splits === 2 ||
-          service.route[i] in service.splitsIndex) &&
+          node in service.splitsIndex) &&
           ("circular" in service === false ||
           i < lastIndex)
         ) {
-          raw = addNodeService(raw, service, service.route[i], thisLevel);
+          raw = addNodeService(raw, service, node, thisLevel);
         }
 
         if (countSummary &&
@@ -2866,9 +2912,9 @@ var aquius = aquius || {
         // Finally
         if (canArrive === false &&
           ("setdownIndex" in service === false ||
-          service.route[i] in service.setdownIndex === false) &&
+          node in service.setdownIndex === false) &&
           ("direction" in service === false ||
-          service.route[i] in linkChecks.here)
+          node in linkChecks.here)
         ) {
           canArrive = true;
             // May be counted as arrival at subsequent nodes
@@ -2878,7 +2924,7 @@ var aquius = aquius || {
           prevLevel > 0 &&
           ("splits" in service === false ||
           service.splits === 2 ||
-          service.route[i] in service.splitsIndex ||
+          node in service.splitsIndex ||
           service.route[prevIndex] in service.splitsIndex)
         ) {
           // Add link
@@ -2889,19 +2935,50 @@ var aquius = aquius || {
           } else {
             serviceLevel = prevLevel;
           }
-          raw = addLinkService(raw, service, service.route[prevIndex], service.route[i], serviceLevel);
+          raw = addLinkService(raw, service, service.route[prevIndex], node, serviceLevel);
         }
         if (thisLevel  > 0) {
           prevLevel = thisLevel;
         }
         prevIndex = i;
 
+        if (canConnect &&
+          thisLevel > 0
+        ) {
+          place = -1;
+          if ("p" in raw.dataObject.node[node][2]) {
+            place = raw.dataObject.node[node][2].p;
+          } else {
+            if ("place" in raw.dataObject.node[node][2]) {
+              place = raw.dataObject.node[node][2].place;
+            }
+          }
+          if (place >= 0) {
+            if (place in placed === false ||
+              thisLevel > placed[place]
+            ) {
+              placed[place] = thisLevel;
+            }
+          }
+        }
+
       }
 
       if ("splits" in service === false ||
-        service.splits !== 1
+        service.splits === 2
       ) {
         raw.summary.link += countLevel;
+      }
+
+      if (canConnect) {
+        keys = Object.keys(placed);
+        for (i = 0; i < keys.length; i += 1) {
+          if (keys[i] in raw.connect) {
+            raw.connect[keys[i]] += placed[keys[i]];
+          } else {
+            raw.connect[keys[i]] = placed[keys[i]];
+          }
+        }
       }
 
       return raw;
@@ -3166,15 +3243,12 @@ var aquius = aquius || {
       return geojsonObject;
     }
 
-    function addNodePlace(raw) {
+    function addNode(raw) {
 
-      var dataObjectNode, geometry, population, i;
+      var dataObjectNode, geometry, i;
       var maxNodeIndex = raw.dataObject.node.length - 1;
-      var maxPlaceIndex = raw.dataObject.place.length - 1;
-      var placeList = {};
 
       raw.node = [];
-      raw.place = [];
 
       for (i = 0; i < raw.serviceNode.length; i += 1) {
         if (typeof raw.serviceNode[i] !== "undefined" &&
@@ -3207,42 +3281,6 @@ var aquius = aquius || {
           }
 
           raw.node.push(geometry);
-
-          if ("place" in dataObjectNode[2]) {
-            dataObjectNode[2].p = dataObjectNode[2].place;
-          }
-
-          if ("p" in dataObjectNode[2] &&
-            dataObjectNode[2].p in placeList === false
-          ) {
-            placeList[dataObjectNode[2].p] = dataObjectNode[2].p;
-            if (dataObjectNode[2].p <= maxPlaceIndex &&
-              dataObjectNode[2].p >= 0
-            ) {
-
-              population = 0;
-              if ("p" in raw.dataObject.place[dataObjectNode[2].p][2]) {
-                population = raw.dataObject.place[dataObjectNode[2].p][2].p;
-              } else {
-                if ("population" in raw.dataObject.place[dataObjectNode[2].p][2]) {
-                  population = raw.dataObject.place[dataObjectNode[2].p][2].population;
-                }
-              }
-
-              if (population > 0) {
-                raw.summary.place += population;
-                raw.place.push({
-                  "circle": [
-                    raw.dataObject.place[dataObjectNode[2].p][0],
-                    raw.dataObject.place[dataObjectNode[2].p][1]
-                  ],
-                  "value": population
-                });
-              }
-
-            }
-          }
-
         }
       }
 
@@ -3251,7 +3289,59 @@ var aquius = aquius || {
       return raw;
     }
 
-    raw = addNodePlace(raw);
+    function addPlace(raw, options) {
+
+      var keys, population, i;
+
+      raw.place = [];
+
+      if ("connect" in raw) {
+
+        keys = Object.keys(raw.connect);
+        for (i = 0; i < keys.length; i += 1) {
+          if (keys[i] < raw.dataObject.place.length) {
+            // < 0 already checked in serviceLink logic
+
+            population = 0;
+            if ("p" in raw.dataObject.place[keys[i]][2]) {
+              population = raw.dataObject.place[keys[i]][2].p;
+            } else {
+              if ("population" in raw.dataObject.place[keys[i]][2]) {
+                population = raw.dataObject.place[keys[i]][2].population;
+              }
+            }
+            if (!Number.isNaN(population)) {
+              if ("connectivity" in options &&
+                options.connectivity > 0
+              ) {
+                population = population * ( 1 - ( 1 / (raw.connect[keys[i]] * options.connectivity)));
+              }
+              population = Math.round(population);
+
+              if (population > 0) {
+                raw.summary.place += population;
+                raw.place.push({
+                  "circle": [
+                    raw.dataObject.place[keys[i]][0],
+                    raw.dataObject.place[keys[i]][1]
+                  ],
+                  "value": population
+                });
+              }
+
+            }
+
+          }
+        }
+      }
+
+      delete raw.connect;
+
+      return raw;
+    }
+
+    raw = addNode(raw);
+    raw = addPlace(raw, options);
 
     if ("geoJSON" in options === false ||
       !Array.isArray(options.geoJSON)
@@ -3332,6 +3422,10 @@ var aquius = aquius || {
   try {
 
     raw = parseDataObject(raw, options);
+    if (raw.dataObject.place.length > 0) {
+      raw.connect = {};
+        // place index:service total
+    }
     raw = walkRoutes(raw, options);
     raw = pathRoutes(raw);
     raw = conjureGeometry(raw, options);
