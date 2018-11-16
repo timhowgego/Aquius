@@ -30,6 +30,7 @@ In this document:
 * [Configuration](#configuration)
 * [Here Queries](#here-queries)
 * [GTFS To Aquius](#gtfs-to-aquius)
+* [Merge Aquius](#merge-aquius)
 * [Data Structure](#data-structure)
 * [License](#license)
 * [Contributing](#contributing)
@@ -40,14 +41,14 @@ In this document:
 
 *How are people counted?* The population is that of the local area containing one or more nodes (stops, stations) linked to _here_ by the services shown, including the population of _here_ itself. Each node is assigned to just one such geographic area. The geography of these areas is defined by the dataset creator, but is intended to _broadly_ convey the natural catchment or hinterland of the service, and typically uses local administrative boundaries (such as districts or municipalities) to reflect local definitions of place. This population may be additionally factored by Connectivity, as described in the next paragraph.
 
-*What is connectivity?* Connectivity factors the population linked (as described above) by the service level linking it - every unique service linking _here_ with the local area is counted once. The Connectivity slider can be moved to reflect one of four broad service expectations, the defaults summarised in the table below (for left to right on the slider, read down the table). The slider attempts to capture broad differences in network perception, for example that 14 trains per day from London to Paris is a "good" service, while 14 operating _within_ either city would be poor. Except for Any, which does not factor population, the precise formula is: 1 - ( 1 / (service * factor)), if the result is greater than 0, with the default factor values: 2 (long distance), 0.2 (local/interurban) and 0.02 (city). The dataset creator or host may change the factor value (see [Configuration](#configuration) key `connectivity`), but not the formula.
+*What is connectivity?* Connectivity factors the population linked (as described above) by the service level linking it - every unique service linking _here_ with the local area is counted once. The Connectivity slider can be moved to reflect one of four broad service expectations, the defaults summarised in the table below (for left to right on the slider, read down the table). The slider attempts to capture broad differences in network perception, for example that 14 trains per day from London to Paris is considered a "good" service, while operating 14 daily _within_ either city would be almost imperceptible. Except for Any, which does not factor population, the precise formula is: 1 - ( 1 / (service * factor)), if the result is greater than 0, with the default factor values: 2 (long distance), 0.2 (local/interurban) and 0.02 (city). The dataset creator or host may change the factor value (see [Configuration](#configuration) key `connectivity`), but not the formula.
 
-Connectivity Expectation|Minimum Service to Factor Population|Service to Factor Population by 95%
-------------------------|------------------------------------|-----------------------------------
-Any|0|Entire population always counted
-Long Distance|0.5|10
-Local/Interurban|5|100
-City|50|1000
+Connectivity Expectation|0% Factor Service|50% Factor Service|95% Factor Service
+------------------------|-----------------|------------------|------------------
+Any|0|Entire population always counted|Entire population always counted
+Long Distance|0.5|1|10
+Local/Interurban|5|10|100
+City|50|100|1000
 
 *What do the line widths and circle diameters indicate?* Links and stops are scaled by the logarithm of the service (such as total daily trains), so at high service levels the visual display is only slightly increased. Increasing the scale increases the visual distinction between service levels, but may flood the view in urban areas. The original numbers are associated reference information can be seen by clickign on the link or node. The area of each population circle is in proportion to the number of residents. The original numbers are displayed in a tooltip, visible when mousing over (or similar) the circle. The here circle defines the exact geographic area of _here_, that searched to find local stops.
 
@@ -224,13 +225,13 @@ Enable or disable User Interface components. These won't necessarily block the a
 
 Key|Type|Default|Description
 ---|----|-------|-----------
-uiConnectivity|boolean|true|Enables connectivity slider (if the dataset's place has contents)
+uiConnectivity|boolean|true|Enables connectivity slider (if the dataset's `place` length > 0)
 uiHash|boolean|false|Enables recording of the user state in the URL's hash
 uiLocale|boolean|true|Enables locale selector
-uiNetwork|boolean|true|Enables network selector
+uiNetwork|boolean|true|Enables network selector (if the dataset's `network` length > 1)
 uiPanel|boolean|true|Enables summary statistic panel
 uiScale|boolean|true|Enables scale slider
-uiService|boolean|true|Enables service selector
+uiService|boolean|true|Enables service selector (if the dataset's `service` length > 1)
 uiShare|boolean|true|Enables embed and export
 uiStore|boolean|true|Enables browser [session storage](https://developer.mozilla.org/en-US/docs/Web/API/Window/sessionStorage) of user state
 
@@ -265,7 +266,7 @@ Aquius can also be used as a stand-alone library via `aquius.here()`, which acce
 Possible `options`:
 
 * `callback` - function to receive the result, which should accept `Object` (0) `error` (javascript Error), (1) `output` (as returned without callback, described below), and (2) `options` (as submitted, which also allows bespoke objects to be passed through to the callback).
-* `connectivity` - `float` factor applied to weight population by service level: population * ( 1 - ( 1 / (service * connectivity))), where result is greater than zero. If `connectivity` is missing or less than or equal to 0, population is not factored. The user interface calculates `connectivity` as: configuration.connectivity * ( 2 / ( power(10, configuration.p) / 10 )), producing factors 2, 0.2, and 0.02 - broadly matching long distance, local/inter-urban and city expectations.
+* `connectivity` - `float` factor applied to weight population by service level: population * ( 1 - ( 1 / (service * connectivity))), if result is greater than zero. If `connectivity` is missing or less than or equal to 0, population is not factored. The user interface calculates `connectivity` as: configuration.connectivity * ( 2 / ( power(10, configuration.p) / 10 )), producing factors 2, 0.2, and 0.02 - broadly matching long distance, local/inter-urban and city expectations.
 * `geoJSON` - `Array` of strings describing map layers to be outputted in GeoJSON format ("here", "link", "node" and/or "place").
 * `network` - `integer` index of network to filter by.
 * `range` - `float` distance from _here_ to be searched for nodes, in metres.
@@ -296,7 +297,7 @@ Otherwise the JSON-like Object will contain `summary`, is an Object containing l
 [General Transit Feed Specification](https://developers.google.com/transit/gtfs/reference/) is the most widely used interchange format for public transport schedule data. A [script is available](https://github.com/timhowgego/Aquius/tree/master/dist) that automatically converts single GTFS archives into Aquius datasets. This script is currently under development, requiring both features and testing, so check the output carefully. [A live demonstration is available here](https://timhowgego.github.io/Aquius/live/gtfs/). Alternatively, run the `gtfs.min.js` file privately, either: 
 
 1. With a user interface: Within a webpage, load the script and call `gtfsToAquius.init("aquius-div-id")`, where "aquius-div-id" is the ID of an empty element on the page.
-1. From another script: Call `gtfsToAquius.process(gtfs, options)`. Required value `gtfs` is an `Object` consisting of keys representing the name of the GTFS file without extension, whose value is the raw text content of the GTFS file - for example, `"calendar": "raw,csv,string,data"`. `options` is an optional `Object` that may contain the following keys, each value itself an `Object`:
+1. From another script: Call `gtfsToAquius.process(gtfs, options)`. Required value `gtfs` is an `Object` consisting of keys representing the name of the GTFS file without extension, whose value is an array containing one or more blocks of raw text from the GTFS file - for example, `"calendar": ["raw,csv,string,data"]`. If the file is split into multiple blocks (to allow very large files to be handled) the first block must contain at least the first header line. `options` is an optional `Object` that may contain the following keys, each value itself an `Object`:
 
 * `callback` - function to receive the result, which should accept 3 `Object`: `error` (javascript Error), `output` (as returned without callback, described below), `options` (as submitted, which also allows bespoke objects to be passed through to the callback).
 * `config` - contains key:value pairs for optional configuration settings, as described in the next section.
@@ -311,6 +312,8 @@ Without callback, the function returns an `Object` with possible keys:
 
 **Caution:** Runtime is typically about a second per 10 megabytes of GTFS text data (with roughly half that time spent processing the Comma Separated Values), plus time to assign stops (nodes) to population (places). The single-operator networks found in most GTFS archives should process within 5-10 seconds, but very complex multi-operator conurbations may take longer. Processing requires operating system memory of up to 10 times the total size of the raw text data. If processing takes more than a minute, it is highly likely that the machine has run out of free physical memory, and processing should be aborted.
 
+*Tip:* To work around any memory limitation, copy all the GTFS file and divide `stop_times.txt` (which is almost always far larger than any other file, and thus most likely the trigger for any memory issue) into two or more pieces, each placed in a separate file directory. The `stop_times.txt` divide must not break a trip (divide immediately before a `stop_sequence` 0) and for optimum efficiency should break between different `route_id`. The first (header) line of `stop_times.txt` must be present as the first line of each file piece. Add to each directory identical config.json files and a complete copy of all the other GTFS files used - except `frequencies.txt`, which if present must only be added in one directory. GTFS file `shapes.txt` (which is sometimes large) is not used by GTFS to Aquius, so can also be skipped. Run GTFS to Aquius on each directory separately, then use [Merge Aquius](#merge-aquius) to merge the two (or more) outputs together. GTFS to Aquius will skip any (not-frequency) link it can find stop_times for, while Merge Aquius automatically merges the duplicate nodes created.
+
 ### Configuration File
 
 By default GTFS To Aquius simply analyses services over the next 7 days, producing average daily service totals, filtered by agency (operator). GTFS To Aquius accepts and produces a file called `config.json`, which in the absence of a detailed user interface, is the only way to customise the GTFS processing. The minimum content of `config.json` is empty, vis: `{}`. To this `Object` one or more key: value pairs may be added. Currently supported keys are:
@@ -324,10 +327,12 @@ allowDuplication|boolean|false|Include duplicate vehicle trips (same route, serv
 allowHeadsign|boolean|false|Include trip-specific headsigns (information may be redundant if using allowRoute)
 allowName|boolean|true|Include stop names (increases file size significantly)
 allowRoute|boolean|true|Include route-specific short names
+allowRouteUrl|boolean|true|Include URLs for routes (can increase file size significantly unless URLs conform to logical repetitive style)
 allowSplit|boolean|true|Include trips on the same route (service period and direction) which share at least two (but not all) stop times as "split". If false, such duplicates are removed (unless cabotage)
-allowURL|boolean|true|Include URLs for stops and routes (can increase file size significantly unless URLs conform to logical repetitive style)
+allowStopUrl|boolean|true|Include URLs for stops (can increase file size significantly unless URLs conform to logical repetitive style)
 coordinatePrecision|float|5|Coordinate decimal places (smaller values tend to group clusters of stops), described below
 fromDate|YYYYMMDD dateString|Today|Start date for service pattern analysis (inclusive)
+inGeojson|boolean|true|If geojson boundaries are provided, only services at stops within a boundary will be analysed
 isCircular|array|[]|GTFS "route_id" (strings) to be referenced as circular. If empty (default), GTFS to Aquius follows its own logic, described below
 meta|object|{"schema": "0"}|As [Data Structure](#data-structure) meta key
 networkFilter|object|{"type": "agency"}|Group services by, using network definitions, detailed below
@@ -336,6 +341,7 @@ populationProperty|string|"population"|Field name in GeoJSON properties containi
 productOverride|object|{}|Properties applied to all links with the same product ID, detailed below
 routeExclude|array|[]|GTFS "route_id" (strings) to be excluded from analysis
 routeInclude|array|[]|GTFS "route_id" (strings) to be included in analysis, all if empty
+routeOverride|object|{}|Properties applied to routes, by GTFS "route_id" key, detailed below
 serviceFilter|object|{}|Group services by, using service definitions, detailed below
 servicePer|integer|1|Service average per period in days (1 gives daily totals, 7 gives weekly totals), regardless of fromDate/toDate
 stopOverride|object|{}|Properties applied to stops, by GTFS "stop_id" key, detailed below
@@ -359,7 +365,7 @@ If `isCircular` is empty, GTFS to Aquius will attempt to evaulate whether a rout
 
 #### Coordinates
 
-Lowering the value of `coordinatePrecision` reduces the size of the Aquius output file, but not just because the coordinate data stored is shorter: At lower `coordinatePrecision`, stops that are in close proximity will tend to merge into single nodes, which in turn tends to result in fewer unique links between nodes. Such merges reflect mathematical rounding, and will not necessarily group clusters of stops in a way that users or operators might consider logical. Networks with widespread use of pickup and setdown restrictions may be rendered illogical by excessive grouping. Aggregation of different stops into the same node may also create false duplicate trips, since duplication is assessed by node, not original stop - in most case setting `allowDuplication` to true will avoid this issue (as detailed below). If the precise identification of individual stops is important, increase the default `coordinatePrecision` to avoid grouping. Very low `coordinatePrecision` values effectively transform the entire network into a fixed grid, useful for strategic geospatial analysis.
+Lowering the value of `coordinatePrecision` reduces the size of the Aquius output file, but not just because the coordinate data stored is shorter: At lower `coordinatePrecision`, stops that are in close proximity will tend to merge into single nodes, which in turn tends to result in fewer unique links between nodes. Such merges reflect mathematical rounding, and will not necessarily group clusters of stops in a way that users or operators might consider logical. Networks with widespread use of pickup and setdown restrictions may be rendered illogical by excessive grouping. Aggregation of different stops into the same node may also create false duplicate trips, since duplication is assessed by node, not original stop - in most case setting `allowDuplication` to true will avoid this issue (as detailed below). If the precise identification of individual stops is important, increase the default `coordinatePrecision` to avoid grouping. Very low `coordinatePrecision` values effectively transform the entire network into a fixed "[Vortex Grid](https://en.wikipedia.org/wiki/The_Adventure_Game)", useful for strategic geospatial analysis.
 
 #### Duplication
 
@@ -375,7 +381,9 @@ The two prior duplication definitions do not consider any pickup or setdown rest
 
 Configuration key `productOverride` allows colors to be applied to all links of the same product, where product is defined by `networkFilter.type` (above). The `productOverride` key's value is is an `Object` whose key names refer to GTFS codes (`agency_id` values for "agency", or `route_type` values for "mode"), and whose values consist of an `Object` of properties to override any (and missing) GTFS values. Currently only two keys are supported: "route_color" and "route_text_color", each value is a `string` containing a 6-character hexadecimal HTML-style color ([matching GTFS specification](https://developers.google.com/transit/gtfs/reference/#routestxt)). These allow colors to be added by product, for example to apply agency-specific colors to their respective operations.
 
-Configuration key `stopOverride` allows poorly geocoded stops to be given valid coordinates. The `stopOverride` key's value is is an `Object` whose keys are GTFS "stop_id" values. The value of each "stop_id" key is an `Object` containing override coordinates (WGS 84 floats) `x` and `y`. If GTFS to Aquius encounters 0,0 coordinates it will automatically add these stops to `stopOverride` for manual editing.
+Configuration key `routeOverride` allows bespoke colors or route names to be applied by route (taking precedence). The `routeOverride` key's value is an `Object` whose keys are GTFS "route_id" values. The value of each "route_id" key is an `Object` containing keys "route_short_name", "route_color", "route_text_color" and/or "route_url", with content matching GTFS specification.
+
+Configuration key `stopOverride` allows poorly geocoded stops to be given valid coordinates, and bespoke (user friendly) codes, names, and URLs to be specified. The `stopOverride` key's value is is an `Object` whose keys are GTFS "stop_id" values. The value of each "stop_id" key is an `Object` containing override coordinates (WGS 84 floats) "x" and "y", and/or "stop_code", "stop_name" and "stop_url". If GTFS to Aquius encounters 0,0 coordinates it will automatically add these stops to `stopOverride` for manual editing.
 
 #### Network Filter
 
@@ -432,6 +440,45 @@ In categorising services by time, GTFS To Aquius interprets times as equal to or
 Optionally, a [GeoJSON file](http://geojson.org/) can be provided containing population data, which allows Aquius to summarise the people served by a network. The file must end in the extension `.json` or `.geojson`, must use (standard) WGS 84 coordinates, and must contain either Polygon or MultiPolygon geographic boundaries. Each feature should have a property containing the number of people (or equivalent demographic statistic), either using field name "population", or that defined in `config.json` as `populationProperty`. Excessively large or complex boundary files may delay processing, so before processing GTFS To Aquius, consider reducing the geographic area to only that required, or simplifying the geometry.
 
 GTFS To Aquius will attempt to assign each node (stop) to the boundary it falls within. For consistent results, boundaries should not overlap and specific populations should not be counted more than once. The choice of boundaries should be appropriate for the scale and scope of the services within the GTFS file: Not so small as to routinely exclude nodes used by a local population, but not so large as to suggest unrealistic hinterlands or catchment areas. For example, an entire city may reasonably have access to an inter-regional network whose only stop is in the city centre, and thus city-level boundaries might be appropriate at inter-regional level. In contrast, an urban network within a city should use more detailed boundaries that reflect the inherently local nature of the areas served. Note that the population summaries produced by Aquius are not intended to be precise, rather to provide a broad summary of where people are relative to nearby routes, and to allow basic comparison of differences in network connectivity.
+
+If configuration key `inGeojson` is true (the default), the entire dataset will be limited to services between stops within the GeoJSON boundaries. As currently implemented, unused nodes are retained in the Aquius output file, which may bloat its size considerably. These excess nodes can be removed by passing the output file through Merge Aquius (see below). In future, GTFS to Aquius should perform this function automatically.
+
+## Merge Aquius
+
+This tool merges Aquius dataset files into a single file. The tool cannot understand these files beyond their technical structure, so the files should be produced in a similar manner:
+
+* Files must not duplicate one another's service count - else service totals will erroneously double. *Tip:* Links can be duplicated, although since each dataset is assigned unique product IDs, such links are structured separately, so Merge Aquius is not the most efficient means of combining different services on the same route.
+* Files must all share the same or very similiar service filters - the filter indices and definitions are blindly assumed comparable.
+* Files should use (if any) the same place/demographic data - the original boundaries are not present, so no assessment can be made of overlaps.
+
+Nodes and places are grouped by shared coordinates - the number of decimal places can be set as configuration key `coordinatePrecision` (described below). Products are grouped on name - all translations must be identical. Meta, option and translation content will be copied, but cannot always be merged - configuration keys can be used to supply definitions.
+
+This script is currently under development, requiring both features and testing, so check the output carefully. [A live demonstration is available here](https://timhowgego.github.io/Aquius/live/merge/). Alternatively, run the `merge.min.js` file privately, either: 
+
+1. With a user interface: Within a webpage, load the script and call `mergeAquius.init("aquius-div-id")`, where "aquius-div-id" is the ID of an empty element on the page.
+1. From another script: Call `mergeAquius.merge(input, options)`. 
+
+Required value `input` is an `Array` consisting of one or more `dataObject` in the order to be processed. As a minimum, these must have `meta.schema`, `link` and `node` keys. `options` is an optional `Object` that may contain the following keys, each value itself an `Object`:
+
+* `callback` - function to receive the result, which should accept 3 `Object`: `error` (javascript Error), `output` (as returned without callback, described below), `options` (as submitted, which also allows bespoke objects to be passed through to the callback).
+* `config` - contains key:value pairs for optional configuration settings. The minimum content of `config.json` is empty, vis: `{}`. To this `Object` one or more key: value pairs may be added. Currently supported keys are:
+
+Key|Type|Default|Description
+---|----|-------|-----------
+coordinatePrecision|float|5|Coordinate decimal places (as GTFS to Aquius, smaller values tend to group clusters of stops)
+meta|object|{}|As [Data Structure](#data-structure) meta key
+option|object|{}|As [Configuration](#configuration)/[Data Structure](#data-structure) option key
+translation|object|{}|As [Configuration](#configuration)/[Data Structure](#data-structure) translation key
+
+Without callback, the function returns an `Object` with possible keys:
+
+* `aquius` - as `dataObject`.
+* `config` - as `config`, but with defaults or calculated values applied.
+* `error` - `Array` of error message strings.
+
+**Caution:** Merge Aquius is intended to merge sets of files created in a similiar manner. Merging an adhoc sequence of Aquius files may appear successful, but the actual services presented may be extremely inconsistent, especially if service filters differ or different analysis periods have been used.
+
+*Tp:* The original dataset files are processed in order of filename, which allows processing order to be controlled. The product filters of first file will appear at the top of the merged product filter. The nodes in the first file will tend to hold smaller index values, which may have a small impact on final file size. The first file is the first source consulted for meta, option, translation (all unless defined by configuration), and service filter.
 
 ## Data Structure
 

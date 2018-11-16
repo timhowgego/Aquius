@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html style="height:100%;" lang="en-US">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width" />
+<style>
+body{height:100%;margin:0;color:#000}
+.wrapper{margin:0 auto;max-width:1000px}
+p{margin:1em 0.5em}
+a{color:#0366d6}
+tt{background-color:rgba(27,31,35,0.05);padding:0.2em 0.4em;border-radius:3px;font-size:85%}
+h1{font-weight:bold;font-size:200%;margin:0.5em 0.25em;border-bottom:1px solid #eaecef;padding-bottom:0.5em}
+#aquius form,#aquius p{margin:1em 0.5em}
+#aquius .aquiusOutputError{background-color:#fbb;padding:0.2em 0}
+#aquius a.aquiusDownload{appearance:button;-moz-appearance:button;-webkit-appearance:button;
+text-decoration:none;color:ButtonText;display:inline-block;padding:2px 8px;margin:0 0.2em}
+#aquius input{margin:0 0.2em}
+body,form,input,#aquius a.aquiusDownload{font:14px Arial,Helvetica,sans-serif;line-height:1.25}
+</style>
+<title>Merge Aquius</title>
+</head>
+<body>
+<div class="wrapper">
+<h1>Merge Aquius</h1>
+<div id="aquius"></div>
+<noscript>Javascript is required to use this tool.</noscript>
+<p>This tool merges <a href="https://timhowgego.github.io/Aquius/#data-structure">Aquius dataset</a> files into a single file. The tool cannot understand these files beyond their technical structure, so the files should be produced in a similar manner:</p>
+<ul>
+<li>Files must not duplicate one another's service count - else service totals will erroneously double.</li>
+<li>Files must all share the same or very similiar service filters - the filter indices and definitions are blindly assumed comparable.</li>
+<li>Files should use (if any) the same place/demographic data - the original boundaries are not present, so no assessment can be made of overlaps.</li>
+</ul>
+<p>An optional <tt>config.json</tt> may also be added to the selection, which contains <a href="https://timhowgego.github.io/Aquius/#merge-aquius">bespoke criteria</a> for generating the output.</p>
+<p>Nodes and places are grouped by shared coordinates - the number of decimal places can be set as configuration key <tt>coordinatePrecision</tt>. Products are grouped on name - all translations must be identical. Meta, option and translation content will be copied, but cannot always be merged - configuration keys can be used to supply definitions.</p>
+<p>See documentation for <a href="https://timhowgego.github.io/Aquius/#merge-aquius">configuration details</a> and <a href="https://timhowgego.github.io/Aquius/#quick-setup">how to use of the output file</a>. For routine or repeat usage, the merge script can incorporated into a bespoke application which <a href="https://github.com/timhowgego/Aquius/tree/master/dist">imports the javascript</a> and calls the function <tt>mergeAquius.merge(input, options)</tt>, <a href="https://timhowgego.github.io/Aquius/#merge-aquius">as documented</a>.</p>
+</div>
+<script src="https://timhowgego.github.io/Aquius/dist/merge.min.js" async></script>
+<script>window.addEventListener("load",function(){mergeAquius.init("aquius");});</script>
+</body>
+</html>

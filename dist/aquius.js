@@ -1548,7 +1548,8 @@ var aquius = aquius || {
 
     configOptions = buildRadioOnControl(configOptions, controlForm, "network", "n", "uiNetwork");
     configOptions = buildRadioOnControl(configOptions, controlForm, "service", "r", "uiService");
-    if (configOptions.dataObject.place.length > 0) {
+    if ("place" in configOptions.dataObject &&
+      configOptions.dataObject.place.length > 0) {
       buildUIScale(configOptions, controlForm, "connectivity", "p",
         "uiConnectivity", 0, 3, false, "connectivityRange");
     }
@@ -1868,7 +1869,9 @@ var aquius = aquius || {
 
       for (i = 0; i < productLink.length; i += 1) {
         if (productLink[i] !== undefined) {
-          if (i < configOptions.dataObject.reference.product.length) {
+          if (i < configOptions.dataObject.reference.product.length &&
+            typeof configOptions.dataObject.reference.product[i] === "object"
+          ) {
             if (configOptions.t in configOptions.dataObject.reference.product[i]) {
               productLink[i].unshift(configOptions.dataObject.reference.product[i][configOptions.t]);
             } else {

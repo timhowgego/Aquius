@@ -19,6 +19,10 @@
 
 [GTFS to Aquius](https://timhowgego.github.io/Aquius/live/gtfs/) - Tool to convert single [General Transit Feed Specification](https://developers.google.com/transit/gtfs/reference/) files into Aquius datasets. Also see [GTFS to Aquius documentation](https://timhowgego.github.io/Aquius/#gtfs-to-aquius).
 
+## Merge Aquius
+
+[Merge Aquius](https://timhowgego.github.io/Aquius/live/merge/) - Tool to merge Aquius datasets together. Also see [Merge Aquius documentation](https://timhowgego.github.io/Aquius/#merge-aquius).
+
 ## More Information
 
 * [User FAQ](https://timhowgego.github.io/Aquius/#user-faq)

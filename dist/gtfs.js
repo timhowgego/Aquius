@@ -105,10 +105,12 @@ var gtfsToAquius = gtfsToAquius || {
     return table;
   }
 
-  function initialiseUI(vars) {
+  function initialiseUI(vars, loadFunction, prompt) {
     /**
      * Creates user interface in its initial state
      * @param {object} vars - internal data references (including configId)
+     * @param {object} loadFunction - function to load files
+     * @param {string} prompt - label
      * @return {boolean} initialisation success
      */
 
@@ -146,7 +148,7 @@ var gtfsToAquius = gtfsToAquius || {
     });
 
     label = createElement("label", {
-      "textContent": "GTFS as .txt, optional config, and optional GeoJSON to process:"
+      "textContent": prompt
     });
     
     button = createElement("input", {
@@ -156,7 +158,7 @@ var gtfsToAquius = gtfsToAquius || {
       "type": "file"
     });
     button.addEventListener("change", (function(){
-      initialiseProcess(vars);
+      loadFunction(vars);
     }), false);
     label.appendChild(button);
 
@@ -319,8 +321,8 @@ var gtfsToAquius = gtfsToAquius || {
     }
 
     if (!outputDOM ||
-      !progressDOM)
-    {
+      !progressDOM
+    ) {
       return false;
     }
 
@@ -358,16 +360,19 @@ var gtfsToAquius = gtfsToAquius || {
       }
     }
 
-    if ("translation" in out.aquius &&
-        "en-US" in out.aquius.translation &&
-        "link" in out.aquius.translation["en-US"]
-      ) {
-        caption = out.aquius.translation["en-US"].link;
-      } else {
-        caption = "Services";
-      }
+    if ("aquius" in out &&
+      "translation" in out.aquius &&
+      "en-US" in out.aquius.translation &&
+      "link" in out.aquius.translation["en-US"]
+    ) {
+      caption = out.aquius.translation["en-US"].link;
+    } else {
+      caption = "Services";
+    }
 
-    if (typeof aquius !== "undefined") {
+    if (typeof aquius !== "undefined" &&
+      "aquius" in out
+    ) {
       // If aquius has not loaded by now, skip the map
       outputDOM.appendChild(createElement("div", {
         "id": vars.configId + "Map"
@@ -380,7 +385,9 @@ var gtfsToAquius = gtfsToAquius || {
       });
     }
 
-    if ("stopOverride" in out.config) {
+    if ("config" in out &&
+      "stopOverride" in out.config
+    ) {
       keys = Object.keys(out.config.stopOverride);
       zeroCoord = [];
       for (i = 0; i < keys.length; i += 1) {
@@ -524,7 +531,9 @@ var gtfsToAquius = gtfsToAquius || {
   return initialiseUI({
     "configId": configId,
     "process": this.process
-  });
+    },
+    initialiseProcess,
+    "GTFS as .txt, optional config, and optional GeoJSON to process:");
 },
 
 
@@ -533,7 +542,7 @@ var gtfsToAquius = gtfsToAquius || {
    * Creates Aquius dataObject. May be called independently
    * @param {object} gtfs - key per GTFS file slug, value array of raw text content of GTFS file
    * @param {object} options - geojson, config, callback
-   * @return {object} without callback: possible keys aquius, config, error, gtfs, gtfsHead
+   * @return {object} without callback: possible keys aquius, config, error
    * with callback: callback(error, out, options)
    */
   "use strict";
@@ -549,7 +558,7 @@ var gtfsToAquius = gtfsToAquius || {
       // Output quality analysis
   };
 
-    function formatGtfsDate(dateMS) {
+  function formatGtfsDate(dateMS) {
     /**
      * Helper: Converts millisecond date to GTFS date
      * @param {integer} dateMS - milliseconds from epoch
@@ -612,15 +621,19 @@ var gtfsToAquius = gtfsToAquius || {
       "allowName": true,
         // Include stop names (increases file size)
       "allowRoute": true,
-        // Include route-specific short names 
+        // Include route-specific short names
+      "allowRouteUrl": true,
+        // Include service URLs (increases file size)
       "allowSplit": true,
         // Count trips on the same route which share at least two, but not all, stop times as "split" at their unique stops
-      "allowURL": true,
-        // Include stop and service URLs (increases file size)
+      "allowStopUrl": true,
+        // Include stop URLs (increases file size)
       "coordinatePrecision": 5,
         // Coordinate decimal places (smaller values tend to group clusters of stops)
       "fromDate": formatGtfsDate(Date.now()),
         // Start date for service pattern analysis (inclusive)
+      "inGeojson": true,
+        // If geojson boundaries are provided, only services at stops within a boundary will be analysed
       "isCircular": [],
         // GTFS "route_id" (strings) to be referenced as circular. If empty, GTFS to Aquius follows own logic (see docs)
       "meta": {
@@ -641,6 +654,8 @@ var gtfsToAquius = gtfsToAquius || {
         // GTFS "route_id" (strings) to be excluded from analysis
       "routeInclude": [],
         // GTFS "route_id" (strings) to be included in analysis, all if empty
+      "routeOverride": {},
+        // Properties applied to routes, by GTFS "route_id" key (see docs)
       "serviceFilter": {},
         // Group services by, using service definitions (see docs)
       "servicePer": 1,
@@ -1360,19 +1375,33 @@ var gtfsToAquius = gtfsToAquius || {
       return false;
     }
 
-    if (out.config.allowName === true &&
-      out.gtfsHead.stops.stop_name !== -1
-    ) {
-      contentString = stopObject[out.gtfsHead.stops.stop_name].trim();
+    if (out.config.allowName === true) {
+      contentString = "";
+      if (stopObject[out.gtfsHead.stops.stop_id] in out.config.stopOverride &&
+        "stop_name" in out.config.stopOverride[stopObject[out.gtfsHead.stops.stop_id]]
+      ) {
+        contentString = out.config.stopOverride[stopObject[out.gtfsHead.stops.stop_id]].stop_name;
+      } else {
+        if (out.gtfsHead.stops.stop_name !== -1) {
+          contentString = stopObject[out.gtfsHead.stops.stop_name].trim();
+        }
+      }
       if (contentString !== "") {
         properties.n = contentString;
       }
     }
 
-    if (out.config.allowURL === true &&
-      out.gtfsHead.stops.stop_url !== -1
-    ) {
-      contentString = stopObject[out.gtfsHead.stops.stop_url].trim();
+    if (out.config.allowStopUrl === true) {
+      contentString = "";
+      if (stopObject[out.gtfsHead.stops.stop_id] in out.config.stopOverride &&
+        "stop_url" in out.config.stopOverride[stopObject[out.gtfsHead.stops.stop_id]]
+      ) {
+        contentString = out.config.stopOverride[stopObject[out.gtfsHead.stops.stop_id]].stop_url;
+      } else {
+        if (out.gtfsHead.stops.stop_url !== -1) {
+          contentString = stopObject[out.gtfsHead.stops.stop_url].trim();
+        }
+      }
       if (contentString !== "") {
 
         wildcard = "[*]";
@@ -1421,13 +1450,21 @@ var gtfsToAquius = gtfsToAquius || {
       }
     }
 
-    if (out.config.allowCode === true &&
-      out.gtfsHead.stops.stop_code !== -1
-    ) {
+    if (out.config.allowCode === true) {
       // Add stop code as a separate reference object
       properties = {};
-      properties.n = stopObject[out.gtfsHead.stops.stop_code].trim();
-      if (properties.n !== "") {
+      if (stopObject[out.gtfsHead.stops.stop_id] in out.config.stopOverride &&
+        "stop_code" in out.config.stopOverride[stopObject[out.gtfsHead.stops.stop_id]]
+      ) {
+        properties.n = out.config.stopOverride[stopObject[out.gtfsHead.stops.stop_id]].stop_code;
+      } else {
+        if (out.gtfsHead.stops.stop_code !== -1) {
+          properties.n = stopObject[out.gtfsHead.stops.stop_code].trim();
+        }
+      }
+      if ("n" in properties &&
+        properties.n !== ""
+      ) {
         if ("r" in out.aquius.node[index][2]) {
           if (withinKeys(properties, out.aquius.node[index][2].r) === false) {
             out.aquius.node[index][2].r.push(properties);
@@ -1463,16 +1500,14 @@ var gtfsToAquius = gtfsToAquius || {
     }
 
     if (out.gtfsHead.stops.stop_id !== -1 &&
-      stopsObject[out.gtfsHead.stops.stop_id] in out.config.stopOverride
+      stopsObject[out.gtfsHead.stops.stop_id] in out.config.stopOverride &&
+      "x" in out.config.stopOverride[stopsObject[out.gtfsHead.stops.stop_id]] &&
+      "y" in out.config.stopOverride[stopsObject[out.gtfsHead.stops.stop_id]]
     ) {
-      if ("x" in out.config.stopOverride[stopsObject[out.gtfsHead.stops.stop_id]] &&
-        "y" in out.config.stopOverride[stopsObject[out.gtfsHead.stops.stop_id]]
-      ) {
-        return [
-          parseCoord(out.config.stopOverride[stopsObject[out.gtfsHead.stops.stop_id]].x, precision),
-          parseCoord(out.config.stopOverride[stopsObject[out.gtfsHead.stops.stop_id]].y, precision)
-        ];
-      }
+      return [
+        parseCoord(out.config.stopOverride[stopsObject[out.gtfsHead.stops.stop_id]].x, precision),
+        parseCoord(out.config.stopOverride[stopsObject[out.gtfsHead.stops.stop_id]].y, precision)
+      ];
     }
 
     if (out.gtfsHead.stops.stop_lat !== -1 &&
@@ -2367,6 +2402,10 @@ var gtfsToAquius = gtfsToAquius || {
         }
       }
 
+      if (out._.trip[keys[i]].stops.length < 2) {
+        delete out._.trip[keys[i]];
+      }
+
     }
 
     delete out._.serviceDays;
@@ -2383,7 +2422,7 @@ var gtfsToAquius = gtfsToAquius || {
      * @return {object} out
      */
 
-    var contentString, position, override, reference, route, routeId, wildcard, i;
+    var contentString, color, position, override, reference, route, routeId, wildcard, i, j;
     var routeExclude = {};
     var routeInclude = {};
 
@@ -2436,11 +2475,17 @@ var gtfsToAquius = gtfsToAquius || {
         }
 
         if (out.config.allowRoute === true) {
+
           contentString = "";
 
-          if (out.gtfsHead.routes.route_short_name !== -1) {
-            contentString = route[out.gtfsHead.routes.route_short_name].trim();
-
+          if (routeId in out.config.routeOverride &&
+            "route_short_name" in out.config.routeOverride[routeId]
+          ) {
+            contentString = out.config.routeOverride[routeId].route_short_name;
+          } else {
+            if (out.gtfsHead.routes.route_short_name !== -1) {
+              contentString = route[out.gtfsHead.routes.route_short_name].trim();
+            }
             if (contentString === "" &&
               out.gtfsHead.routes.route_long_name !== -1
             ) {
@@ -2456,48 +2501,53 @@ var gtfsToAquius = gtfsToAquius || {
 
         }
 
-        if (out.config.allowColor === true &&
-          (out.gtfsHead.routes.route_color !== -1 ||
-          "route_color" in override)
-        ) {
-          if ("route_color" in override) {
-            contentString = override.route_color;
-          } else {
-            contentString = route[out.gtfsHead.routes.route_color].trim();
-          }
-          if (contentString.length === 6) {
+        if (out.config.allowColor === true) {
 
-            contentString = "#" + contentString;
-            out = addToReference(out, "color", contentString);
-            reference.c = out._.color[contentString];
-            reference.slug += contentString;
+          color = [["route_color", "c"], ["route_text_color", "t"]];
+          for (j = 0; j < color.length; j += 1) {
 
+            contentString = "";
+
+            if (routeId in out.config.routeOverride &&
+              color[j][0] in out.config.routeOverride[routeId]
+            ) {
+              contentString = out.config.routeOverride[routeId][color[j][0]];
+            } else {
+              if (color[j][0] in override) {
+               contentString = override[color[j][0]];
+              } else {
+                if (out.gtfsHead.routes[color[j][0]] !== -1) {
+                  contentString = route[out.gtfsHead.routes[color[j][0]]].trim();
+                }
+              }
+            }
+
+            if (contentString.length === 6) {
+
+              contentString = "#" + contentString;
+              out = addToReference(out, "color", contentString);
+              reference[color[j][1]] = out._.color[contentString];
+              reference.slug += contentString;
+
+            }
           }
+
         }
 
-        if (out.config.allowColor === true &&
-          (out.gtfsHead.routes.route_text_color !== -1 ||
-          "route_text_color" in override)
-        ) {
-          if ("route_text_color" in override) {
-            contentString = override.route_text_color;
+        if (out.config.allowRouteUrl) {
+
+          contentString = "";
+
+          if (routeId in out.config.routeOverride &&
+            "route_url" in out.config.routeOverride[routeId]
+          ) {
+            contentString = out.config.routeOverride[routeId].route_url;
           } else {
-            contentString = route[out.gtfsHead.routes.route_text_color].trim();
+            if(out.gtfsHead.routes.route_url !== -1 ) {
+              contentString = route[out.gtfsHead.routes.route_url].trim();
+            }
           }
-          if (contentString.length === 6) {
 
-            contentString = "#" + contentString;
-            out = addToReference(out, "color", contentString);
-            reference.t = out._.color[contentString];
-            reference.slug += contentString;
-
-          }
-        }
-
-        if (out.config.allowURL === true &&
-          out.gtfsHead.routes.route_url !== -1
-        ) {
-          contentString = route[out.gtfsHead.routes.route_url].trim();
           if (contentString !== "") {
 
             wildcard = "[*]";
@@ -3052,7 +3102,7 @@ var gtfsToAquius = gtfsToAquius || {
      * @return {object} out
      */
 
-    var centroid, checked, index, key, lastDiff, node, population, xyDiff, i, j;
+    var centroid, checked, index, key, keys, lastDiff, node, population, xyDiff, i, j;
     var centroidStack = {};
       // For efficient searching = GeojsonLine: {x, y}
     var centroidKeys = [];
@@ -3069,6 +3119,8 @@ var gtfsToAquius = gtfsToAquius || {
     var placeStack = {};
       // aquius.place: GeojsonLine:aquius.place index
     var maxPopulation = 0;
+    var removeNode = {};
+      // Index of node indices to be removed from lookup, making them invisible for links
 
     out.aquius.place = [];
       // x, y, {p: population}
@@ -3200,6 +3252,12 @@ var gtfsToAquius = gtfsToAquius || {
             }
 
           }
+        } else {
+
+          if (out.config.inGeojson === true) {
+            removeNode[nodeStack[i][1]] = "";
+          }
+
         }
       }
 
@@ -3209,6 +3267,15 @@ var gtfsToAquius = gtfsToAquius || {
         out.config.option.placeScale = Math.round((1 / (maxPopulation / 2e6)) * 1e5) / 1e5;
           // Scaled relative to 2 million maximum. Rounded to 5 decimal places
         out.aquius.option.placeScale = out.config.option.placeScale;
+      }
+      
+      if (Object.keys(removeNode).length > 0) {
+        keys = Object.keys(out._.nodeLookup);
+        for (i = 0; i < keys.length; i += 1) {
+          if (out._.nodeLookup[keys[i]] in removeNode) {
+            delete out._.nodeLookup[keys[i]];
+          }
+        }
       }
 
     }
@@ -3225,9 +3292,7 @@ var gtfsToAquius = gtfsToAquius || {
 
     var error;
 
-    if ("_" in out) {
-      delete out._;
-    }
+    delete out._;
     delete out.gtfs;
     delete out.gtfsHead;
 
@@ -3261,12 +3326,12 @@ var gtfsToAquius = gtfsToAquius || {
   out = transferStopsToNode(out);
   out = regularStopsToNode(out);
 
+  out = buildPlace(out, options);
+
   out = createServiceDays(out);
   out = createTrip(out);
   out = createRoutes(out);
   out = buildLink(out);
-
-  out = buildPlace(out, options);
 
   return exitProcess(out, options);
 }
