@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html style="height:100%;" lang="en-US">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width" />
+<style>
+body{height:100%;margin:0;color:#000}
+.wrapper{margin:0 auto;max-width:1000px}
+p{margin:1em 0.5em}
+a{color:#0366d6}
+tt{background-color:rgba(27,31,35,0.05);padding:0.2em 0.4em;border-radius:3px;font-size:85%}
+h1{font-weight:bold;font-size:200%;margin:0.5em 0.25em;border-bottom:1px solid #eaecef;padding-bottom:0.5em}
+#aquius form,#aquius p{margin:1em 0.5em}
+#aquius .aquiusOutputError{background-color:#fbb;padding:0.2em 0}
+#aquius a.aquiusDownload{appearance:button;-moz-appearance:button;-webkit-appearance:button;
+text-decoration:none;color:ButtonText;display:inline-block;padding:2px 8px;margin:0 0.2em}
+#aquius input{margin:0 0.2em}
+body,form,input,#aquius a.aquiusDownload{font:14px Arial,Helvetica,sans-serif;line-height:1.25}
+</style>
+<title>GeoJSON to Aquius</title>
+</head>
+<body>
+<div class="wrapper">
+<h1>GeoJSON to Aquius</h1>
+<div id="aquius"></div>
+<noscript>Javascript is required to use this tool.</noscript>
+<p>This tool converts geographic network data in GeoJSON format into an <a href="https://timhowgego.github.io/Aquius/#data-structure">Aquius dataset</a> file. GeoJSON lines become links, points become nodes, and boundaries become places (population). Lines must be provided, other data is optional. If points are provided, they must match the coordinates of the start of end of lines to be processed usefully. GeoJSON files must be projected using WGS 84 (which is normally the default for the format).</p>
+<p>Non-spatial data may be attached as GeoJSON properties (data columns). This data matches the <a href="https://timhowgego.github.io/Aquius/#data-structure">Aquius data structure</a> (for links and nodes respectively) except each piece of data take a GeoJSON property of its own. For example, reference items that Aquius contains within a reference object within a properties object are instead exposed as _top_ _level_ GeoJSON property. Data that is otherwise held as an Array (notably product and service keys) is instead provided in the GeoJSON as a comma-separated string. For example, a network with two service filter definitions should attach a <tt>service</tt> property to each GeoJSON line with the string value <tt>"10,20"</tt>, where 10 is the service count associated with the first filter and 20 the second filter.</p>
+<p>GeoJSON files can be crafted to match the expected property names, or bespoke names in GeoJSON files can be assigned using a <tt>config.json</tt> file, <a href="https://timhowgego.github.io/Aquius/#geojson-to-aquius">as documented</a>. The optional file <tt>config.json</tt> is also important for defining product and service filters (which are otherwise left empty), and adding other header data, such as meta names and translations.</p>
+<p>See documentation for <a href="https://timhowgego.github.io/Aquius/#geojson-to-aquius">full configuration details</a> and <a href="https://timhowgego.github.io/Aquius/#quick-setup">how to use of the output file</a>. For routine or repeat usage, the merge script can incorporated into a bespoke application which <a href="https://github.com/timhowgego/Aquius/tree/master/dist">imports the javascript</a> and calls the function <tt>geojsonToAquius.cartograph(geojson, options)</tt>, <a href="https://timhowgego.github.io/Aquius/#geojson-to-aquius">as documented</a>.</p>
+</div>
+<script src="https://timhowgego.github.io/Aquius/dist/geojson.min.js" async></script>
+<script>window.addEventListener("load",function(){geojsonToAquius.init("aquius");});</script>
+</body>
+</html>

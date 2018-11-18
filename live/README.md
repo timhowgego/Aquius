@@ -15,11 +15,17 @@
 
 [Renfe Obligación de Servicio Público](https://timhowgego.github.io/Aquius/live/renfe-osp-20-jul-2018/): As Spanish Railways above, but with custom filters for each Renfe state supported product, plus administrative boundaries.
 
-## GTFS to Aquius
+## Tools
+
+### GTFS to Aquius
 
 [GTFS to Aquius](https://timhowgego.github.io/Aquius/live/gtfs/) - Tool to convert single [General Transit Feed Specification](https://developers.google.com/transit/gtfs/reference/) files into Aquius datasets. Also see [GTFS to Aquius documentation](https://timhowgego.github.io/Aquius/#gtfs-to-aquius).
 
-## Merge Aquius
+### GeoJSON to Aquius
+
+[GeoJSON to Aquius](https://timhowgego.github.io/Aquius/live/geojson/) - Tool to create Aquius datasets from bespoke geospatial networks. Also see [GeoJSON to Aquius documentation](https://timhowgego.github.io/Aquius/#geojson-to-aquius).
+
+### Merge Aquius
 
 [Merge Aquius](https://timhowgego.github.io/Aquius/live/merge/) - Tool to merge Aquius datasets together. Also see [Merge Aquius documentation](https://timhowgego.github.io/Aquius/#merge-aquius).
 

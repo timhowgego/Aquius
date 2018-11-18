@@ -3021,10 +3021,9 @@ var gtfsToAquius = gtfsToAquius || {
     var i;
     var bounds = {};
 
-    function getCentroidFromPolygon(polygonArray) {
+    function getCentroidFromPolygon(polygonArray, bounds) {
 
       var i, j;
-      var bounds = {};
 
       if (Array.isArray(polygonArray)) {
           for (i = 0; i < polygonArray.length; i += 1) {
@@ -3076,12 +3075,12 @@ var gtfsToAquius = gtfsToAquius || {
 
       if (feature.geometry.type === "MultiPolygon") {
          for (i = 0; i < feature.geometry.coordinates.length; i += 1) {
-           bounds = getCentroidFromPolygon(feature.geometry.coordinates[i]);
+           bounds = getCentroidFromPolygon(feature.geometry.coordinates[i], bounds);
          }
       }
 
       if (feature.geometry.type === "Polygon") {
-         bounds = getCentroidFromPolygon(feature.geometry.coordinates);
+         bounds = getCentroidFromPolygon(feature.geometry.coordinates, bounds);
       }
         // Future: Extendable for other geometry types
     }
@@ -3266,6 +3265,9 @@ var gtfsToAquius = gtfsToAquius || {
       ) {
         out.config.option.placeScale = Math.round((1 / (maxPopulation / 2e6)) * 1e5) / 1e5;
           // Scaled relative to 2 million maximum. Rounded to 5 decimal places
+        if ("option" in out.aquius === false) {
+          out.aquius.option = {};
+        }
         out.aquius.option.placeScale = out.config.option.placeScale;
       }
       

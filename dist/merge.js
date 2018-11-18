@@ -1303,6 +1303,8 @@ var mergeAquius = mergeAquius || {
 
     var error;
 
+    delete out._;
+
     if (typeof options === "object" &&
       "callback" in options
     ) {

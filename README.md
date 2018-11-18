@@ -30,6 +30,7 @@ In this document:
 * [Configuration](#configuration)
 * [Here Queries](#here-queries)
 * [GTFS To Aquius](#gtfs-to-aquius)
+* [GeoJSON to Aquius](#geojson-to-aquius)
 * [Merge Aquius](#merge-aquius)
 * [Data Structure](#data-structure)
 * [License](#license)
@@ -330,7 +331,7 @@ allowRoute|boolean|true|Include route-specific short names
 allowRouteUrl|boolean|true|Include URLs for routes (can increase file size significantly unless URLs conform to logical repetitive style)
 allowSplit|boolean|true|Include trips on the same route (service period and direction) which share at least two (but not all) stop times as "split". If false, such duplicates are removed (unless cabotage)
 allowStopUrl|boolean|true|Include URLs for stops (can increase file size significantly unless URLs conform to logical repetitive style)
-coordinatePrecision|float|5|Coordinate decimal places (smaller values tend to group clusters of stops), described below
+coordinatePrecision|integer|5|Coordinate decimal places (smaller values tend to group clusters of stops), described below
 fromDate|YYYYMMDD dateString|Today|Start date for service pattern analysis (inclusive)
 inGeojson|boolean|true|If geojson boundaries are provided, only services at stops within a boundary will be analysed
 isCircular|array|[]|GTFS "route_id" (strings) to be referenced as circular. If empty (default), GTFS to Aquius follows its own logic, described below
@@ -443,6 +444,57 @@ GTFS To Aquius will attempt to assign each node (stop) to the boundary it falls 
 
 If configuration key `inGeojson` is true (the default), the entire dataset will be limited to services between stops within the GeoJSON boundaries. As currently implemented, unused nodes are retained in the Aquius output file, which may bloat its size considerably. These excess nodes can be removed by passing the output file through Merge Aquius (see below). In future, GTFS to Aquius should perform this function automatically.
 
+## GeoJSON to Aquius
+
+This tool converts geographic network data in [GeoJSON format](http://geojson.org/) into an Aquius dataset file. GeoJSON lines become Aquius links, GeoJSON points become Aquius nodes, and GeoJSON boundaries become Aquius places (population). Lines must be provided, other data is optional. If points are provided, they must match the coordinates of the start of end of lines to be processed usefully. GeoJSON files must be projected using WGS 84 (which is normally the default for the format).
+
+Non-spatial data may be attached as GeoJSON field names (technically called properties). This data typically matches the Aquius [Data Structure](#data-structure) (for links and nodes respectively), except each piece of data takes a GeoJSON field of its own. For example, data items that Aquius contains within a reference `Object` within a properties `Object` are instead exposed as _top_ _level_ GeoJSON property. Data that is otherwise held as an `Array` (notably product and service keys) is instead provided in the GeoJSON as a comma-separated string. For example, a network with two service filter definitions should attach a `service` property to each GeoJSON line with the string value `"10,20"`, where 10 is the service count associated with the first filter and 20 the second filter.
+
+GeoJSON files can be crafted to match the expected property names, or bespoke names in GeoJSON files can be assigned using a `config.json` file, as listed below. The optional file `config.json` is also important for defining product and service filters (which are otherwise left empty), and adding other header data, such as meta names and translations.
+
+Key|Type|Default|Description
+---|----|-------|-----------
+blockProperty|string|"block"|Field name in GeoJSON properties containing block
+circularProperty|string|"circular"|Field name in GeoJSON properties containing circular
+colorProperty|string|"color"|Field name in GeoJSON properties containing service color (6-hex, no hash, [as GTFS specification](https://developers.google.com/transit/gtfs/reference/#routestxt))
+coordinatePrecision|integer|5|Coordinate decimal places (as Aquius to GTFS [Coordinates](#coordinates))
+directionProperty|string|"direction"|Field name in GeoJSON properties containing direction
+inGeojson|boolean|true|If geojson boundaries are provided, only services at nodes within a boundary will be analysed
+linkNameProperty|string|"name"|Field name in GeoJSON properties containing service name
+linkUrlProperty|string|"url"|Field name in GeoJSON properties containing service url
+meta|object|{}|As [Data Structure](#data-structure) meta key
+network|object|{}|As [Data Structure](#data-structure) network key
+nodeCodeProperty|string|"code"|Field name in GeoJSON properties containing node code
+nodeNameProperty|string|"name"|Field name in GeoJSON properties containing node name
+nodeUrlProperty|string|"url"|Field name in GeoJSON properties containing node url
+option|object|{}|As [Configuration](#configuration)/[Data Structure](#data-structure) option key
+populationProperty|string|"population"|Field name in GeoJSON properties containing the number of people (or equivalent demographic statistic)
+product|Array|[]|As [Data Structure](#data-structure) network reference.product key (products in index order, referencing productProperty data)
+productProperty|string|"product"|Field name in GeoJSON properties containing product array as comma-separated string
+service|object|{}|As [Data Structure](#data-structure) service key
+serviceProperty|string|"service"|Field name in GeoJSON properties containing service array as comma-separated string
+sharedProperty|string|"shared"|Field name in GeoJSON properties containing shared product ID
+textColorProperty|string|"text"|Field name in GeoJSON properties containing service text color (6-hex, no hash, as GTFS)
+translation|object|{}|As [Configuration](#configuration)/[Data Structure](#data-structure) translation key
+
+**Caution:** Pickup, setdown, and split are not currently supported. Product and service filters are specified exactly as they appear in the output file, as described in [Data Structure](#data-structure): There is no logical processing of product and service data of the type performed by [GTFS To Aquius](#gtfs-to-aquius).
+
+This script is currently under development, requiring both features and testing, so check the output carefully. [A live demonstration is available here](https://timhowgego.github.io/Aquius/live/geojson/). Alternatively, run the `geojson.min.js` [file](https://github.com/timhowgego/Aquius/tree/master/dist) privately, either: 
+
+1. With a user interface: Within a webpage, load the script and call `geojsonToAquius.init("aquius-div-id")`, where "aquius-div-id" is the ID of an empty element on the page.
+1. From another script: Call `geojsonToAquius.cartograph(geojson, options)`. 
+
+Required value `geojson` is an `Array` consisting of GeoJSON `Object`s - the original file content already processed by `JSON.parse()`. `options` is an optional `Object` that may contain the following keys, each value itself an `Object`:
+
+* `callback` - function to receive the result, which should accept 3 `Object`: `error` (javascript Error), `output` (as returned without callback, described below), `options` (as submitted, which also allows bespoke objects to be passed through to the callback).
+* `config` - contains key:value pairs for optional configuration settings. The minimum content of `config.json` is empty, vis: `{}`. To this `Object` one or more key: value pairs may be added, as listed above.
+
+Without callback, the function returns an `Object` with possible keys:
+
+* `aquius` - as `dataObject`.
+* `config` - as `config`, but with defaults or calculated values applied.
+* `error` - `Array` of error message strings.
+
 ## Merge Aquius
 
 This tool merges Aquius dataset files into a single file. The tool cannot understand these files beyond their technical structure, so the files should be produced in a similar manner:
@@ -453,7 +505,7 @@ This tool merges Aquius dataset files into a single file. The tool cannot unders
 
 Nodes and places are grouped by shared coordinates - the number of decimal places can be set as configuration key `coordinatePrecision` (described below). Products are grouped on name - all translations must be identical. Meta, option and translation content will be copied, but cannot always be merged - configuration keys can be used to supply definitions.
 
-This script is currently under development, requiring both features and testing, so check the output carefully. [A live demonstration is available here](https://timhowgego.github.io/Aquius/live/merge/). Alternatively, run the `merge.min.js` file privately, either: 
+This script is currently under development, requiring both features and testing, so check the output carefully. [A live demonstration is available here](https://timhowgego.github.io/Aquius/live/merge/). Alternatively, run the `merge.min.js` [file](https://github.com/timhowgego/Aquius/tree/master/dist) privately, either: 
 
 1. With a user interface: Within a webpage, load the script and call `mergeAquius.init("aquius-div-id")`, where "aquius-div-id" is the ID of an empty element on the page.
 1. From another script: Call `mergeAquius.merge(input, options)`. 
@@ -465,7 +517,7 @@ Required value `input` is an `Array` consisting of one or more `dataObject` in t
 
 Key|Type|Default|Description
 ---|----|-------|-----------
-coordinatePrecision|float|5|Coordinate decimal places (as GTFS to Aquius, smaller values tend to group clusters of stops)
+coordinatePrecision|integer|5|Coordinate decimal places (as GTFS to Aquius, smaller values tend to group clusters of stops)
 meta|object|{}|As [Data Structure](#data-structure) meta key
 option|object|{}|As [Configuration](#configuration)/[Data Structure](#data-structure) option key
 translation|object|{}|As [Configuration](#configuration)/[Data Structure](#data-structure) translation key
@@ -478,11 +530,11 @@ Without callback, the function returns an `Object` with possible keys:
 
 **Caution:** Merge Aquius is intended to merge sets of files created in a similiar manner. Merging an adhoc sequence of Aquius files may appear successful, but the actual services presented may be extremely inconsistent, especially if service filters differ or different analysis periods have been used.
 
-*Tp:* The original dataset files are processed in order of filename, which allows processing order to be controlled. The product filters of first file will appear at the top of the merged product filter. The nodes in the first file will tend to hold smaller index values, which may have a small impact on final file size. The first file is the first source consulted for meta, option, translation (all unless defined by configuration), and service filter.
+*Tip:* The original dataset files are processed in order of filename, which allows processing order to be controlled. The product filters of first file will appear at the top of the merged product filter. The nodes in the first file will tend to hold smaller index values, which may have a small impact on final file size. The first file is the first source consulted for meta, option, translation (all unless defined by configuration), and service filter.
 
 ## Data Structure
 
-Aquius requires a network `dataset` JSON file to work with. The dataset file uses a custom data structure, one intended to be sufficiently compact to load quickly, and thus shorn of much human readability and structural flexibility. The dataset file will require custom pre-processing by the creator of the network. [GTFS To Aquius](#gtfs-to-aquius) is currently the only automated tool that performs this pre-processing. Aquius performs some basic checks on data integrity (of minimum types and lengths) that should catch the more heinous errors, but it is beholden on the creator of the dataset to control the quality of the data therein. JSON files must be encoded to UTF-8.
+Aquius requires a network `dataset` JSON file to work with. The dataset file uses a custom data structure, one intended to be sufficiently compact to load quickly, and thus shorn of much human readability and structural flexibility. The dataset file will require custom pre-processing by the creator of the network. [GTFS To Aquius](#gtfs-to-aquius) or [GeoJSON to Aquius](#geojson-to-aquius) can be used to automate this pre-processing. Aquius performs some basic checks on data integrity (of minimum types and lengths) that should catch the more heinous errors, but it is beholden on the creator of the dataset to control the quality of the data therein. JSON files must be encoded to UTF-8.
 
 ### Meta
 
