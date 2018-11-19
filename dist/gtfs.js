@@ -648,6 +648,8 @@ var gtfsToAquius = gtfsToAquius || {
         // As Data Structure/Configuration option key
       "populationProperty": "population",
         // Field name in GeoJSON properties containing the number of people
+      "placeNameProperty": "name",
+        // Field name in GeoJSON properties containing the name or identifier of the place
       "productOverride": {},
         // Properties applied to all links with the same product ID (see docs)
       "routeExclude": [],
@@ -3101,7 +3103,7 @@ var gtfsToAquius = gtfsToAquius || {
      * @return {object} out
      */
 
-    var centroid, checked, index, key, keys, lastDiff, node, population, xyDiff, i, j;
+    var centroid, checked, content, index, key, keys, lastDiff, node, population, xyDiff, i, j;
     var centroidStack = {};
       // For efficient searching = GeojsonLine: {x, y}
     var centroidKeys = [];
@@ -3246,6 +3248,21 @@ var gtfsToAquius = gtfsToAquius || {
                     maxPopulation = out.aquius.place[index][2].p;
                   }
                 }
+              }
+
+              if ("properties" in options.geojson.features[thisPlace] &&
+                out.config.placeNameProperty in options.geojson.features[thisPlace].properties &&
+                options.geojson.features[thisPlace].properties[out.config.placeNameProperty] !== null
+              ) {
+                content = {};
+                content.n = options.geojson.features[thisPlace].properties[out.config.placeNameProperty].trim();
+                if (content.n !== "") {
+                  if ("r" in out.aquius.place[index][2] === false) {
+                    out.aquius.place[index][2].r = [];
+                  }
+                  out.aquius.place[index][2].r.push(content);
+                }
+                
               }
 
             }

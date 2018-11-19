@@ -415,6 +415,8 @@ var geojsonToAquius = geojsonToAquius || {
         // Field name in GeoJSON properties containing node url
       "option": {},
         // As Data Structure/Configuration option key
+      "placeNameProperty": "name",
+        // Field name in GeoJSON properties containing the name or identifier of the place
       "populationProperty": "population",
         // Field name in GeoJSON properties containing the number of people (or equivalent demographic statistic)
       "product": [],
@@ -516,7 +518,7 @@ var geojsonToAquius = geojsonToAquius || {
      * @return {object} out
      */
 
-    var place, population, i, j;
+    var content, place, population, i, j;
     var maxPopulation = 0;
 
     for (i = 0; i < geojson.length; i += 1) {
@@ -543,17 +545,34 @@ var geojsonToAquius = geojsonToAquius || {
             }
 
             if ("properties" in geojson[i].features[j] &&
-              typeof geojson[i].features[j].properties === "object" &&
-              out.config.populationProperty in geojson[i].features[j].properties &&
-              geojson[i].features[j].properties[out.config.populationProperty] !== null
+              typeof geojson[i].features[j].properties === "object"
             ) {
-              population = parseFloat(geojson[i].features[j].properties[out.config.populationProperty]);
-              if (!Number.isNaN(population)) {
-                place[1].p = population;
-                if (population > maxPopulation) {
-                  maxPopulation = population;
+
+              if (out.config.populationProperty in geojson[i].features[j].properties &&
+               geojson[i].features[j].properties[out.config.populationProperty] !== null
+              ) {
+                population = parseFloat(geojson[i].features[j].properties[out.config.populationProperty]);
+                if (!Number.isNaN(population)) {
+                  place[1].p = population;
+                  if (population > maxPopulation) {
+                    maxPopulation = population;
+                  }
                 }
               }
+
+              if (out.config.placeNameProperty in geojson[i].features[j].properties &&
+               geojson[i].features[j].properties[out.config.placeNameProperty] !== null
+              ) {
+                content = {};
+                content.n = geojson[i].features[j].properties[out.config.placeNameProperty].trim();
+                if (content.n !== "") {
+                  if ("r" in place[1] === false) {
+                    place[1].r = [];
+                  }
+                  place[1].r.push(content);
+                }
+              }
+
             }
 
             out._.place.push(place);

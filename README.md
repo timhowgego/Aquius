@@ -38,11 +38,17 @@ In this document:
 
 ## User FAQ
 
-*How are services counted?* Broadly, every service leaving from a node (stop, station) within _here_ is counted once. If that service also arrives at a node within here, it is additionally counted at that node as an arrival, thus within _here_, services are summarised in both directions. Outside _here_, only services from _here_ to _there_ are summarised. Any specific local setdown and pickup conditions are taken into consideration. Services (typically trains) that split mid-journey are counted once over common sections. Individual services that combine more than one product together on the same vehicle are counted no more than once, by the longer distance component unless that has been filtered out by the choice of network.
+#### How are services counted?
 
-*How are people counted?* The population is that of the local area containing one or more nodes (stops, stations) linked to _here_ by the services shown, including the population of _here_ itself. Each node is assigned to just one such geographic area. The geography of these areas is defined by the dataset creator, but is intended to _broadly_ convey the natural catchment or hinterland of the service, and typically uses local administrative boundaries (such as districts or municipalities) to reflect local definitions of place. This population may be additionally factored by Connectivity, as described in the next paragraph.
+Broadly, every service leaving from a node (stop, station) within _here_ is counted once. If that service also arrives at a node within here, it is additionally counted at that node as an arrival, thus within _here_, services are summarised in both directions. Outside _here_, only services from _here_ to _there_ are summarised. Any specific local setdown and pickup conditions are taken into consideration. Services (typically trains) that split mid-journey are counted once over common sections. Individual services that combine more than one product together on the same vehicle are counted no more than once, by the longer distance component unless that has been filtered out by the choice of network.
 
-*What is connectivity?* Connectivity factors the population linked (as described above) by the service level linking it - every unique service linking _here_ with the local area is counted once. The Connectivity slider can be moved to reflect one of four broad service expectations, the defaults summarised in the table below (for left to right on the slider, read down the table). The slider attempts to capture broad differences in network perception, for example that 14 trains per day from London to Paris is considered a "good" service, while operating 14 daily _within_ either city would be almost imperceptible. Except for Any, which does not factor population, the precise formula is: 1 - ( 1 / (service * factor)), if the result is greater than 0, with the default factor values: 2 (long distance), 0.2 (local/interurban) and 0.02 (city). The dataset creator or host may change the factor value (see [Configuration](#configuration) key `connectivity`), but not the formula.
+#### How are people counted?
+
+The population is that of the local area containing one or more nodes (stops, stations) linked to _here_ by the services shown, including the population of _here_ itself. Each node is assigned to just one such geographic area. The geography of these areas is defined by the dataset creator, but is intended to _broadly_ convey the natural catchment or hinterland of the service, and typically uses local administrative boundaries (such as districts or municipalities) to reflect local definitions of place. This population may be additionally factored by Connectivity, as described in the next paragraph.
+
+#### What is connectivity?
+
+Connectivity factors the population linked (as described above) by the service level linking it - every unique service linking _here_ with the local area is counted once. The Connectivity slider can be moved to reflect one of four broad service expectations, the defaults summarised in the table below (for left to right on the slider, read down the table). The slider attempts to capture broad differences in network perception, for example that 14 trains per day from London to Paris is considered a "good" service, while operating 14 daily _within_ either city would be almost imperceptible. Except for Any, which does not factor population, the precise formula is: 1 - ( 1 / (service * factor)), if the result is greater than 0, with the default factor values: 2 (long distance), 0.2 (local/interurban) and 0.02 (city). The dataset creator or host may change the factor value (see [Configuration](#configuration) key `connectivity`), but not the formula.
 
 Connectivity Expectation|0% Factor Service|50% Factor Service|95% Factor Service
 ------------------------|-----------------|------------------|------------------
@@ -51,9 +57,13 @@ Long Distance|0.5|1|10
 Local/Interurban|5|10|100
 City|50|100|1000
 
-*What do the line widths and circle diameters indicate?* Links and stops are scaled by the logarithm of the service (such as total daily trains), so at high service levels the visual display is only slightly increased. Increasing the scale increases the visual distinction between service levels, but may flood the view in urban areas. The original numbers are associated reference information can be seen by clickign on the link or node. The area of each population circle is in proportion to the number of residents. The original numbers are displayed in a tooltip, visible when mousing over (or similar) the circle. The here circle defines the exact geographic area of _here_, that searched to find local stops.
+#### What do the line widths and circle diameters indicate?
 
-*How can everything be displayed?* Zoom out a lot, then click... The result may be visually hard to digest, and laggy - especially with an unfiltered network or when showing multiple map layers: Aquius wasn't really intended to display everything. Hosts can limit this behaviour (by increasing the value of [Configuration](#configuration) key `minZoom`).
+Links and stops are scaled by the logarithm of the service (such as total daily trains), so at high service levels the visual display is only slightly increased. Increasing the scale increases the visual distinction between service levels, but may flood the view in urban areas. The original numbers are associated reference information can be seen by clickign on the link or node. The area of each population circle is in proportion to the number of residents. The original numbers are displayed in a tooltip, visible when mousing over (or similar) the circle. The here circle defines the exact geographic area of _here_, that searched to find local stops.
+
+#### How can everything be displayed?
+
+Zoom out a lot, then click... The result may be visually hard to digest, and laggy - especially with an unfiltered network or when showing multiple map layers: Aquius wasn't really intended to display everything. Hosts can limit this behaviour (by increasing the value of [Configuration](#configuration) key `minZoom`).
 
 ## Quick Setup
 
@@ -110,6 +120,9 @@ Population bubbles are not necessarily centered on towns: These are typically lo
 Circular services that constitute two routes in different directions, that share some stops but not all, display with the service in both directions serving the entire shared part of the loop: Circular services that operate in both directions normally halve the total service to represent the journey possibilities either clockwise or counter-clockwise, without needing to decide which direction to travel in to reach any one stop. Circular services that take different routes depending on their direction cannot simply be halved in this manner, even over the common section, because the service level in each direction is not necessarily the same. Consequently Aquius would have to understand which direction to travel in order to reach each destination the fastest. That would be technically possible by calculating distance, but would remain prone to misinterpretation, because a service with a significantly higher service frequency in one direction might reasonably be used to make journeys round almost the entire loop, regadless of distance. The safest assumption is that services can be ridden round the loop in either direction. In practice this issue only rarely arises, [notably in Parla](https://timhowgego.github.io/Aquius/live/es-rail-20-jul-2018/#x-3.76265/y40.23928/z14/c-3.7669/k40.2324/m10/s5/vlphn/n2).
 
 Passenger journey opportunities are not always accurately presented where pickup/setdown restrictions apply, and multiple nodes on the same service are included within _here_: Assuming the dataset is correctly structured (see `link` property `block` in the [Data Structure](#data-structure)), Aquius should always count services accurately at each node and on each link. However the combination may be visually misleading, perhaps suggesting a link between nodes which are actually being counted only in regard to travel to destinations further along the route. The underlying problem lay in cabotage restrictions: Routes where pickup and setdown criteria vary depending on the passenger journey being undertaken, not the vehicle journey. This poses a logical problem for Aquius, since it needs to both display the links from each separate node and acknowledge that these separate links are provided by the exact same vehicle journey.
+
+Link (route), node (stop), place names cannot be localised: Most text within Aquius can be localised (translated), but nodes, places and routes cannot. Many different names can be assigned to the same thing, so multiple languages are supported. But these have no language identifier, so cannot be matched to the user's locale setting. This is compromise between dataset filesize (nodes names, in particular, often bloat files, and even adding a localisation key to single names would tend to increase that bloat by about 50%), practical reality (few agencies provide multilingual information in a structured format, often opting for standard names such as "oneLanguage | anotherLanguage"), and the importance of this information within Aquius (which is strictly secondary reference information).
+
 
 ## Configuration
 
@@ -270,6 +283,7 @@ Possible `options`:
 * `connectivity` - `float` factor applied to weight population by service level: population * ( 1 - ( 1 / (service * connectivity))), if result is greater than zero. If `connectivity` is missing or less than or equal to 0, population is not factored. The user interface calculates `connectivity` as: configuration.connectivity * ( 2 / ( power(10, configuration.p) / 10 )), producing factors 2, 0.2, and 0.02 - broadly matching long distance, local/inter-urban and city expectations.
 * `geoJSON` - `Array` of strings describing map layers to be outputted in GeoJSON format ("here", "link", "node" and/or "place").
 * `network` - `integer` index of network to filter by.
+* `place` - `Array` of `integer` dataObject `place` indices to define _here_ (in addition to any range/x/y criteria). Place-based criteria do not currently not return a specific geographic feature equivalent of here.
 * `range` - `float` distance from _here_ to be searched for nodes, in metres.
 * `sanitize` - `boolean` check data integrity. Checks occur unless set to `false`. Repeat queries with the same dataObject can safely set sanitize to false.
 * `service` - `integer` index of service to filter by.
@@ -286,8 +300,9 @@ If `geoJSON` is specified a GeoJSON-style Object with a `FeatureCollection` is r
 * `value` - numeric value associated with each (such as daily services or resident population).
 * `node` - array of reference data objects relating to the node itself.
 * `link` - array of reference data objects relating to the links at the node, or the links contained on the line.
+* `place` - array of reference data objects relating to the place itself.
 
-The information contained within keys `node` and `link` is that otherwise displayed in popup boxes when clicking on nodes or links in the map view. The existence of keys `node` and `link` will depend on the dataset. The potential format of the objects that described for the `reference` property of `node` and `link` in the [Data Structure](#data-structure).
+The information contained within keys `node` and `link` is that otherwise displayed in popup boxes when clicking on nodes or links in the map view. The existence of keys `node`, `link` and `place` will depend on the dataset. The potential format of the objects within `reference` property of `node`, `link` and `place` are described in the [Data Structure](#data-structure).
 
 Otherwise the JSON-like Object will contain `summary`, is an Object containing link, node and place totals, and geometry for `here`, `link`, `node` and `place`. Each geometry key contains an Array of features, where each feature is an Object with a key `value` (the associated numeric value, such as number of services) and either `circle` (here, node, place) or `polyline` (link). Circles consist of an Array containing a single x, y pair of WGS 84 coordinates. Polylines consist of an Array of Arrays in route order, each child Array containing a similar pair of x, y coordinates. The (sanitized) `dataObject` will also be returned as a key, allowing subsequent queries with the returned dataObject to be passed with `sanitize` false, which speeds up the query slighty.
 
@@ -338,6 +353,7 @@ isCircular|array|[]|GTFS "route_id" (strings) to be referenced as circular. If e
 meta|object|{"schema": "0"}|As [Data Structure](#data-structure) meta key
 networkFilter|object|{"type": "agency"}|Group services by, using network definitions, detailed below
 option|object|{}|As [Configuration](#configuration)/[Data Structure](#data-structure) option key
+placeNameProperty|string|"name"|Field name in GeoJSON properties containing the name or identifier of the place
 populationProperty|string|"population"|Field name in GeoJSON properties containing the number of people (or equivalent demographic statistic)
 productOverride|object|{}|Properties applied to all links with the same product ID, detailed below
 routeExclude|array|[]|GTFS "route_id" (strings) to be excluded from analysis
@@ -448,7 +464,7 @@ If configuration key `inGeojson` is true (the default), the entire dataset will 
 
 This tool converts geographic network data in [GeoJSON format](http://geojson.org/) into an Aquius dataset file. GeoJSON lines become Aquius links, GeoJSON points become Aquius nodes, and GeoJSON boundaries become Aquius places (population). Lines must be provided, other data is optional. If points are provided, they must match the coordinates of the start of end of lines to be processed usefully. GeoJSON files must be projected using WGS 84 (which is normally the default for the format).
 
-Non-spatial data may be attached as GeoJSON field names (technically called properties). This data typically matches the Aquius [Data Structure](#data-structure) (for links and nodes respectively), except each piece of data takes a GeoJSON field of its own. For example, data items that Aquius contains within a reference `Object` within a properties `Object` are instead exposed as _top_ _level_ GeoJSON property. Data that is otherwise held as an `Array` (notably product and service keys) is instead provided in the GeoJSON as a comma-separated string. For example, a network with two service filter definitions should attach a `service` property to each GeoJSON line with the string value `"10,20"`, where 10 is the service count associated with the first filter and 20 the second filter.
+Non-spatial data may be attached as GeoJSON field names (technically called properties). This data typically matches the Aquius [Data Structure](#data-structure) (for links and nodes respectively), except each piece of data takes a GeoJSON field of its own. For example, data items that Aquius contains within a reference `Object` within a properties `Object` are instead exposed as a _top_ _level_ GeoJSON property. Data that is otherwise held as an `Array` (notably product and service keys) is instead provided in the GeoJSON as a comma-separated `string`. For example, a network with two service filter definitions should attach a `service` property to each GeoJSON line with the string value `"10,20"`, where 10 is the service count associated with the first filter and 20 the second filter.
 
 GeoJSON files can be crafted to match the expected property names, or bespoke names in GeoJSON files can be assigned using a `config.json` file, as listed below. The optional file `config.json` is also important for defining product and service filters (which are otherwise left empty), and adding other header data, such as meta names and translations.
 
@@ -468,13 +484,14 @@ nodeCodeProperty|string|"code"|Field name in GeoJSON properties containing node 
 nodeNameProperty|string|"name"|Field name in GeoJSON properties containing node name
 nodeUrlProperty|string|"url"|Field name in GeoJSON properties containing node url
 option|object|{}|As [Configuration](#configuration)/[Data Structure](#data-structure) option key
+placeNameProperty|string|"name"|Field name in GeoJSON properties containing the name or identifier of the place
 populationProperty|string|"population"|Field name in GeoJSON properties containing the number of people (or equivalent demographic statistic)
 product|Array|[]|As [Data Structure](#data-structure) network reference.product key (products in index order, referencing productProperty data)
 productProperty|string|"product"|Field name in GeoJSON properties containing product array as comma-separated string
 service|object|{}|As [Data Structure](#data-structure) service key
 serviceProperty|string|"service"|Field name in GeoJSON properties containing service array as comma-separated string
 sharedProperty|string|"shared"|Field name in GeoJSON properties containing shared product ID
-textColorProperty|string|"text"|Field name in GeoJSON properties containing service text color (6-hex, no hash, as GTFS)
+textColorProperty|string|"text"|Field name in GeoJSON properties containing service text color (6-hex, no hash, [as GTFS specification](https://developers.google.com/transit/gtfs/reference/#routestxt))
 translation|object|{}|As [Configuration](#configuration)/[Data Structure](#data-structure) translation key
 
 **Caution:** Pickup, setdown, and split are not currently supported. Product and service filters are specified exactly as they appear in the output file, as described in [Data Structure](#data-structure): There is no logical processing of product and service data of the type performed by [GTFS To Aquius](#gtfs-to-aquius).
@@ -718,6 +735,7 @@ The `place` key has a similar structure to `node` above - each place an `Array` 
 Optional `properties` keys are:
 
 * `population` or `p` - `integer` total resident population, or equivalent statistic (recommended).
+* `reference` or `r` - `Array` containing one or more `Object` of descriptive data associated with the place. The only supported key is `n` - short name or human-readable reference code.
 
 *Tip:* For bespoke analysis, the population can be hacked for any geospatial data that sums.
 
@@ -726,6 +744,7 @@ Optional `properties` keys are:
 Aquius, with no dataset, is freely reusable and modifiable under a [MIT License](https://opensource.org/licenses/MIT).
 
 [Dataset](https://github.com/timhowgego/AquiusData) copyright will differ, and no licensing guarantees can be given unless made explicit by all entities represented within the dataset. Be warned that no protection is afforded by the _logical nonsense_ of a public transport operator attempting to deny the public dissemination of their public operations. Nor should government-owned companies or state concessionaires be naively presumed to operate in some kind of public domain. Railways, in particular, can accumulate all manner of arcane legislation and strategic national paranoias. In the era of Google many public transport operators have grown less controlling of their information channels, but some traditional entities, [such as Renfe](https://www.elconfidencial.com/espana/madrid/2018-07-17/transparencia-retrasos-cercanias-madrid_1593408/), are not yet beyond claiming basic observable information to be a trade secret. Your mileage may vary.
+
 
 ## Contributing
 

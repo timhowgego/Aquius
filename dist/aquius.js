@@ -1917,7 +1917,7 @@ var aquius = aquius || {
      * @param {object} configOptions
      */
 
-    var geometry, keyName, panelDOM, statName, scale, i, j;
+    var geometry, keyName, panelDOM, placeName, statName, scale, tooltip, i, j;
     var layerNames = getLayerNames(configOptions);
 
     for (i = 0; i < layerNames.length; i += 1) {
@@ -1962,6 +1962,24 @@ var aquius = aquius || {
           configOptions._here.place[i].circle.length > 1
         ) {
 
+          tooltip = Math.round(configOptions._here.place[i].value).toString() + " " + statName;
+            // Place is a tooltip, not popup, to allow easier configOptions._here clicks
+          if ("place" in configOptions._here.place[i] &&
+            Array.isArray(configOptions._here.place[i].place)
+          ) {
+            placeName = [];
+            for (j = 0; j < configOptions._here.place[i].place.length; j += 1) {
+              if (typeof configOptions._here.place[i].place[j] === "object" &&
+                "n" in configOptions._here.place[i].place[j]
+              ) {
+                placeName.push(configOptions._here.place[i].place[j].n);
+              }
+            }
+            if (placeName.length > 0) {
+              tooltip += " (" + placeName.join(", ") + ")";
+            }
+          }
+          
           configOptions.leaflet.circleMarker(configOptions.leaflet.latLng([
             configOptions._here.place[i].circle[1],
             configOptions._here.place[i].circle[0]
@@ -1972,8 +1990,7 @@ var aquius = aquius || {
             "radius": Math.ceil(Math.sqrt(configOptions._here.place[i].value * scale)),
             "stroke": false
           })
-          .bindTooltip(Math.round(configOptions._here.place[i].value).toString() + " " + statName)
-            // Place is a tooltip, not popup, to allow easier configOptions._here clicks
+          .bindTooltip(tooltip)
           .addTo(configOptions._layer.place);
 
         }
@@ -2195,8 +2212,8 @@ var aquius = aquius || {
    * Here Query. May be called independently
    * @param {Object} dataObject - as init() option dataObject
    * @param {Object} options -  callback:function(error, output, options), connectivity:factor, 
-   *   geoJSON:array layernames, network:network index, range:metres-from-center, sanitize:boolean,
-   *   service:service index, x:center-longitude, y:center-latitude
+   *   geoJSON:array layernames, network:network index, place:array placeIndices, range:metres-from-center,
+   *   sanitize:boolean, service:service index, x:center-longitude, y:center-latitude
    * @return {Object} key:values or callback
    */
   "use strict";
@@ -2378,10 +2395,20 @@ var aquius = aquius || {
           "x" in options === false ||
           "y" in options === false ||
           options.range >=
-            haversineDistance(options.y, options.x, raw.dataObject.node[i][1], raw.dataObject.node[i][0]))
+            haversineDistance(options.y, options.x, raw.dataObject.node[i][1], raw.dataObject.node[i][0])) &&
+          ("place" in options === false ||
+          !Array.isArray(options.place) ||
+          ("p" in raw.dataObject.node[i][2] === false &&
+          "place" in raw.dataObject.node[i][2] === false) ||
+          ("p" in raw.dataObject.node[i][2] &&
+          options.place.indexOf(raw.dataObject.node[i][2].p) !== -1) ||
+          ("place" in raw.dataObject.node[i][2] &&
+          options.place.indexOf(raw.dataObject.node[i][2].place) !== -1)
+          )
         ) {
           linkChecks.here[i] = i;
         }
+        
       }
 
       if ("service" in options &&
@@ -3233,6 +3260,9 @@ var aquius = aquius || {
               if ("node" in raw[geoJSON[i]][j]) {
                 properties.node = raw[geoJSON[i]][j].node;
               }
+              if ("place" in raw[geoJSON[i]][j]) {
+                properties.place = raw[geoJSON[i]][j].place;
+              }
               geojsonObject.features.push({
                 "type": "Feature",
                 "geometry": geometry,
@@ -3294,7 +3324,7 @@ var aquius = aquius || {
 
     function addPlace(raw, options) {
 
-      var keys, population, i;
+      var geometry, keys, population, i;
 
       raw.place = [];
 
@@ -3323,13 +3353,22 @@ var aquius = aquius || {
 
               if (population > 0) {
                 raw.summary.place += population;
-                raw.place.push({
+                
+                geometry = {
                   "circle": [
                     raw.dataObject.place[keys[i]][0],
                     raw.dataObject.place[keys[i]][1]
                   ],
                   "value": population
-                });
+                };
+                if ("r" in raw.dataObject.place[keys[i]][2]) {
+                  geometry.place = raw.dataObject.place[keys[i]][2].r;
+                } else {
+                  if ("reference" in raw.dataObject.place[keys[i]][2]) {
+                    geometry.place = raw.dataObject.place[keys[i]][2].reference;
+                  }
+                }
+                raw.place.push(geometry);
               }
 
             }
