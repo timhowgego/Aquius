@@ -2455,11 +2455,13 @@ var aquius = aquius || {
       // Any share must not be included as parent
 
       if ("h" in linkPropertiesObject &&
+        "product" in linkChecks &&
         linkPropertiesObject.h in linkChecks.product
       ) {
         return false;
       }
       if ("shared" in linkPropertiesObject &&
+        "product" in linkChecks &&
         linkPropertiesObject.shared in linkChecks.product
       ) {
         return false;
@@ -3181,7 +3183,6 @@ var aquius = aquius || {
     }
 
     raw = buildLinkFromMatrix(raw, buildODMatrix(raw.serviceLink));
-    delete raw.serviceLink;
 
     return raw;
   }
@@ -3317,8 +3318,6 @@ var aquius = aquius || {
         }
       }
 
-      delete raw.serviceNode;
-
       return raw;
     }
 
@@ -3377,8 +3376,6 @@ var aquius = aquius || {
         }
       }
 
-      delete raw.connect;
-
       return raw;
     }
 
@@ -3402,6 +3399,16 @@ var aquius = aquius || {
      * @param {object} options
      * @return {object} raw or callback
      */
+
+    var i;
+    var cleanup = ["connect", "serviceNode", "serviceLink"];
+
+    for (i = 0; i < cleanup.length; i += 1) {
+      if (cleanup[i] in raw) {
+        delete raw[cleanup[i]];
+      }
+    }
+
     if (typeof error === "undefined" &&
       "error" in raw
     ) {
