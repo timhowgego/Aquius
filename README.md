@@ -4,14 +4,18 @@
 
 ## Description
 
-[![Aquius at Ciudad Real](static/aquius-ciudad-real.jpg)](https://timhowgego.github.io/Aquius/live/es-rail-20-jul-2018/#x-3.296/y39.092/z7/c-3.966/k38.955/m8/s7/vlphn)
+[![Aquius at Ciudad Real](https://timhowgego.github.io/Aquius/static/aquius-ciudad-real.jpg)](https://timhowgego.github.io/Aquius/live/es-rail-20-jul-2018/#x-3.296/y39.092/z7/c-3.966/k38.955/m8/s7/vlphn)
 
 Aquius visualises the links between people that are made possible by transport networks. The user clicks once on a location, and near-instantly all the routes, stops, services, and connected populations are summarised visually. Aquius answers the question, what services are available _here_? And to a degree, who am I connected to by those services? Population is a proxy for all manner of socio-economic activity and facilities, measured both in utility and in perception. Conceptually Aquius is half-way between the two common approaches to public transport information:
 
 1. Conventional journey planners are aimed at users that already have some understanding of what routes exist. Aquius summarises overall service patterns.
 1. Most network maps are pre-defined and necessarily simplified, typically showing an entire city or territory. Aquius relates to a bespoke location.
 
-The application makes no server queries (once the initial dataset has been loaded), so responds near-instantly. That speed allows network discovery by trial and error, which changes the user dynamic from _being told_, to playful learning. Some caveats:
+The application makes no server queries (once the initial dataset has been loaded), so responds near-instantly. That speed allows network discovery by trial and error, which changes the user dynamic from _being told_, to playful learning. Aquius can be configured to locate stops and services very precisely, or to summarise networks strategically. Aquius can even allow proposed route and service changes to be rapidly visualised and assessed in context, prior to any detailed scheduling or modelling.
+
+[![Aquius at Torrassa with Barcelona Metro Line 9/10 Connection](https://timhowgego.github.io/Aquius/static/aquius-barcelona-l9-l10.jpg)](https://timhowgego.github.io/Aquius/live/amb-vortex-2018/#c2.11985/k41.36972/m13/x2.153/y41.3832/z12/p2/r2/s3/tca-ES)
+
+Some caveats:
 
 * Aquius maps straight-line links, not the precise geographic route taken. This allows services that do not stop at all intermediate stops to be clearly differentiated. It also makes it technically possible for an internet client to work with a large transport network. Aquius is however limited conventional scheduled public transport with fixed stopping points.
 * Aquius summarises the patterns of fixed public transport networks. It presumes a degree of network stability over time, and cannot sensibly be used to describe a transport network that is in constant flux. The Aquius data structure allows filtering by time period, but such periods must be pre-defined and cannot offer the same precision as schedule-based systems.
@@ -121,7 +125,7 @@ Circular services that constitute two routes in different directions, that share
 
 Passenger journey opportunities are not always accurately presented where pickup/setdown restrictions apply, and multiple nodes on the same service are included within _here_: Assuming the dataset is correctly structured (see `link` property `block` in the [Data Structure](#data-structure)), Aquius should always count services accurately at each node and on each link. However the combination may be visually misleading, perhaps suggesting a link between nodes which are actually being counted only in regard to travel to destinations further along the route. The underlying problem lay in cabotage restrictions: Routes where pickup and setdown criteria vary depending on the passenger journey being undertaken, not the vehicle journey. This poses a logical problem for Aquius, since it needs to both display the links from each separate node and acknowledge that these separate links are provided by the exact same vehicle journey.
 
-Link (route), node (stop), place names cannot be localised: Most text within Aquius can be localised (translated), but nodes, places and routes cannot. Many different names can be assigned to the same thing, so multiple languages are supported. But these have no language identifier, so cannot be matched to the user's locale setting. This is compromise between dataset filesize (nodes names, in particular, often bloat files, and even adding a localisation key to single names would tend to increase that bloat by about 50%), practical reality (few agencies provide multilingual information in a structured format, often opting for standard names such as "oneLanguage / anotherLanguage"), and the importance of this information within Aquius (which is strictly secondary reference information).
+Link (route), node (stop), place names cannot be localised: Most text within Aquius can be localised (translated), but nodes, places and routes cannot. Many different references can be assigned to the same thing, so multiple languages are supported. But these have no language identifier, so cannot be matched to the user's locale setting. This is compromise between dataset filesize (nodes names, in particular, often bloat files, and even adding a localisation key to single names would tend to increase that bloat by about 50%), practical reality (few agencies provide multilingual information in a structured format, often opting for single names such as "oneLanguage / anotherLanguage"), and the importance of this information within Aquius (strictly secondary reference information).
 
 
 ## Configuration

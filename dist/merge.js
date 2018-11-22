@@ -1213,9 +1213,10 @@ var mergeAquius = mergeAquius || {
 
       for (i = 0; i < dataObject.network.length; i += 1) {
         if (Array.isArray(dataObject.network[i]) &&
-          dataObject.network[i].length >= 2 &&
+          dataObject.network[i].length > 2 &&
           Array.isArray(dataObject.network[i][0]) &&
-          typeof dataObject.network[i][1] === "object"
+          typeof dataObject.network[i][1] === "object" &&
+          typeof dataObject.network[i][2] === "object"
         ) {
           index = propertyCheck(out.aquius.network, dataObject.network[i]);
             // Checks names and extension objects, not filter indices

@@ -466,7 +466,7 @@ var gtfsToAquius = gtfsToAquius || {
           if (out.summary.service[i] === undefined) {
             tableData.push([i, "-", ""]);
           } else {
-            tableData.push([i, (out.summary.service[i] * 100).toFixed(1),
+            tableData.push([i, (out.summary.service[i] * 100).toFixed(2),
               createElement("span", {}, {
                 "background-color": "#000",
                 "display": "inline-block",

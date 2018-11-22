@@ -1,6 +1,7 @@
 /*eslint-env browser*/
 /*global aquius*/
 
+
 var geojsonToAquius = geojsonToAquius || {
 /**
  * @namespace GeoJSON to Aquius
@@ -1053,7 +1054,7 @@ var geojsonToAquius = geojsonToAquius || {
      * @return {object} out
      */
 
-    var bounds, inPlace, key, i;
+    var bounds, inPlace, key, properties, i;
 
     function getCentroidFromPolygon(polygonArray, bounds) {
       // Function from GTFS
@@ -1133,16 +1134,20 @@ var geojsonToAquius = geojsonToAquius || {
       out.configinGeojson === false
     ) {
       // Add node
-      if (inPlace !== -1) {
-        out._.node[key][2].p = out._.placeLookup[inPlace];
-      }
       if ("node" in out.aquius === false) {
         out.aquius.node = [];
       }
       if (key in out._.node) {
+        if (inPlace !== -1) {
+          out._.node[key][2].p = out._.placeLookup[inPlace];
+        }
         out.aquius.node.push(out._.node[key]);
       } else {
-        out.aquius.node.push([x, y, {}]);
+        properties = {};
+        if (inPlace !== -1) {
+          properties.p = out._.placeLookup[inPlace];
+        }
+        out.aquius.node.push([x, y, properties]);
           // Node may be defined only by line geometry, but has no associated data
       }
       out._.nodeLookup[key] = out.aquius.node.length - 1;
