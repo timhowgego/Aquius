@@ -630,6 +630,8 @@ var gtfsToAquius = gtfsToAquius || {
         // Include stop URLs (increases file size)
       "coordinatePrecision": 5,
         // Coordinate decimal places (smaller values tend to group clusters of stops)
+      "duplicationRouteOnly": true,
+        // Restrict duplications check to services on the same route
       "fromDate": formatGtfsDate(Date.now()),
         // Start date for service pattern analysis (inclusive)
       "inGeojson": true,
@@ -809,7 +811,7 @@ var gtfsToAquius = gtfsToAquius || {
           match = "";
         }
 
-        line.push(match);
+        line.push(match.trim());
         matches = pattern.exec(csv[i]);
       }
 
@@ -899,7 +901,8 @@ var gtfsToAquius = gtfsToAquius || {
         "route_id": -1,
         "service_id": -1,
         "trip_headsign": -1,
-        "trip_id": -1
+        "trip_id": -1,
+        "trip_short_name": -1
       }
     };
 
@@ -2016,8 +2019,8 @@ var gtfsToAquius = gtfsToAquius || {
      * @return {object} out
      */
 
-    var arrive, depart, duplicateCheck, frequencies, key, keys, headsign, hour, inPeriod, nextB, node,
-      scheduled, stopObject, testDuplicate, time, timeCache, tripId, tripObject, i, j, k;
+    var arrive, depart, duplicateCheck, frequencies, key, keys, headsign, hour, inPeriod, lastDepart, nextB,
+      node, scheduled, stopObject, testDuplicate, time, times, timeCache, tripId, tripObject, i, j, k;
 
     function createFrequencies(out) {
 
@@ -2186,6 +2189,11 @@ var gtfsToAquius = gtfsToAquius || {
           out.gtfsHead.trips.trip_headsign !== -1
         ) {
           headsign = tripObject[out.gtfsHead.trips.trip_headsign].trim();
+          if (headsign === "" &&
+            out.gtfsHead.trips.trip_short_name !== -1
+          ) {
+            headsign = tripObject[out.gtfsHead.trips.trip_short_name].trim();
+          }
           if (headsign !== "" ) {
             out._.trip[tripId].reference = {
               "n": headsign,
@@ -2205,13 +2213,14 @@ var gtfsToAquius = gtfsToAquius || {
     } else {
       testDuplicate = true;
       duplicateCheck = {};
-        // node:a:d:route:service:direction key
+        // node:time:service:direction(:route) key
     }
 
     keys = Object.keys(out.gtfs.stop_times);
     for (i = 0; i < keys.length; i += 1) {
 
       tripId = keys[i];
+      lastDepart = null;
 
       for (j = 0; j < out.gtfs.stop_times[keys[i]].length; j += 1) {
 
@@ -2278,19 +2287,57 @@ var gtfsToAquius = gtfsToAquius || {
               out._.trip[tripId].pickup.push(out._.nodeLookup[stopObject[out.gtfsHead.stop_times.stop_id]]);
             }
 
-            if (testDuplicate &&
-              arrive !== 0 &&
-              depart !== 0
-            ) {
-              key = [node, arrive, depart, out._.trip[tripId].route_id,
-                out._.trip[tripId].service_id, out._.trip[tripId].direction_id].join(":");
-              if (key in duplicateCheck) {
-                if ("dup" in out._.trip[tripId] === false) {
-                  out._.trip[tripId].dup = {"trip_id": duplicateCheck[key], "stops": []};
+            if (testDuplicate) {
+              times = [];
+
+              if (arrive !== 0 ||
+                depart !== 0
+              ) {
+                times.push([node, arrive, depart].join(":"));
+              }
+
+              // Also keys for each time, since at nodes where joins occurs, only one time is shared
+              // with second value = previous (for arrive) or next (for depart) node
+              if (arrive !== 0 &&
+                out._.trip[tripId].stops.length > 1
+              ) {
+                times.push([node, arrive, out._.trip[tripId].stops[out._.trip[tripId].stops.length - 1]].join(":"));
+              }
+
+              // Departure needs next node, so offset by 1 position in stop_times loop
+              if (lastDepart !== null) {
+                // This position in loop evalulates previous
+                times.push([lastDepart, node].join(":"));
+              }
+
+              for (k = 0; k < times.length; k += 1) {
+                key = [times[k], out._.trip[tripId].service_id, out._.trip[tripId].direction_id];
+                // @todo Same service days logic. use actual days operated.
+                // based on? out._.serviceDays[tripObject[out.gtfsHead.trips.service_id]].join(":")
+                if (out.config.duplicationRouteOnly) {
+                  key.push(out._.trip[tripId].route_id);
                 }
-                out._.trip[tripId].dup.stops.push(node);
+                key = key.join(":");
+                if (key in duplicateCheck) {
+                  if ("dup" in out._.trip[tripId] === false) {
+                    out._.trip[tripId].dup = {"trip_id": duplicateCheck[key], "stops": []};
+                  }
+                  if (out._.trip[tripId].dup.stops.length === 0 ||
+                    out._.trip[tripId].dup.stops.indexOf(node) === -1
+                  ) {
+                    // Infrequently used indexOf
+                    out._.trip[tripId].dup.stops.push(node);
+                  }
+                } else {
+                  duplicateCheck[key] = tripId;
+                }
+              }
+
+              if (depart !== 0) {
+                // Setup next in loop
+                lastDepart = [node, depart].join(":");
               } else {
-                duplicateCheck[key] = tripId;
+                lastDepart = null;
               }
             }
 
@@ -2387,15 +2434,16 @@ var gtfsToAquius = gtfsToAquius || {
             ) {
               out._.trip[keys[i]].t = [];
               for (j = 0; j < out._.trip[keys[i]].stops.length; j += 1) {
-                if (out._.trip[keys[i]].dup.stops.indexOf(out._.trip[keys[i]].stops[j]) === -1) {
+                if (out._.trip[keys[i]].dup.stops.indexOf(out._.trip[keys[i]].stops[j][1]) === -1) {
                   // IndexOf unlikely to be used frequently or on long arrays
-                  out._.trip[keys[i]].t.push(out._.trip[keys[i]].stops[j]);
+                  out._.trip[keys[i]].t.push(out._.trip[keys[i]].stops[j][1]);
                 }
               }
               delete out._.trip[keys[i]].dup;
             } else {
               if (out.config.allowDuplication === false) {
-                delete out._.trip[keys[i]].dup;
+                delete out._.trip[keys[i]];
+                // Future: Logically should be treated as shared, but pointless if same product
               }
             }
           }
@@ -2404,7 +2452,9 @@ var gtfsToAquius = gtfsToAquius || {
         }
       }
 
-      if (out._.trip[keys[i]].stops.length < 2) {
+      if (keys[i] in out._.trip &&
+        out._.trip[keys[i]].stops.length < 2
+      ) {
         delete out._.trip[keys[i]];
       }
 
@@ -2918,6 +2968,9 @@ var gtfsToAquius = gtfsToAquius || {
       }
       if ("b" in thisLink) {
         line[3].b = thisLink.b;
+      }
+      if ("t" in thisLink) {
+        line[3].t = thisLink.t;
       }
 
       out.aquius.link.push(line);
