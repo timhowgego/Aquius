@@ -309,7 +309,7 @@ var gtfsToAquius = gtfsToAquius || {
      * @param {object} options - as sent, including _vars
      */
 
-    var caption, keys, maxService, tableData, tableFormat, tableHeader, zeroCoord, i;
+    var caption, keys, tableData, tableFormat, tableHeader, tableRow, zeroCoord, i, j;
     var vars = options._vars;
     var fileDOM = document.getElementById(vars.configId + "ImportFiles");
     var outputDOM = document.getElementById(vars.configId + "Output");
@@ -446,41 +446,57 @@ var gtfsToAquius = gtfsToAquius || {
     }
 
     if ("summary" in out &&
-      "service" in out.summary
+      "service" in out.summary &&
+      out.summary.service.length > 0
     ) {
 
-      maxService = 0;
+      tableHeader = ["Hour"];
+      tableFormat = [vars.configId + "Text"];
 
-      for (i = 0; i < out.summary.service.length; i += 1) {
-        if (out.summary.service[i] !== undefined &&
-          out.summary.service[i] > maxService
-        ) {
-          maxService = out.summary.service[i];
+      if ("service" in out.aquius === false ||
+        out.aquius.service.length === 0
+      ) {
+        tableHeader.push("All")
+        tableFormat.push(vars.configId + "Number");
+      } else {
+        for (i = 0; i < out.aquius.service.length; i += 1) {
+          if ("en-US" in out.aquius.service[i][1]) {
+            tableHeader.push(out.aquius.service[i][1]["en-US"]);
+          } else {
+            tableHeader.push(JSON.stringify(out.aquius.service[i][1]));
+          }
+          tableFormat.push(vars.configId + "Number");
         }
       }
 
-      if (maxService > 0) {
-
-        tableData = [];
-        for (i = 0; i < out.summary.service.length; i += 1) {
-          if (out.summary.service[i] === undefined) {
-            tableData.push([i, "-", ""]);
+      tableData = [];
+      for (i = 0; i < out.summary.service.length; i += 1) {
+        tableRow = [i];
+        if (out.summary.service[i] === undefined) {
+          if ("service" in out.aquius === false ||
+            out.aquius.service.length === 0
+          ) {
+            tableRow.push("-");
           } else {
-            tableData.push([i, (out.summary.service[i] * 100).toFixed(2),
-              createElement("span", {}, {
-                "background-color": "#000",
-                "display": "inline-block",
-                "height": "7px",
-                "width": Math.round((out.summary.service[i] / maxService) * 100) + "%"
-              })]);
+            for (j = 0; j < out.aquius.service.length; j += 1) {
+              tableRow.push("-");
+            }
+          }
+        } else {
+          for (j = 0; j < out.summary.service[i].length; j += 1) {
+            if (out.summary.service[i][j] > 0) {
+              tableRow.push((out.summary.service[i][j] * 100).toFixed(2));
+            } else {
+              tableRow.push("-");
+            }
           }
         }
-
-        outputDOM.appendChild(createTabulation(tableData, ["Hour", "% Service", "Histogram"],
-          [vars.configId + "Number", vars.configId + "Number", vars.configId + "Histogram"],
-          caption + " by Hour (scheduled only)"));
-          
+        tableData.push(tableRow);
       }
+
+      outputDOM.appendChild(createTabulation(tableData, tableHeader,
+        tableFormat, caption + " % by Hour (scheduled only)"));
+
     }
   }
 
@@ -608,7 +624,7 @@ var gtfsToAquius = gtfsToAquius || {
 
     var i;
     var defaults = {
-      "allowCabotage": true,
+      "allowCabotage": false,
         // Process duplicate vehicle trips with varying pickup/setdown restrictions as cabotage (see docs)
       "allowCode": true,
         // Include public stop codes in node references
@@ -624,7 +640,7 @@ var gtfsToAquius = gtfsToAquius || {
         // Include route-specific short names
       "allowRouteUrl": true,
         // Include service URLs (increases file size)
-      "allowSplit": true,
+      "allowSplit": false,
         // Count trips on the same route which share at least two, but not all, stop times as "split" at their unique stops
       "allowStopUrl": true,
         // Include stop URLs (increases file size)
@@ -1748,244 +1764,6 @@ var gtfsToAquius = gtfsToAquius || {
     return out;
   }
 
-  function createServiceDays(out) {
-    /**
-     * Adds out._.serviceDays GTFS service_id: [total days, by serviceFilter index position]
-     * @param {object} out
-     * @return {object} out
-     */
-
-    var dates, dayCount, endToDateMS, keys, serviceDaysCount, serviceId, startDateMS, today, i, j, k;
-    var serviceByDay = {};
-      // Working service_id: {dayname: total days}
-    var calendarDates = {};
-      // All formatted days to be sampled date:millseconds
-    var calendarDays = {};
-      // Number of each day included day:count
-    var fromDateMS = unformatGtfsDate(out.config.fromDate);
-    var toDateMS = unformatGtfsDate(out.config.toDate);
-
-    function getGtfsDay(dateMS) {
-      // Returns GTFS header day corresponding to milliseconds since epoch
-
-      var days = ["sunday", "monday", "tuesday",
-        "wednesday", "thursday", "friday", "saturday"];
-      var dateDate = new Date(dateMS);
-
-      return days[dateDate.getDay()];
-    }
-
-    function serviceAllCount(serviceObject) {
-      // Future: Skip this loop by adding a total key within serviceByDay
-
-      var i;
-      var allCount = 0;
-      var keys = Object.keys(serviceObject);
-
-      for (i = 0; i < keys.length; i += 1) {
-        allCount += serviceObject[keys[i]];
-      }
-
-      return allCount;
-    }
-
-    out._.serviceDays = {};
-      // GTFS service_id: [total days, by serviceFilter index position]
-    out._.dayFactor = [];
-      // Total days analysed by serviceFilter index position
-    out._.timeFactor = [];
-      // Arrays of start, optional-end, one array of arrays per serviceFilter index position
-    dayCount = 0;
-
-    while (toDateMS >= fromDateMS) {
-
-      calendarDates[formatGtfsDate(fromDateMS)] = fromDateMS;
-      dayCount += 1;
-
-      if ("serviceFilter" in out.config &&
-        "period" in out.config.serviceFilter
-      ) {
-        today = getGtfsDay(fromDateMS);
-        if (today in calendarDays) {
-          calendarDays[today] += 1;
-        } else {
-          calendarDays[today] = 1;
-        }
-      }
-
-      fromDateMS += 864e5;
-
-    }
-
-    if ("serviceFilter" in out.config &&
-      "period" in out.config.serviceFilter
-    ) {
-      for (i = 0; i < out.config.serviceFilter.period.length; i += 1) {
-
-        if ("day" in out.config.serviceFilter.period[i]) {
-          out._.dayFactor.push(0);
-          for (j = 0; j < out.config.serviceFilter.period[i].day.length; j += 1) {
-            if (out.config.serviceFilter.period[i].day[j] in calendarDays) {
-              out._.dayFactor[i] += calendarDays[out.config.serviceFilter.period[i].day[j]];
-            }
-          }
-        } else {
-          out._.dayFactor.push(dayCount);
-        }
-        
-        if ("time" in out.config.serviceFilter.period[i]) {
-          out._.timeFactor.push([]);
-          for (j = 0; j < out.config.serviceFilter.period[i].time.length; j += 1) {
-            if ("start" in out.config.serviceFilter.period[i].time[j]){
-              out._.timeFactor[i].push([getGtfsTimeSeconds(out.config.serviceFilter.period[i].time[j].start)]);
-            } else {
-              out._.timeFactor[i].push([0]);
-                // All times (00:00:00 and after)
-            }
-            if ("end" in out.config.serviceFilter.period[i].time[j]){
-              out._.timeFactor[i][j].push(getGtfsTimeSeconds(out.config.serviceFilter.period[i].time[j].end));
-            }
-          }
-        } else {
-          out._.timeFactor.push([[0]]);
-        }
-
-      }
-    } else {
-      out._.dayFactor.push(dayCount);
-      out._.timeFactor.push([[0]]);
-    }
-
-    if ("calendar" in out.gtfs) {
-      // Some hacked GTFS archives skip calendar and use only calendar_dates
-
-      for (i = 0; i < out.gtfs.calendar.length; i += 1) {
-
-        serviceId = out.gtfs.calendar[i][out.gtfsHead.calendar.service_id];
-        startDateMS = unformatGtfsDate(out.gtfs.calendar[i][out.gtfsHead.calendar.start_date]);
-        endToDateMS = unformatGtfsDate(out.gtfs.calendar[i][out.gtfsHead.calendar.end_date]);
-
-        dates = Object.keys(calendarDates);
-        for (j = 0; j < dates.length; j += 1) {
-          if (calendarDates[dates[j]] >= startDateMS &&
-            calendarDates[dates[j]] <= endToDateMS
-          ) {
-
-            today = getGtfsDay(calendarDates[dates[j]]);
-            if (out.gtfs.calendar[i][out.gtfsHead.calendar[getGtfsDay(calendarDates[dates[j]])]] === "1") {
-
-              if (serviceId in serviceByDay === false) {
-                serviceByDay[serviceId] = {};
-              }
-              if (today in serviceByDay[serviceId] === false) {
-                serviceByDay[serviceId][today] = 1;
-              } else {
-                serviceByDay[serviceId][today] += 1;
-              }
-
-            }
-
-          }
-        }
-
-      }
-
-    }
-
-    if ("calendar_dates" in out.gtfs &&
-     out.gtfsHead.calendar_dates.service_id !== -1 &&
-     out.gtfsHead.calendar_dates.date !== -1 &&
-     out.gtfsHead.calendar_dates.exception_type !== -1
-    ) {
-
-      for (i = 0; i < out.gtfs.calendar_dates.length; i += 1) {
-        if (out.gtfs.calendar_dates[i][out.gtfsHead.calendar_dates.date] in calendarDates) {
-
-          today = getGtfsDay(calendarDates[out.gtfs.calendar_dates[i][out.gtfsHead.calendar_dates.date]]);
-          serviceId = out.gtfs.calendar_dates[i][out.gtfsHead.calendar_dates.service_id];
-
-          if (serviceId in serviceByDay === false) {
-            // New service
-            if (out.gtfs.calendar_dates[i][out.gtfsHead.calendar_dates.exception_type] === "1") {
-              serviceByDay[serviceId] = {};
-              serviceByDay[serviceId][today] = 1;
-            }
-            // Else erroneous subtraction from non-existing service
-          } else {
-            if (out.gtfs.calendar_dates[i][out.gtfsHead.calendar_dates.exception_type] === "1") {
-              // Add at index
-              if (today in serviceByDay[serviceId]) {
-                serviceByDay[serviceId][today] += 1;
-              } else {
-                serviceByDay[serviceId][today] = 1;
-              }
-            }
-            if (out.gtfs.calendar_dates[i][out.gtfsHead.calendar_dates.exception_type] === "2") {
-              // Subtract at index
-              if (today in serviceByDay[serviceId] === false ||
-                serviceByDay[serviceId][today] <= 1
-                ) {
-                // Subtract would zero service, so remove
-                delete serviceByDay[serviceId][today];
-                if (Object.keys(serviceByDay[serviceId]).length
-                  === 0
-                ) {
-                  delete serviceByDay[serviceId]
-                }
-              } else {
-                serviceByDay[serviceId][today] =
-                  serviceByDay[serviceId][today] - 1;
-              }
-            }
-          }
-
-        }
-      }
-
-    }
-
-    keys = Object.keys(serviceByDay);
-    for (i = 0; i < keys.length; i += 1) {
-
-      if ("serviceFilter" in out.config &&
-        "period" in out.config.serviceFilter
-      ) {
-
-        out._.serviceDays[keys[i]] = [];
-        serviceDaysCount = 0;
-
-        for (j = 0; j < out.config.serviceFilter.period.length; j += 1) {
-          if ("day" in out.config.serviceFilter.period[j]) {
-            dayCount = 0;
-            for (k = 0; k < out.config.serviceFilter.period[j].day.length; k += 1) {
-              if (out.config.serviceFilter.period[j].day[k] in serviceByDay[keys[i]]) {
-                dayCount += serviceByDay[keys[i]][out.config.serviceFilter.period[j].day[k]];
-              }
-            }
-          } else {
-            dayCount = serviceAllCount(serviceByDay[keys[i]]);
-          }
-          out._.serviceDays[keys[i]].push(dayCount);
-          serviceDaysCount += dayCount;
-        }
-
-        if (serviceDaysCount === 0) {
-           delete out._.serviceDays[keys[i]];
-        }
-
-      } else {
-
-        dayCount = serviceAllCount(serviceByDay[keys[i]]);
-        if (dayCount > 0) {
-          out._.serviceDays[keys[i]] = [dayCount];
-        }
-
-      }
-    }
-
-    return out;
-  }
-
   function getGtfsTimeSeconds(timeString) {
     /**
      * Helper: Get time in seconds after midnight for GTFS-formatted (nn:nn:nn) time
@@ -2012,135 +1790,181 @@ var gtfsToAquius = gtfsToAquius || {
     return (timeArray[0] * 3600) + (timeArray[1] * 60) + timeArray[2];
   }
 
-  function createTrip(out) {
+  function getGtfsDay(dateMS) {
     /**
-     * Adds out._.trip lookup of GTFS trip_id: complex Object describing trip
-     * @param {object} out
-     * @return {object} out
+     * Helper: Returns GTFS header day corresponding to date
+     * @param {number} dateMS - milliseconds since epoch
+     * @return {string} day name
      */
 
-    var arrive, depart, duplicateCheck, frequencies, key, keys, headsign, hour, inPeriod, lastDepart, nextB,
-      node, scheduled, stopObject, testDuplicate, time, times, timeCache, tripId, tripObject, i, j, k;
+    var dateDate = new Date(dateMS);
+    var days = ["sunday", "monday", "tuesday",
+      "wednesday", "thursday", "friday", "saturday"];
 
-    function createFrequencies(out) {
+    return days[dateDate.getDay()];
+  }
 
-      var end, frequenciesObject, proportion, start, tripId, i, j, k;
+  function createCalendar(out) {
+    /**
+     * Adds calendar lookups to out
+     * @param {object} out
+     * @return {object} out
+     */ 
 
-      var frequencies = {};
-        // trip_id: service total
-      var timeCache = {};
+    var fromDateMS = unformatGtfsDate(out.config.fromDate);
+    var toDateMS = unformatGtfsDate(out.config.toDate);
 
-      if ("frequencies" in out.gtfs &&
-        out.gtfsHead.frequencies.trip_id !== -1 &&
-        out.gtfsHead.frequencies.start_time !== -1 &&
-        out.gtfsHead.frequencies.end_time !== -1 &&
-        out.gtfsHead.frequencies.headway_secs !== -1
-      ) {
-        for (i = 0; i < out.gtfs.frequencies.length; i += 1) {
+    out._.calendar = {};
+      // MS date: GTFS date for all days analysed
+    out._.calendarDay = {};
+      // MS date: header day for all days analysed
+    out._.calendarGtfs = {};
+      // GTFS date: MS date for all days analysed
 
-          frequenciesObject = out.gtfs.frequencies[i];
-          tripId = frequenciesObject[out.gtfsHead.frequencies.trip_id];
+    while (toDateMS >= fromDateMS) {
 
-          if (tripId in frequencies === false) {
-            frequencies[tripId] = [];
-            for (j = 0; j < out._.timeFactor.length; j += 1) {
-              frequencies[tripId].push(0);
+      out._.calendar[fromDateMS] = formatGtfsDate(fromDateMS);
+      out._.calendarDay[fromDateMS] = getGtfsDay(fromDateMS);
+      out._.calendarGtfs[formatGtfsDate(fromDateMS)] = fromDateMS;
+
+      fromDateMS += 864e5;
+        // +1 day
+
+    }
+
+    return out;
+  }
+
+  function serviceCalendar(out) {
+    /**
+     * Returns service calendar, via GTFS calendar and/or calendar_dates
+     * @param {object} out
+     * @return {object} calendar - Service_id: {dateMS}
+     */ 
+
+    var datesMS, endDateMS, serviceId, startDateMS, i, j;
+    var calendar = {};
+      // Service_id: {dateMS: 1}
+
+    if ("calendar" in out.gtfs) {
+      // Some hacked GTFS archives skip calendar and use only calendar_dates
+
+      datesMS = Object.keys(out._.calendarDay);
+
+      for (i = 0; i < out.gtfs.calendar.length; i += 1) {
+
+        serviceId = out.gtfs.calendar[i][out.gtfsHead.calendar.service_id];
+        startDateMS = unformatGtfsDate(out.gtfs.calendar[i][out.gtfsHead.calendar.start_date]);
+        endDateMS = unformatGtfsDate(out.gtfs.calendar[i][out.gtfsHead.calendar.end_date]);
+
+        for (j = 0; j < datesMS.length; j += 1) {
+          if (datesMS[j] >= startDateMS &&
+            datesMS[j] <= endDateMS &&
+            out.gtfs.calendar[i][out.gtfsHead.calendar[out._.calendarDay[datesMS[j]]]] === "1"
+          ) {
+            if (serviceId in calendar === false) {
+              calendar[serviceId] = {};
+            }
+            calendar[serviceId][datesMS[j]] = "";
+          }
+        }
+
+      }
+    }
+
+    if ("calendar_dates" in out.gtfs &&
+     out.gtfsHead.calendar_dates.service_id !== -1 &&
+     out.gtfsHead.calendar_dates.date !== -1 &&
+     out.gtfsHead.calendar_dates.exception_type !== -1
+    ) {
+
+      for (i = 0; i < out.gtfs.calendar_dates.length; i += 1) {
+        if (out.gtfs.calendar_dates[i][out.gtfsHead.calendar_dates.date] in out._.calendarGtfs) {
+
+          serviceId = out.gtfs.calendar_dates[i][out.gtfsHead.calendar_dates.service_id];
+
+          if (serviceId in calendar === false) {
+            calendar[serviceId] = {};
+          }
+
+          if (out.gtfs.calendar_dates[i][out.gtfsHead.calendar_dates.exception_type] === "1") {
+            calendar[serviceId][out._.calendarGtfs[out.gtfs.calendar_dates[i][out.gtfsHead.calendar_dates.date]]] = "";
+              // Add. Multiple same-date & same-service erroneous
+          }
+
+          if (out.gtfs.calendar_dates[i][out.gtfsHead.calendar_dates.exception_type] === "2" &&
+            out._.calendarGtfs[out.gtfs.calendar_dates[i][out.gtfsHead.calendar_dates.date]]
+              in calendar[serviceId]
+          ) {
+            delete calendar[serviceId][out._.calendarGtfs[out.gtfs.calendar_dates[i][out.gtfsHead.calendar_dates.date]]]
+              // Remove
+            if (Object.keys(calendar[serviceId]).length === 0) {
+              delete calendar[serviceId];
+                // Remove serviceId if empty
             }
           }
 
-          if (frequenciesObject[out.gtfsHead.frequencies.start_time] in timeCache === false) {
-            timeCache[frequenciesObject[out.gtfsHead.frequencies.start_time]] =
-              getGtfsTimeSeconds(frequenciesObject[out.gtfsHead.frequencies.start_time]);
-              // TimeStrings cached for speed - times tend to be reused
-          }
-          start = timeCache[frequenciesObject[out.gtfsHead.frequencies.start_time]];
-          if (frequenciesObject[out.gtfsHead.frequencies.end_time] in timeCache === false) {
-            timeCache[frequenciesObject[out.gtfsHead.frequencies.end_time]] =
-              getGtfsTimeSeconds(frequenciesObject[out.gtfsHead.frequencies.end_time]);
-          }
-          end = timeCache[frequenciesObject[out.gtfsHead.frequencies.end_time]];
-
-          if (end < start) {
-            end += 86400;
-              // Over midnight, add day of sectonds.
-          }
-
-          for (j = 0; j < out._.timeFactor.length; j += 1) {
-            if (out._.timeFactor[j].length === 1 &&
-              out._.timeFactor[j][0].length === 1 &&
-              out._.timeFactor[j][0][0] === 0
-            ) {
-
-              frequencies[tripId][j] +=
-                (end - start) / parseInt(frequenciesObject[out.gtfsHead.frequencies.headway_secs], 10);
-                // Whole day, add all
-
-            } else {
-
-              for (k = 0; k < out._.timeFactor[j].length; k += 1) {
-                if (out._.timeFactor[j][k][0] < end &&
-                  (out._.timeFactor[j][k].length === 1 ||
-                  start < out._.timeFactor[j][k][1])
-                ) {
-                  // Frequency wholly or partly within Period. Else skip
-                  proportion = 1;
-                  if (out._.timeFactor[j][k][0] > start) {
-                    proportion = proportion - ((out._.timeFactor[j][k][0] - start) / (end - start));
-                  }
-                  if (out._.timeFactor[j][k][1] < end) {
-                    proportion = proportion - ((end - out._.timeFactor[j][k][1]) / (end - start));
-                  }
-                  frequencies[tripId][j] += (end - start) *
-                    proportion / parseInt(frequenciesObject[out.gtfsHead.frequencies.headway_secs], 10);
-                }
-              }
-
-            }
-          }
         }
       }
 
-      return frequencies;
     }
 
-    function equalArrays(a, b) {
+    return calendar;
+  }
 
-      var i;
+  function frequentTrip(out) {
+    /**
+     * Returns frequent lookup. Allows duplicate checks to be skipped on frequent trips
+     * @param {object} out
+     * @return {object} frequent
+     */ 
 
-      if (a.length !== b.length) {
-        return false;
+    var i;
+    var frequent = {};
+      // trip_id index
+
+    if ("frequencies" in out.gtfs &&
+      out.gtfsHead.frequencies.trip_id !== -1
+    ) {
+      for (i = 0; i < out.gtfs.frequencies.length; i += 1) {
+        frequent[out.gtfs.frequencies[i][out.gtfsHead.frequencies.trip_id]] = "";
+          // Service/headway analysis will repeat loop later, once trips within analysis period are known
+          // Generally GTFS frequencies is a short list, so little extra overhead in this first loop
       }
-
-      for (i = 0; i < a.length; i += 1) {
-        if (a[i] !== b[i]) {
-          return false;
-        }
-      }
-
-      return true;
     }
-    
 
-    frequencies = createFrequencies(out);
+    return frequent;
+  }
+
+  function baseTrip(out) {
+    /**
+     * Adds trip to out, prior to duplicate checks and service assignment
+     * @param {object} out
+     * @return {object} out
+     */ 
+
+    var headsign, tripId, tripObject, i;
+    var block = {};
+      // block_id: count of trips blocked
+    var calendar = serviceCalendar(out);
+    var frequent = frequentTrip(out);
+    var tripBlock = [];
+      // List of trip_id with blocks
+
     out._.trip = {};
-      // trip_id: {service [numbers], stops [sequence, node], pickup only [], setdown only [], reference []}
-    out._.block = {};
-      // block_id: trips blocked
-    timeCache = {};
-    out.summary.service = [];
-      // Hour index position, service total value
+      // trip_id: {service [numbers], stops [sequence, node], pickup [], setdown [], reference [], frequent, block}
 
     for (i = 0; i < out.gtfs.trips.length; i += 1) {
 
-      tripObject = out.gtfs.trips[i];
+      if (out.gtfs.trips[i][out.gtfsHead.trips.service_id] in calendar) {
 
-      if (tripObject[out.gtfsHead.trips.service_id] in out._.serviceDays) {
-
+        tripObject = out.gtfs.trips[i];
         tripId = tripObject[out.gtfsHead.trips.trip_id];
+
         out._.trip[tripId] = {
+          "calendar": calendar[tripObject[out.gtfsHead.trips.service_id]],
           "route_id": tripObject[out.gtfsHead.trips.route_id],
           "service": [],
-          "service_id": tripObject[out.gtfsHead.trips.service_id],
           "stops": []
         };
         
@@ -2150,16 +1974,8 @@ var gtfsToAquius = gtfsToAquius || {
           out._.trip[tripId].direction_id = "";
         }
 
-        for (j = 0; j < out._.serviceDays[tripObject[out.gtfsHead.trips.service_id]].length; j += 1) {
-          if (tripId in frequencies) {
-            out._.trip[tripId].service.push(
-              out._.serviceDays[tripObject[out.gtfsHead.trips.service_id]][j] *
-              frequencies[tripId][j]);
-          } else {
-            out._.trip[tripId].service.push(
-              out._.serviceDays[tripObject[out.gtfsHead.trips.service_id]][j]);
-              // Non-frequent trips are here each counted, but removed below if outside time periods
-          }
+        if (tripId in frequent) {
+          out._.trip[tripId].frequent = "";
         }
 
         if (out.gtfsHead.stop_times.pickup_type !== -1) {
@@ -2176,12 +1992,12 @@ var gtfsToAquius = gtfsToAquius || {
           tripObject[out.gtfsHead.trips.block_id] !== ""
         ) {
           // Block_id used later for evaluation of circular
-          out._.trip[tripId].block = 
-            tripObject[out.gtfsHead.trips.block_id];
-          if (tripObject[out.gtfsHead.trips.block_id] in out._.block) {
-            out._.block[tripObject[out.gtfsHead.trips.block_id]] += 1;
+          out._.trip[tripId].block = tripObject[out.gtfsHead.trips.block_id];
+          tripBlock.push(tripId);
+          if (tripObject[out.gtfsHead.trips.block_id] in block) {
+            block[tripObject[out.gtfsHead.trips.block_id]] += 1;
           } else {
-            out._.block[tripObject[out.gtfsHead.trips.block_id]] = 1;
+            block[tripObject[out.gtfsHead.trips.block_id]] = 1;
           }
         }
 
@@ -2205,264 +2021,641 @@ var gtfsToAquius = gtfsToAquius || {
       }
     }
 
-    if (out.config.allowDuplicate === true &&
-      out.config.allowSplit === false &&
-      out.config.allowCabotage === false
-    ) {
-      testDuplicate = false;
-    } else {
-      testDuplicate = true;
-      duplicateCheck = {};
-        // node:time:service:direction(:route) key
+    for (i = 0; i < tripBlock.length; i += 1) {
+      out._.trip[tripBlock[i]].block = block[out._.trip[tripBlock[i]].block];
+        // Block reference becomes count of trips in that block
     }
 
-    keys = Object.keys(out.gtfs.stop_times);
-    for (i = 0; i < keys.length; i += 1) {
+    return out;
+  }
 
-      tripId = keys[i];
-      lastDepart = null;
+  function timeTrip(out) {
+    /**
+     * Adds stops and timing to trips
+     * @param {object} out
+     * @return {object} out
+     */ 
 
-      for (j = 0; j < out.gtfs.stop_times[keys[i]].length; j += 1) {
+    var arrive, dates, depart, duplicate, key, lastDepart, node, stopObject, times, i, j, k, l;
+    var timeCache = {};
+      // TimeStrings cached temporarily for speed - times tend to be reused
+    var trips = Object.keys(out.gtfs.stop_times);
 
-        stopObject = out.gtfs.stop_times[keys[i]][j];
+    if (out.config.allowDuplicate === false ||
+      out.config.allowSplit === true ||
+      out.config.allowCabotage === true
+    ) {
+      duplicate = {};
+        // dateMS: Unique key = node:time:dateMS:direction(:route): trip_id
+    }
 
-        if (tripId in out._.trip) {
+    for (i = 0; i < trips.length; i += 1) {
+      if (trips[i] in out._.trip) {
+
+        dates = Object.keys(out._.trip[trips[i]].calendar);
+        lastDepart = null;
+
+        for (j = 0; j < out.gtfs.stop_times[trips[i]].length; j += 1) {
+
+          stopObject = out.gtfs.stop_times[trips[i]][j];
 
           if (stopObject[out.gtfsHead.stop_times.stop_id] in out._.nodeLookup &&
-            (out._.trip[tripId].stops.length === 0 ||
-            out._.trip[tripId].stops[out._.trip[tripId].stops.length - 1][1] !==
+            (out._.trip[trips[i]].stops.length === 0 ||
+            out._.trip[trips[i]].stops[out._.trip[trips[i]].stops.length - 1][1] !==
               out._.nodeLookup[stopObject[out.gtfsHead.stop_times.stop_id]])
-          ) {
+            ) {
             // Excludes concurrent stops
 
-            depart = 0;
-            arrive = 0;
             node = out._.nodeLookup[stopObject[out.gtfsHead.stop_times.stop_id]];
+            arrive = 0;
+            depart = 0;
 
-            out._.trip[tripId].stops.push([
+            out._.trip[trips[i]].stops.push([
               stopObject[out.gtfsHead.stop_times.stop_sequence],
               node
             ]);
 
-            if (out.gtfsHead.stop_times.departure_time !== -1 &&
-              stopObject[out.gtfsHead.stop_times.departure_time] !== ""
-            ) {
-              if (stopObject[out.gtfsHead.stop_times.departure_time] in timeCache === false) {
-                timeCache[stopObject[out.gtfsHead.stop_times.departure_time]] =
-                  getGtfsTimeSeconds(stopObject[out.gtfsHead.stop_times.departure_time]);
-               // TimeStrings cached for speed - times tend to be reused
-              }
-              depart = timeCache[stopObject[out.gtfsHead.stop_times.departure_time]];
-              if ("start" in out._.trip[tripId] === false ||
-                depart < out._.trip[tripId].start
-              ) {
-                out._.trip[tripId].start = depart;
-              }
-            }
-
-            if (out.gtfsHead.stop_times.arrival_time !== -1 &&
-              stopObject[out.gtfsHead.stop_times.arrival_time] !== ""
-            ) {
-              if (stopObject[out.gtfsHead.stop_times.arrival_time] in timeCache === false) {
-                timeCache[stopObject[out.gtfsHead.stop_times.arrival_time]] =
-                  getGtfsTimeSeconds(stopObject[out.gtfsHead.stop_times.arrival_time]);
-              }
-              arrive = timeCache[stopObject[out.gtfsHead.stop_times.arrival_time]];
-              if ("end" in out._.trip[tripId] === false ||
-                arrive > out._.trip[tripId].end
-              ) {
-                out._.trip[tripId].end = arrive;
-              }
-            }
-
             if (out.gtfsHead.stop_times.pickup_type !== -1 &&
               stopObject[out.gtfsHead.stop_times.pickup_type] === "1"
             ) {
-              out._.trip[tripId].setdown.push(out._.nodeLookup[stopObject[out.gtfsHead.stop_times.stop_id]]);
+              out._.trip[trips[i]].setdown.push(out._.nodeLookup[stopObject[out.gtfsHead.stop_times.stop_id]]);
             }
-
             if (out.gtfsHead.stop_times.drop_off_type !== -1 &&
               stopObject[out.gtfsHead.stop_times.drop_off_type] === "1"
             ) {
-              out._.trip[tripId].pickup.push(out._.nodeLookup[stopObject[out.gtfsHead.stop_times.stop_id]]);
+              out._.trip[trips[i]].pickup.push(out._.nodeLookup[stopObject[out.gtfsHead.stop_times.stop_id]]);
             }
 
-            if (testDuplicate) {
-              times = [];
+            if ("frequent" in out._.trip[trips[i]] === false) {
+              // Frequent trips initially untimed, and cannot be part of any duplication
 
-              if (arrive !== 0 ||
-                depart !== 0
+              if (out.gtfsHead.stop_times.departure_time !== -1 &&
+                stopObject[out.gtfsHead.stop_times.departure_time] !== ""
               ) {
-                times.push([node, arrive, depart].join(":"));
-              }
-
-              // Also keys for each time, since at nodes where joins occurs, only one time is shared
-              // with second value = previous (for arrive) or next (for depart) node
-              if (arrive !== 0 &&
-                out._.trip[tripId].stops.length > 1
-              ) {
-                times.push([node, arrive, out._.trip[tripId].stops[out._.trip[tripId].stops.length - 1]].join(":"));
-              }
-
-              // Departure needs next node, so offset by 1 position in stop_times loop
-              if (lastDepart !== null) {
-                // This position in loop evalulates previous
-                times.push([lastDepart, node].join(":"));
-              }
-
-              for (k = 0; k < times.length; k += 1) {
-                key = [times[k], out._.trip[tripId].service_id, out._.trip[tripId].direction_id];
-                // @todo Same service days logic. use actual days operated.
-                // based on? out._.serviceDays[tripObject[out.gtfsHead.trips.service_id]].join(":")
-                if (out.config.duplicationRouteOnly) {
-                  key.push(out._.trip[tripId].route_id);
+                if (stopObject[out.gtfsHead.stop_times.departure_time] in timeCache === false) {
+                  timeCache[stopObject[out.gtfsHead.stop_times.departure_time]] =
+                    getGtfsTimeSeconds(stopObject[out.gtfsHead.stop_times.departure_time]);
                 }
-                key = key.join(":");
-                if (key in duplicateCheck) {
-                  if ("dup" in out._.trip[tripId] === false) {
-                    out._.trip[tripId].dup = {"trip_id": duplicateCheck[key], "stops": []};
-                  }
-                  if (out._.trip[tripId].dup.stops.length === 0 ||
-                    out._.trip[tripId].dup.stops.indexOf(node) === -1
-                  ) {
-                    // Infrequently used indexOf
-                    out._.trip[tripId].dup.stops.push(node);
-                  }
-                } else {
-                  duplicateCheck[key] = tripId;
+                depart = timeCache[stopObject[out.gtfsHead.stop_times.departure_time]];
+                if ("start" in out._.trip[trips[i]] === false ||
+                  depart < out._.trip[trips[i]].start
+                ) {
+                  out._.trip[trips[i]].start = depart;
                 }
               }
 
-              if (depart !== 0) {
-                // Setup next in loop
-                lastDepart = [node, depart].join(":");
-              } else {
-                lastDepart = null;
+              if (out.gtfsHead.stop_times.arrival_time !== -1 &&
+                stopObject[out.gtfsHead.stop_times.arrival_time] !== ""
+              ) {
+                if (stopObject[out.gtfsHead.stop_times.arrival_time] in timeCache === false) {
+                  timeCache[stopObject[out.gtfsHead.stop_times.arrival_time]] =
+                    getGtfsTimeSeconds(stopObject[out.gtfsHead.stop_times.arrival_time]);
+                }
+                arrive = timeCache[stopObject[out.gtfsHead.stop_times.arrival_time]];
+                if ("end" in out._.trip[trips[i]] === false ||
+                  arrive > out._.trip[trips[i]].end
+                ) {
+                  out._.trip[trips[i]].end = arrive;
+                }
+              }
+
+              if (typeof duplicate !== "undefined") {
+
+                times = [];
+
+                if (arrive !== 0 ||
+                  depart !== 0
+                ) {
+                  times.push({
+                    "key": [node, arrive, depart].join(":"),
+                    "node": node
+                  });
+                }
+
+                // Also keys for each time, since at nodes where joins occurs, only one time is shared
+                // with second value = previous (for arrive) or next (for depart) node
+                if (out.config.allowSplit === true &&
+                  arrive !== 0 &&
+                  out._.trip[trips[i]].stops.length > 1
+                ) {
+                  times.push({
+                    "key": [node, arrive, out._.trip[trips[i]].stops[out._.trip[trips[i]].stops.length - 1]].join(":"),
+                    "node": node
+                  });
+                }
+
+                // Departure needs next node, so offset by 1 position in stop_times loop
+                if (lastDepart !== null) {
+                  // This position in loop evalulates previous
+                  times.push({
+                    "key": [lastDepart.key, node].join(":"),
+                    "node": lastDepart.node
+                  });
+                }
+
+                for (k = 0; k < times.length; k += 1) {
+
+                  key = [times[k].key, out._.trip[trips[i]].direction_id];
+                  if (out.config.duplicationRouteOnly) {
+                    key.push(out._.trip[trips[i]].route_id);
+                  }
+                  key = key.join(":");
+
+                  for (l = 0; l < dates.length; l += 1) {
+
+                    if (dates[l] in duplicate === false) {
+                      duplicate[dates[l]] = {};
+                    }
+
+                    if (key in duplicate[dates[l]]) {
+                      if ("dup" in out._.trip[trips[i]] === false) {
+                        out._.trip[trips[i]].dup = {
+                          "stops": [],
+                          "trip_id": duplicate[dates[l]][key]
+                        };
+                        // Each duplicate currently reference sole parent trip. Assumption could fail with mixed calendars
+                      }
+                      if (out._.trip[trips[i]].dup.stops.length === 0 ||
+                        out._.trip[trips[i]].dup.stops.indexOf(times[k].node) === -1
+                      ) {
+                        // Infrequently called
+                        out._.trip[trips[i]].dup.stops.push(times[k].node);
+                      }
+                    } else {
+                      duplicate[dates[l]][key] = trips[i];
+                    }
+
+                  }
+
+                }
+
+                if (out.config.allowSplit === true) {
+                  if (depart !== 0) {
+                    // Setup next in loop
+                    lastDepart = {
+                      "key": [node, depart].join(":"),
+                      "node": node
+                    };
+                  } else {
+                    lastDepart = null;
+                  }
+                }
+
               }
             }
 
           }
 
         }
-
       }
     }
 
-    nextB = 0;
-    keys = Object.keys(out._.trip);
-    scheduled = keys.length - Object.keys(frequencies).length;
-    for (i = 0; i < keys.length; i += 1) {
+    return out;
+  }
 
-      if (keys[i] in frequencies === false) {
-        // Service level of frequency-based trips already processed
+  function duplicateTrip(out) {
+    /**
+     * Resolves trip duplication
+     * @param {object} out
+     * @return {object} out
+     */ 
 
-        if ("start" in out._.trip[keys[i]] &&
-          "end" in out._.trip[keys[i]]
-        ) {
-          time = ((out._.trip[keys[i]].end - out._.trip[keys[i]].start) / 2 ) + out._.trip[keys[i]].start;
-            // Mid-journey time
-          hour = Math.floor(time / 3600);
-          if (out.summary.service[hour] === undefined) {
-            out.summary.service[hour] = 1 / scheduled;
-          } else {
-            out.summary.service[hour] += 1 / scheduled;
-          }
-        } else {
-          time = null;
-        }
-        
-        for (j = 0; j < out._.timeFactor.length; j += 1) {
-          if (out._.timeFactor[j].length > 1 ||
-            out._.timeFactor[j][0].length > 1 ||
-            out._.timeFactor[j][0][0] !== 0
-          ) {
-            // Else all time periods, so leave unchanged
-            inPeriod = false;
+    var dupCalendar, keys, parentCalendar, tripId, i, j;
+    var nextB = 0;
+    var trips = Object.keys(out._.trip);
 
-            if (time !== null) {
-              // Else no time data, thus inPeriod remains false
-              for (k = 0; k < out._.timeFactor[j].length; k += 1) {
-                if (time > out._.timeFactor[j][k][0] &&
-                  (out._.timeFactor[j][k].length === 1 ||
-                  time < out._.timeFactor[j][k][1])
-                ) {
-                  inPeriod = true;
-                  break;
-                }
-              }
-            }
+    function equalArrays(a, b) {
 
-            if (inPeriod === false) {
-              out._.trip[keys[i]].service[j] = 0;
-            }
+      var i;
 
-          }
+      if (a.length !== b.length) {
+        return false;
+      }
+
+      for (i = 0; i < a.length; i += 1) {
+        if (a[i] !== b[i]) {
+          return false;
         }
       }
 
-      if (testDuplicate &&
-        "dup" in out._.trip[keys[i]]
-      ) {
-        if (out._.trip[keys[i]].dup.stops.length > 1) {
+      return true;
+    }
+
+    for (i = 0; i < trips.length; i += 1) {
+      if ("dup" in out._.trip[trips[i]]) {
+
+        tripId = out._.trip[trips[i]].dup.trip_id;
+          // Original trip
+
+        if (out._.trip[trips[i]].dup.stops.length > 1 &&
+          tripId in out._.trip
+        ) {
           // At least 2 stops duplicated
-          tripId = out._.trip[keys[i]].dup.trip_id;
-            // Original trip
+
+          parentCalendar = [];
+            // Unique dates for parent
+          keys = Object.keys(out._.trip[tripId].calendar);
+          for (j = 0; j < keys.length; j += 1) {
+            if (keys[j] in out._.trip[trips[i]].calendar === false) {
+              parentCalendar.push(keys[j]);
+            }
+          }
+
+          dupCalendar = [];
+            // Unique dates for duplicate
+          keys = Object.keys(out._.trip[trips[i]].calendar);
+          for (j = 0; j < keys.length; j += 1) {
+            if (keys[j] in out._.trip[tripId].calendar === false) {
+              dupCalendar.push(keys[j]);
+            }
+          }
+
           if (out.config.allowCabotage &&
+            parentCalendar.length === 0 &&
+            dupCalendar.length === 0 &&
             (out.gtfsHead.stop_times.pickup_type !== -1 ||
             out.gtfsHead.drop_off_type !== -1) &&
-            (("setdown" in out._.trip[keys[i]] &&
-            out._.trip[keys[i]].setdown.length > 0 &&
+            (("setdown" in out._.trip[trips[i]] &&
+            out._.trip[trips[i]].setdown.length > 0 &&
             "setdown" in out._.trip[tripId] &&
-            equalArrays(out._.trip[tripId].setdown, out._.trip[keys[i]].setdown) === false) ||
-            ("pickup" in out._.trip[keys[i]] &&
-            out._.trip[keys[i]].pickup.length > 0 &&
+            equalArrays(out._.trip[tripId].setdown, out._.trip[trips[i]].setdown) === false) ||
+            ("pickup" in out._.trip[trips[i]] &&
+            out._.trip[trips[i]].pickup.length > 0 &&
             "pickup" in out._.trip[tripId] &&
-            equalArrays(out._.trip[tripId].pickup, out._.trip[keys[i]].pickup) === false))
+            equalArrays(out._.trip[tripId].pickup, out._.trip[trips[i]].pickup) === false))
           ) {
+            // Same calendar (no unique dates in either) to process as Aquius block
+
             if ("b" in out._.trip[tripId]) {
-              out._.trip[keys[i]].b = out._.trip[tripId].b;
+              out._.trip[trips[i]].b = out._.trip[tripId].b;
             } else {
               out._.trip[tripId].b = nextB;
-              out._.trip[keys[i]].b = nextB;
+              out._.trip[trips[i]].b = nextB;
               nextB += 1;
-                // Currently B iterates regardless of whether trip is analysed
             }
-            delete out._.trip[keys[i]].dup;
+
           } else {
+
             if (out.config.allowSplit &&
-              out._.trip[keys[i]].dup.stops.length < out._.trip[keys[i]].stops.length
+              out._.trip[trips[i]].dup.stops.length < out._.trip[trips[i]].stops.length
             ) {
-              out._.trip[keys[i]].t = [];
-              for (j = 0; j < out._.trip[keys[i]].stops.length; j += 1) {
-                if (out._.trip[keys[i]].dup.stops.indexOf(out._.trip[keys[i]].stops[j][1]) === -1) {
-                  // IndexOf unlikely to be used frequently or on long arrays
-                  out._.trip[keys[i]].t.push(out._.trip[keys[i]].stops[j][1]);
+
+              if (dupCalendar.length === 0) {
+                // Commonly: Dup calendar entirely within parent, so apply split to dup 
+                out._.trip[trips[i]].t = [];
+                for (j = 0; j < out._.trip[trips[i]].stops.length; j += 1) {
+                  if (out._.trip[trips[i]].dup.stops.indexOf(out._.trip[trips[i]].stops[j][1]) === -1) {
+                    // IndexOf unlikely to be used frequently or on long arrays
+                    out._.trip[trips[i]].t.push(out._.trip[trips[i]].stops[j][1]);
+                  }
+                }
+              } else {
+                if (parentCalendar.length === 0) {
+                  // Unlikely: Parent calendar entirely within dup, so apply split to parent
+                  out._.trip[tripId].t = [];
+                  keys = {};
+                    // Index of all duplicate trip's nodes. Rarely called, so built as required
+                  for (j = 0; j < out._.trip[trips[i]].stops.length; j += 1) {
+                    keys[out._.trip[trips[i]].stops[j][1]] = "";
+                  }
+                  for (j = 0; j < out._.trip[tripId].stops.length; j += 1) {
+                    if (out._.trip[tripId].stops[j][1] in keys === false) {
+                      out._.trip[tripId].t.push(out._.trip[tripId].stops[j][1]);
+                    }
+                  }
+                }
+                // Else excessively complex split: Neither entirely in other's calendar, so fallback to retain full trip
+              }
+
+            } else {
+
+              if (out.config.allowDuplication === false) {
+                // Future: Logically should be treated as shared, but pointless if same product, which GTFS extraction presumes
+                if (dupCalendar.length === 0) {
+                  // Entire calendar within parent, so full trip redundant
+                  delete out._.trip[trips[i]];
+                } else {
+                  // Retain duplicate only on its unique dates
+                  out._.trip[trips[i]].calendar = {};
+                  for (j = 0; j < dupCalendar.length; j += 1) {
+                    out._.trip[trips[i]].calendar[dupCalendar[j]] = "";
+                  }
                 }
               }
-              delete out._.trip[keys[i]].dup;
-            } else {
-              if (out.config.allowDuplication === false) {
-                delete out._.trip[keys[i]];
-                // Future: Logically should be treated as shared, but pointless if same product
-              }
-            }
-          }
-        } else {
-          delete out._.trip[keys[i]].dup;
-        }
-      }
 
-      if (keys[i] in out._.trip &&
-        out._.trip[keys[i]].stops.length < 2
-      ) {
-        delete out._.trip[keys[i]];
+            }
+
+          }
+
+        }
+          // Else single stop duplication is not a valid link duplicate, so retain full trip
       }
 
     }
 
-    delete out._.serviceDays;
-    delete out._.timeFactor;
-      // Free memory?
+    return out;
+  }
+
+  function createDayFactor(out) {
+    /**
+     * Returns arrays of dates analysed by serviceFilter index position
+     * @param {object} out
+     * @return {array} dayFactor
+     */
+
+    var dayFactor, i, j, k;
+    var allDays = Object.keys(out._.calendarDay);
+
+    if ("serviceFilter" in out.config &&
+      "period" in out.config.serviceFilter
+    ) {
+      dayFactor = [];
+        // Arrays of dates analysed by serviceFilter index position
+      for (i = 0; i < out.config.serviceFilter.period.length; i += 1) {
+
+        if ("day" in out.config.serviceFilter.period[i]) {
+          dayFactor.push([]);
+          for (j = 0; j < out.config.serviceFilter.period[i].day.length; j += 1) {
+            for (k = 0; k < allDays.length; k += 1) {
+              if (out._.calendarDay[allDays[k]] === out.config.serviceFilter.period[i].day[j]) {
+                dayFactor[i].push(allDays[k]);
+              }
+            }
+          }
+        } else {
+          dayFactor.push(allDays);
+        }
+
+      }
+      return dayFactor;
+    } else {
+      return [allDays];
+    }
+  }
+
+  function createTimeFactor(out) {
+    /**
+     * Returns arrays of start, optional-end, one array of arrays per serviceFilter index position
+     * @param {object} out
+     * @return {array} timeFactor
+     */
+
+    var timeFactor, i, j;
+
+    if ("serviceFilter" in out.config &&
+      "period" in out.config.serviceFilter
+    ) {
+      timeFactor = [];
+        // Arrays of start, optional-end, one array of arrays per serviceFilter index position
+      for (i = 0; i < out.config.serviceFilter.period.length; i += 1) {
+
+        if ("time" in out.config.serviceFilter.period[i]) {
+          timeFactor.push([]);
+          for (j = 0; j < out.config.serviceFilter.period[i].time.length; j += 1) {
+            if ("start" in out.config.serviceFilter.period[i].time[j]){
+              timeFactor[i].push([getGtfsTimeSeconds(out.config.serviceFilter.period[i].time[j].start)]);
+            } else {
+              timeFactor[i].push([0]);
+                // All times (00:00:00 and after)
+            }
+            if ("end" in out.config.serviceFilter.period[i].time[j]){
+              timeFactor[i][j].push(getGtfsTimeSeconds(out.config.serviceFilter.period[i].time[j].end));
+            }
+          }
+        } else {
+          timeFactor.push([[0]]);
+        }
+
+      }
+      return timeFactor;
+    } else {
+      return [[[0]]];
+    }
+  }
+
+  function serviceFrequencies(out, timeFactor) {
+    /**
+     * Applies service period calculation to frequent trips
+     * @param {object} out
+     * @param {object} timeFactor - as returned by createTimeFactor()
+     * @return {object} out
+     */
+
+    var end, frequencies, frequenciesObject, keys, proportion, start, timeCache, tripId, i, j, k;
+
+    if ("frequencies" in out.gtfs &&
+      out.gtfsHead.frequencies.trip_id !== -1 &&
+      out.gtfsHead.frequencies.start_time !== -1 &&
+      out.gtfsHead.frequencies.end_time !== -1 &&
+      out.gtfsHead.frequencies.headway_secs !== -1
+    ) {
+
+      frequencies = {};
+        // trip_id: service array as time periods regardless of calendar
+      timeCache = {};
+        // GTFS time: MS time
+
+      for (i = 0; i < out.gtfs.frequencies.length; i += 1) {
+
+        frequenciesObject = out.gtfs.frequencies[i];
+        tripId = frequenciesObject[out.gtfsHead.frequencies.trip_id];
+
+        if (tripId in out._.trip &&
+          "frequent" in out._.trip[tripId]
+        ) {
+
+          if (tripId in frequencies === false) {
+            frequencies[tripId] = [];
+            for (j = 0; j < timeFactor.length; j += 1) {
+              frequencies[tripId].push(0);
+            }
+          }
+
+          if (frequenciesObject[out.gtfsHead.frequencies.start_time] in timeCache === false) {
+            timeCache[frequenciesObject[out.gtfsHead.frequencies.start_time]] =
+              getGtfsTimeSeconds(frequenciesObject[out.gtfsHead.frequencies.start_time]);
+              // TimeStrings cached for speed - times tend to be reused
+          }
+          start = timeCache[frequenciesObject[out.gtfsHead.frequencies.start_time]];
+          if (frequenciesObject[out.gtfsHead.frequencies.end_time] in timeCache === false) {
+            timeCache[frequenciesObject[out.gtfsHead.frequencies.end_time]] =
+              getGtfsTimeSeconds(frequenciesObject[out.gtfsHead.frequencies.end_time]);
+          }
+          end = timeCache[frequenciesObject[out.gtfsHead.frequencies.end_time]];
+
+          if (end < start) {
+            end += 86400;
+              // Spans midnight, add day of seconds.
+          }
+
+          for (j = 0; j < timeFactor.length; j += 1) {
+            if (j < out._.trip[tripId].service.length &&
+              out._.trip[tripId].service[j] !== 0
+            ) {
+
+              if (timeFactor[j].length === 1 &&
+                timeFactor[j][0].length === 1 &&
+                timeFactor[j][0][0] === 0
+              ) {
+
+                frequencies[tripId][j] +=
+                  (end - start) / parseInt(frequenciesObject[out.gtfsHead.frequencies.headway_secs], 10);
+                  // Whole day, add all
+
+              } else {
+
+                for (k = 0; k < timeFactor[j].length; k += 1) {
+                  if (timeFactor[j][k][0] < end &&
+                    (timeFactor[j][k].length === 1 ||
+                    start < timeFactor[j][k][1])
+                  ) {
+                    // Frequency wholly or partly within Period. Else skip
+                    proportion = 1;
+                    if (timeFactor[j][k][0] > start) {
+                      proportion = proportion - ((timeFactor[j][k][0] - start) / (end - start));
+                    }
+                    if (timeFactor[j][k][1] < end) {
+                      proportion = proportion - ((end - timeFactor[j][k][1]) / (end - start));
+                    }
+                    frequencies[tripId][j] += (end - start) *
+                      proportion / parseInt(frequenciesObject[out.gtfsHead.frequencies.headway_secs], 10);
+                  }
+                }
+
+              }
+            }
+          }
+        }
+      }
+
+      keys = Object.keys(frequencies);
+      for (i = 0; i < keys.length; i += 1) {
+        for (j = 0; j < frequencies[keys[i]].length; j += 1) {
+          out._.trip[keys[i]].service[j] = out._.trip[keys[i]].service[j] * frequencies[keys[i]][j];
+            // Assignment in secondary loop avoids confusing calendar during frequencies loop
+        }
+      }
+    }
+
+    return out;
+  }
+
+  function serviceTrip(out) {
+    /**
+     * Applies service total to trips
+     * @param {object} out
+     * @return {object} out
+     */
+
+    var dayCount, hour, inPeriod, time, i, j, k;
+    var dayFactor = createDayFactor(out);
+    var timeFactor = createTimeFactor(out);
+    var trips = Object.keys(out._.trip);
+    var scheduled = [];
+
+    for (i = 0; i < timeFactor.length; i += 1) {
+      scheduled.push(0);
+    }
+
+    out.summary.service = [];
+      // Hour index position, service total by service array position
+
+    for (i = 0; i < trips.length; i += 1) {
+
+      if (out._.trip[trips[i]].stops.length < 2 ||
+        Object.keys(out._.trip[trips[i]].calendar).length === 0
+      ) {
+        delete out._.trip[trips[i]];
+          // Cleanup after duplicate checks best fits this loop
+      } else {
+
+        // calendar to service
+        for (j = 0; j < dayFactor.length; j += 1) {
+          dayCount = 0;
+          for (k = 0; k < dayFactor[j].length; k += 1) {
+            if (dayFactor[j][k] in out._.trip[trips[i]].calendar) {
+              dayCount += 1;
+            }
+          }
+          out._.trip[trips[i]].service.push((dayCount / dayFactor[j].length) * out.config.servicePer);
+        }
+
+        if ("frequent" in out._.trip[trips[i]] === false) {
+          // Frequent adjusted 
+
+          if ("start" in out._.trip[trips[i]] &&
+            "end" in out._.trip[trips[i]]
+          ) {
+            time = ((out._.trip[trips[i]].end - out._.trip[trips[i]].start) / 2 ) + out._.trip[trips[i]].start;
+              // Mid-journey time
+          } else {
+            time = null;
+          }
+
+          for (j = 0; j < timeFactor.length; j += 1) {
+            if (j < out._.trip[trips[i]].service.length &&
+              out._.trip[trips[i]].service[j] !== 0
+            ) {
+              // Else no service, so leave unchanged
+            
+              if ((timeFactor[j].length > 1 ||
+                timeFactor[j][0].length > 1 ||
+                timeFactor[j][0][0] !== 0)
+              ) {
+                // Else all time periods so leave unchanged but count in summary
+                inPeriod = false;
+
+                if (time !== null) {
+                  // Else no time data, thus inPeriod remains false
+                  for (k = 0; k < timeFactor[j].length; k += 1) {
+                    if (time > timeFactor[j][k][0] &&
+                      (timeFactor[j][k].length === 1 ||
+                      time < timeFactor[j][k][1])
+                    ) {
+                      inPeriod = true;
+                      break;
+                    }
+                  }
+                }
+
+                if (inPeriod == false) {
+                out._.trip[trips[i]].service[j] = 0;
+                }
+
+              } else {
+                inPeriod = true;
+              }
+
+              if (inPeriod) {
+                scheduled[j] = scheduled[j] + 1;
+                hour = Math.floor(time / 3600);
+                if (out.summary.service[hour] === undefined) {
+                  out.summary.service[hour] = [];
+                  for (k = 0; k < timeFactor.length; k += 1) {
+                    out.summary.service[hour].push(0);
+                  }
+                }
+                out.summary.service[hour][j] = out.summary.service[hour][j] + 1;
+              }
+            }
+          }
+        }
+      }
+
+    }
+
+    for (i = 0; i < out.summary.service.length; i += 1) {
+      if (out.summary.service[i] !== undefined) {
+        for (j = 0; j < out.summary.service[i].length; j += 1) {
+          if (scheduled[j] > 0) {
+            out.summary.service[i][j] = out.summary.service[i][j] / scheduled[j];
+          }
+        }
+      }
+    }
+
+    out = serviceFrequencies(out, timeFactor);
+      // Finally apply frequencies
 
     return out;
   }
@@ -2492,7 +2685,6 @@ var gtfsToAquius = gtfsToAquius || {
         routeInclude[out.config.routeInclude[i]] = "";
       }
     }
-
 
     for (i = 0; i < out.gtfs.routes.length; i += 1) {
 
@@ -2718,9 +2910,9 @@ var gtfsToAquius = gtfsToAquius || {
       }
 
       if ("block" in trip &&
-        out._.block[trip.block] > 1
+        trip.block > 1
       ) {
-        // Block id has multiple trips
+        // Block had multiple trips
         return true;
       }
 
@@ -2923,7 +3115,6 @@ var gtfsToAquius = gtfsToAquius || {
       thisLink = link[keys[i]];
 
       for (j = 0; j < thisLink.service.length; j += 1) {
-        thisLink.service[j] = (thisLink.service[j] / out._.dayFactor[j]) * out.config.servicePer;
 
         for (k = 0; k < out.aquius.network.length; k += 1) {
           if (out.aquius.network[k][0].indexOf(thisLink.product) !== -1) {
@@ -3400,8 +3591,11 @@ var gtfsToAquius = gtfsToAquius || {
 
   out = buildPlace(out, options);
 
-  out = createServiceDays(out);
-  out = createTrip(out);
+  out = createCalendar(out);
+  out = baseTrip(out);
+  out = timeTrip(out);
+  out = duplicateTrip(out);
+  out = serviceTrip(out);
   out = createRoutes(out);
   out = buildLink(out);
 
