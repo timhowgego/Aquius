@@ -127,6 +127,7 @@ Passenger journey opportunities are not always accurately presented where pickup
 
 Link (route), node (stop), place names cannot be localised: Most text within Aquius can be localised (translated), but nodes, places and routes cannot. Many different references can be assigned to the same thing, so multiple languages are supported. But these have no language identifier, so cannot be matched to the user's locale setting. This is compromise between dataset filesize (nodes names, in particular, often bloat files, and even adding a localisation key to single names would tend to increase that bloat by about 50%), practical reality (few agencies provide multilingual information in a structured format, often opting for single names such as "oneLanguage / anotherLanguage"), and the importance of this information within Aquius (strictly secondary reference information).
 
+Link reference data does not change to match the selected service filter: The reference data ascribed to each link describes all the service information that has been used to build the link. The service filter changes the total number of services, but does not know which pieces of reference data pertains to which service within the link, so continues to display all the reference data. Reference data is primarily intended to convey route-level information, which should not vary from trip to trip. While Aquius can display very detailed reference data, such as trip-specific train numbers which vary between different periods of time, such information is intended as a marginal benefit, especially to assist in debugging data, and should be presented with caution.
 
 ## Configuration
 
@@ -356,6 +357,7 @@ fromDate|YYYYMMDD dateString|Today|Start date for service pattern analysis (incl
 inGeojson|boolean|true|If geojson boundaries are provided, only services at stops within a boundary will be analysed
 isCircular|array|[]|GTFS "route_id" (strings) to be referenced as circular. If empty (default), GTFS to Aquius follows its own logic, described below
 meta|object|{"schema": "0"}|As [Data Structure](#data-structure) meta key
+mirrorLink|boolean|true|Services mirrored in reverse are combined into the same link. Reduces filesize, but can distort service averages
 networkFilter|object|{"type": "agency"}|Group services by, using network definitions, detailed below
 option|object|{}|As [Configuration](#configuration)/[Data Structure](#data-structure) option key
 placeNameProperty|string|"name"|Field name in GeoJSON properties containing the name or identifier of the place

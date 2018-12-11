@@ -37,7 +37,11 @@ Those examples are not intended to replace detailed (but specific) analysis of p
 
 ### Renfe OSP
 
-[Renfe Obligación de Servicio Público](https://timhowgego.github.io/Aquius/live/renfe-osp-20-jul-2018/): As Spanish Railways above, but with custom filters for each Renfe state supported product, plus administrative boundaries.
+[Renfe Obligación de Servicio Público](https://timhowgego.github.io/Aquius/live/renfe-osp-20-jul-2018/): As Friday 20 July 2018 above, but with custom filters for each Renfe state supported product, plus administrative boundaries.
+
+### Renfe LD/MD
+
+[Renfe LD/MD (10-16 December 2018)](https://timhowgego.github.io/Aquius/live/renfe-ld-md-dec-2018/): GTFS extract from the first batch of Renfe open data. The extract excludes Cercanías (most suburban), Feve (metre gauge), Trenhotel (sleeper) and non-domestic services. Unlike earlier data, the extract summarises both directions across a full week, including crude time period analysis.
 
 ## Tools
 

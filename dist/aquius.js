@@ -1022,9 +1022,11 @@ var aquius = aquius || {
         }
         configOptions.map = configOptions.leaflet.map(configOptions._id, {
           minZoom: configOptions.minZoom,
-          preferCanvas: true
+          preferCanvas: true,
+          attributionControl: false
         });
           // Canvas renderer is faster. IE8 not supported anyway
+       configOptions.leaflet.control.attribution({position: "bottomleft"}).addTo(configOptions.map);
     }
 
     configOptions.map.attributionControl.addAttribution(
@@ -1303,7 +1305,8 @@ var aquius = aquius || {
             "background-color": "rgba(255,255,255," + configOptions.panelOpacity + ")",
             "font-weight": "bold",
             "padding": "0 3px",
-            "border-radius": "5px"
+            "border-radius": "5px",
+            "margin-right": "10px"
           });
           configOptions.leaflet.DomEvent.disableClickPropagation(div);
 
@@ -1318,7 +1321,7 @@ var aquius = aquius || {
               "id": configOptions._id + layerSummaryNames[i] + "value",
               "textContent": "0"
             }, {
-              "font-size": Math.round(200 * configOptions.panelScale).toString() + "%",
+              "font-size": Math.round(150 * configOptions.panelScale).toString() + "%",
               "margin": "0 0.1em"
             }));
 
@@ -1328,7 +1331,7 @@ var aquius = aquius || {
             }, {
               "font-size": Math.round(100 * configOptions.panelScale).toString() + "%",
               "margin": "0 0.1em",
-              "vertical-align": "20%"
+              "vertical-align": "10%"
             }));
             configOptions._toLocale[id] = layerSummaryNames[i];
 
@@ -2859,20 +2862,21 @@ var aquius = aquius || {
         // Will count first occurance of the block
         countSummary = false;
       }
-      
-      if ("connect" in raw &&
-        ("splits" in service === false ||
-        service.splits === 2)
-      ) {
-        canConnect = true;
-      } else {
-        canConnect = false;
-      }
 
       for (i = 0; i <= lastIndex; i += 1) {
 
         thisLevel = 0;
         node = service.route[i];
+        
+        if ("connect" in raw &&
+          ("splits" in service === false ||
+          service.splits === 2 ||
+          node in service.splitsIndex)
+        ) {
+          canConnect = true;
+        } else {
+          canConnect = false;
+        }
 
         if (beenHere === false &&
           node in linkChecks.here

@@ -658,6 +658,8 @@ var gtfsToAquius = gtfsToAquius || {
         "schema": "0"
       },
         // As Data Structure meta key
+      "mirrorLink": true,
+        // Services mirrored in reverse are combined into the same link. Reduces filesize, but can distort service averages
       "networkFilter": {
         "type": "agency"
       },
@@ -2148,7 +2150,7 @@ var gtfsToAquius = gtfsToAquius || {
                 if (lastDepart !== null) {
                   // This position in loop evalulates previous
                   times.push({
-                    "key": [lastDepart.key, node].join(":"),
+                    "key": [node, lastDepart.key].join(":"),
                     "node": lastDepart.node
                   });
                 }
@@ -2181,6 +2183,7 @@ var gtfsToAquius = gtfsToAquius || {
                         // Infrequently called
                         out._.trip[trips[i]].dup.stops.push(times[k].node);
                       }
+                      
                     } else {
                       duplicate[dates[l]][key] = trips[i];
                     }
@@ -2193,7 +2196,7 @@ var gtfsToAquius = gtfsToAquius || {
                   if (depart !== 0) {
                     // Setup next in loop
                     lastDepart = {
-                      "key": [node, depart].join(":"),
+                      "key": [depart, node].join(":"),
                       "node": node
                     };
                   } else {
@@ -2972,7 +2975,7 @@ var gtfsToAquius = gtfsToAquius || {
           out._.trip[tripId].setdown.length > 0
         ) {
           out._.trip[tripId].setdown.sort();
-          forward += "s" + out._.trip[tripId].setdown.join(":");
+          forward += "d" + out._.trip[tripId].setdown.join(":");
         }
 
         if (out.gtfsHead.stop_times.drop_off_type !== -1 &&
@@ -2990,7 +2993,9 @@ var gtfsToAquius = gtfsToAquius || {
           nodes.push(out._.trip[tripId].stops[j][1]);
         }
 
-        backward = nodes.slice().reverse().join(":") + forward;
+        if (out.config.mirrorLink) {
+          backward = nodes.slice().reverse().join(":") + forward;
+        }
         forward = nodes.join(":") + forward;
 
         if (forward in link &&
@@ -2998,16 +3003,24 @@ var gtfsToAquius = gtfsToAquius || {
           "b" in out._.trip[tripId])
         ) {
 
-          link[forward].service = mergeService(link[forward].service,
-            out._.trip[tripId].service);
+          link[forward].service = mergeService(link[forward].service, out._.trip[tripId].service);
+
           if ("reference" in out._.routes[routeId] &&
             "referenceLookup" in link[forward] &&
-            out._.routes[routeId].reference.slug
-              in link[forward].referenceLookup === false
+            out._.routes[routeId].reference.slug in link[forward].referenceLookup === false
           ) {
             link[forward].reference.push(out._.routes[routeId].reference);
             link[forward].referenceLookup[out._.routes[routeId].reference.slug] = "";
           }
+
+          if ("reference" in out._.trip[tripId] &&
+            "referenceLookup" in link[forward] &&
+            out._.trip[tripId].reference.slug in link[forward].referenceLookup === false
+          ) {
+            link[forward].reference.push(out._.trip[tripId].reference);
+            link[forward].referenceLookup[out._.trip[tripId].reference.slug] = "";
+          }
+
           /**
            * Dangerous presumption that any b different becomes parent's b, thus grouping similar patterns
            * Only applied forward, since b by definition contains pickup/setdown by direction
@@ -3016,20 +3029,29 @@ var gtfsToAquius = gtfsToAquius || {
 
         } else {
 
-          if (backward in link) {
+          if (out.config.mirrorLink &&
+            backward in link
+          ) {
 
-            link[backward].service = mergeService(link[backward].service,
-              out._.trip[tripId].service);
+            link[backward].service = mergeService(link[backward].service, out._.trip[tripId].service);
+
             if ("reference" in out._.routes[routeId] &&
               "referenceLookup" in link[backward] &&
-              out._.routes[routeId].reference.slug
-                in link[backward].referenceLookup === false
+              out._.routes[routeId].reference.slug in link[backward].referenceLookup === false
             ) {
               link[backward].reference.push(out._.routes[routeId].reference);
               link[backward].referenceLookup[out._.routes[routeId].reference.slug] = "";
             }
             if ("direction" in link[backward]) {
               delete link[backward].direction;
+            }
+
+            if ("reference" in out._.trip[tripId] &&
+              "referenceLookup" in link[backward] &&
+              out._.trip[tripId].reference.slug in link[backward].referenceLookup === false
+            ) {
+              link[backward].reference.push(out._.trip[tripId].reference);
+              link[backward].referenceLookup[out._.trip[tripId].reference.slug] = "";
             }
 
           } else {
