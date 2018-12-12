@@ -682,6 +682,10 @@ var gtfsToAquius = gtfsToAquius || {
         // Group services by, using service definitions (see docs)
       "servicePer": 1,
         // Service average per period in days (1 gives daily totals, 7 gives weekly totals)
+      "stopExclude": [],
+        // GTFS "stop_id" (strings) to be excluded from analysis
+      "stopInclude": [],
+        // GTFS "stop_id" (strings) to be included in analysis, all if empty
       "stopOverride": {},
         // Properties applied to stops, by GTFS "stop_id" key (see docs)
       "toDate": formatGtfsDate(Date.now() + 5184e5),
@@ -858,6 +862,10 @@ var gtfsToAquius = gtfsToAquius || {
 
     out.gtfsHead = {
       // Numbers record column position, true if index, -1 if missing
+      "agency": {
+        "agency_id": -1,
+        "agency_name": -1
+      },
       "calendar": {
         "service_id": -1,
         "monday": -1,
@@ -882,6 +890,7 @@ var gtfsToAquius = gtfsToAquius || {
         "headway_secs": -1
       },
       "routes": {
+        "agency_id": -1,
         "route_color": -1,
         "route_id": -1,
         "route_long_name": -1,
@@ -931,15 +940,6 @@ var gtfsToAquius = gtfsToAquius || {
       "stop_times": ["trip_id", "stop_id", "stop_sequence"]
     };
 
-    if ("type" in out.config.networkFilter &&
-      out.config.networkFilter.type === "agency"
-    ) {
-      out.gtfsHead.agency = {
-        "agency_id": -1,
-        "agency_name": -1
-      };
-      out.gtfsHead.routes.agency_id = -1;
-    }
     if ("type" in out.config.networkFilter &&
       out.config.networkFilter.type === "mode"
     ) {
@@ -1079,7 +1079,7 @@ var gtfsToAquius = gtfsToAquius || {
      * @return {object} out
      */
 
-    var index, keys, product, i, j;
+    var agencyColumn, index, keys, product, i, j;
     var modeLookup = {
       "0": {"en-US": "Tram"},
       "1": {"en-US": "Metro"},
@@ -1127,13 +1127,14 @@ var gtfsToAquius = gtfsToAquius || {
       out.config.networkFilter.type = "agency";
     }
     if ("reference" in out.config.networkFilter === false) {
-      out.config.networkFilter.reference = [];
+      out.config.networkFilter.reference = {};
     }
 
     out._.productIndex = {};
     if ("reference" in out.aquius === false) {
       out.aquius.reference = {};
     }
+    out.aquius.reference.product = [];
 
     switch (out.config.networkFilter.type) {
       // Extendable for more product filters. Add complementary code to wanderRoutes()
@@ -1147,14 +1148,16 @@ var gtfsToAquius = gtfsToAquius || {
           for (i = 0; i < out.gtfs.routes.length; i += 1) {
             if (out.gtfs.routes[i][out.gtfsHead.routes.route_type] in out._.productIndex === false) {
               out._.productIndex[out.gtfs.routes[i][out.gtfsHead.routes.route_type]] = index;
-              if (index >= out.config.networkFilter.reference.length) {
+              if (out.gtfs.routes[i][out.gtfsHead.routes.route_type] in out.config.networkFilter.reference === false) {
                 if (out.gtfs.routes[i][out.gtfsHead.routes.route_type] in modeLookup) {
-                  out.config.networkFilter.reference[index] = 
+                  out.config.networkFilter.reference[out.gtfs.routes[i][out.gtfsHead.routes.route_type]] = 
                     modeLookup[out.gtfs.routes[i][out.gtfsHead.routes.route_type]];
                 } else {
-                  out.config.networkFilter.reference[index] = {};
+                  out.config.networkFilter.reference[out.gtfs.routes[i][out.gtfsHead.routes.route_type]] = {};
                 }
               }
+              out.aquius.reference.product[index] =
+                out.config.networkFilter.reference[out.gtfs.routes[i][out.gtfsHead.routes.route_type]];
               index += 1;
             }
           }
@@ -1166,38 +1169,51 @@ var gtfsToAquius = gtfsToAquius || {
         out.config.networkFilter.type = "agency";
           // Defaults to agency
         if ("agency" in out.gtfs &&
-          "agency_id" in out.gtfsHead.agency &&
-          out.gtfsHead.agency.agency_id !== 1 &&
+          (("agency_id" in out.gtfsHead.agency &&
+          out.gtfsHead.agency.agency_id !== -1) ||
+          ("agency_name" in out.gtfsHead.agency &&
+          out.gtfsHead.agency.agency_name !== -1)) &&
           out.gtfs.agency.length > 0
         ) {
           index = 0;
+          if ("agency_id" in out.gtfsHead.agency &&
+            out.gtfsHead.agency.agency_id !== -1
+          ) {
+            agencyColumn = out.gtfsHead.agency.agency_id;
+          } else {
+            agencyColumn = out.gtfsHead.agency.agency_name;
+          }
           for (i = 0; i < out.gtfs.agency.length; i += 1) {
-            if (out.gtfs.agency[i][out.gtfsHead.agency.agency_id] in out._.productIndex === false) {
-              out._.productIndex[out.gtfs.agency[i][out.gtfsHead.agency.agency_id]] = index;
-              if (index >= out.config.networkFilter.reference.length) {
+            if (out.gtfs.agency[i][agencyColumn] !== undefined &&
+              out.gtfs.agency[i][agencyColumn] !== "" &&
+              out.gtfs.agency[i][agencyColumn] in out._.productIndex === false
+            ) {
+              out._.productIndex[out.gtfs.agency[i][agencyColumn]] = index;
+              if (out.gtfs.agency[i][agencyColumn] in out.config.networkFilter.reference === false) {
                 if (out.gtfsHead.agency.agency_name !== -1) {
-                  out.config.networkFilter.reference[index] = 
+                  out.config.networkFilter.reference[out.gtfs.agency[i][agencyColumn]] = 
                     {"en-US": out.gtfs.agency[i][out.gtfsHead.agency.agency_name]};
                 } else {
-                  out.config.networkFilter.reference[index] = 
+                  out.config.networkFilter.reference[out.gtfs.agency[i][agencyColumn]] = 
                     {"en-US": out.gtfs.agency[i][out.gtfsHead.agency.agency_id]};
                 }
               }
+              out.aquius.reference.product[index] = out.config.networkFilter.reference[out.gtfs.agency[i][agencyColumn]];
               index += 1;
             }
           }
-        } else {
-          out._.productIndex.agency = 0;
-          out.config.networkFilter.reference.push({});
-            // Uncoded single agency GTFS
-          
+        }
+        if (Object.keys(out._.productIndex).length === 0) {
+          // Fallback
+          out._.productIndex["agency"] = 0;
+          out.config.networkFilter.reference["agency"] = {};
+          out.aquius.reference.product[0] = {};
         }
         break;
 
     }
 
-    out.aquius.reference.product = out.config.networkFilter.reference;
-
+    // Future: Logic should also check that bespoke networkFilter is valid
     if ("network" in out.config.networkFilter === false ||
       !Array.isArray(out.config.networkFilter.network)
     ) {
@@ -1281,7 +1297,9 @@ var gtfsToAquius = gtfsToAquius || {
       ) {
         product = [];
         for (j = 0; j < out.config.networkFilter.network[i][0].length; j += 1) {
-          product.push(out._.productIndex[out.config.networkFilter.network[i][0][j]]);
+          if (out.config.networkFilter.network[i][0][j] in out._.productIndex) {
+            product.push(out._.productIndex[out.config.networkFilter.network[i][0][j]]);
+          }
         }
         out.aquius.network.push([product, out.config.networkFilter.network[i][1], {}]);
       }
@@ -1567,6 +1585,32 @@ var gtfsToAquius = gtfsToAquius || {
     return out;
   }
 
+  function stopFilter(out) {
+    /**
+     * Adds stopInclude and stopExclude to out
+     * @param {object} out
+     * @return {object} out
+     */
+
+    var i;
+
+    if (out.config.stopExclude.length > 0) {
+      out._.stopExclude = {};
+      for (i = 0; i < out.config.stopExclude.length; i += 1) {
+        out._.stopExclude[out.config.stopExclude[i]] = "";
+      }
+    }
+
+    if (out.config.stopInclude.length > 0) {
+      out._.stopInclude = {};
+      for (i = 0; i < out.config.stopInclude.length; i += 1) {
+        out._.stopInclude[out.config.stopInclude[i]] = "";
+      }
+    }
+
+    return out;
+  }
+  
   function parentStopsToNode(out) {
     /**
      * Parses gtfs.stops parent stations and groups nodes within together
@@ -1595,34 +1639,42 @@ var gtfsToAquius = gtfsToAquius || {
       }
 
       for (i = 0; i < out.gtfs.stops.length; i += 1) {
-        if (out.gtfs.stops[i][out.gtfsHead.stops.location_type] === "1") {
-          // Is parent
 
-          coords = stopCoordinates(out, out.gtfs.stops[i]);
-          out = checkStopCoordinates(out, coords, out.gtfs.stops[i][out.gtfsHead.stops.stop_id]);
-          key = coords[0].toString() + "," + coords[1].toString();
+        if (("stopExclude" in out._ === false ||
+          out.gtfs.stops[i][out.gtfsHead.stops.stop_id] in out._.stopExclude === false) &&
+          ("stopInclude" in out._ === false ||
+          out.gtfs.stops[i][out.gtfsHead.stops.stop_id] in out._.stopInclude)
+        ) {
 
-          if (key in out._.nodeCoord) {
-            index = out._.nodeCoord[key];
+          if (out.gtfs.stops[i][out.gtfsHead.stops.location_type] === "1") {
+            // Is parent
+
+            coords = stopCoordinates(out, out.gtfs.stops[i]);
+            out = checkStopCoordinates(out, coords, out.gtfs.stops[i][out.gtfsHead.stops.stop_id]);
+            key = coords[0].toString() + "," + coords[1].toString();
+
+            if (key in out._.nodeCoord) {
+              index = out._.nodeCoord[key];
+            } else {
+              index = out.aquius.node.length;
+              out.aquius.node.push([coords[0], coords[1], {}]);
+              out._.nodeCoord[key] = index;
+            }
+
+            out._.nodeLookup[out.gtfs.stops[i][out.gtfsHead.stops.stop_id]] = index;
+            out = createNodeProperties(out, out.gtfs.stops[i], index);
+
           } else {
-            index = out.aquius.node.length;
-            out.aquius.node.push([coords[0], coords[1], {}]);
-            out._.nodeCoord[key] = index;
+
+            if (out.gtfs.stops[i][out.gtfsHead.stops.parent_station] !== "") {
+              // Is child
+              childStops.push([
+                out.gtfs.stops[i][out.gtfsHead.stops.stop_id],
+                out.gtfs.stops[i][out.gtfsHead.stops.parent_station]
+              ]);
+            }
+
           }
-
-          out._.nodeLookup[out.gtfs.stops[i][out.gtfsHead.stops.stop_id]] = index;
-          out = createNodeProperties(out, out.gtfs.stops[i], index);
-
-        } else {
-
-          if (out.gtfs.stops[i][out.gtfsHead.stops.parent_station] !== "") {
-            // Is child
-            childStops.push([
-              out.gtfs.stops[i][out.gtfsHead.stops.stop_id],
-              out.gtfs.stops[i][out.gtfsHead.stops.parent_station]
-            ]);
-          }
-
         }
       }
 
@@ -1665,7 +1717,14 @@ var gtfsToAquius = gtfsToAquius || {
       }
 
       for (i = 0; i < out.gtfs.transfers.length; i += 1) {
-        if (out.gtfs.transfers[i][out.gtfsHead.transfers.from_stop_id] !== "") {
+        if (out.gtfs.transfers[i][out.gtfsHead.transfers.from_stop_id] !== "" &&
+          ("stopExclude" in out._ === false ||
+          (out.gtfs.transfers[i][out.gtfsHead.transfers.from_stop_id] in out._.stopExclude === false &&
+          out.gtfs.transfers[i][out.gtfsHead.transfers.to_stop_id] in out._.stopExclude === false)) &&
+          ("stopInclude" in out._ === false ||
+          (out.gtfs.transfers[i][out.gtfsHead.transfers.from_stop_id] in out._.stopInclude &&
+          out.gtfs.transfers[i][out.gtfsHead.transfers.to_stop_id] in out._.stopInclude))
+        ) {
           fromStop = out._.nodeLookup[out.gtfs.transfers[i][out.gtfsHead.transfers.from_stop_id]];
           toStop = out._.nodeLookup[out.gtfs.transfers[i][out.gtfsHead.transfers.to_stop_id]];
 
@@ -1742,7 +1801,11 @@ var gtfsToAquius = gtfsToAquius || {
 
     for (i = 0; i < out.gtfs.stops.length; i += 1) {
       if (out.gtfs.stops[i].stop_id in out._.nodeLookup === false &&
-        out.gtfs.stops[i][out.gtfsHead.stops.stop_id] !== ""
+        out.gtfs.stops[i][out.gtfsHead.stops.stop_id] !== "" &&
+        ("stopExclude" in out._ === false ||
+        out.gtfs.stops[i][out.gtfsHead.stops.stop_id] in out._.stopExclude === false) &&
+        ("stopInclude" in out._ === false ||
+        out.gtfs.stops[i][out.gtfsHead.stops.stop_id] in out._.stopInclude)
       ) {
         coords = stopCoordinates(out, out.gtfs.stops[i]);
         out = checkStopCoordinates(out, coords, out.gtfs.stops[i][out.gtfsHead.stops.stop_id]);
@@ -3607,6 +3670,7 @@ var gtfsToAquius = gtfsToAquius || {
   out = buildNetwork(out);
   out = buildService(out);
 
+  out = stopFilter(out);
   out = parentStopsToNode(out);
   out = transferStopsToNode(out);
   out = regularStopsToNode(out);

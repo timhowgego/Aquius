@@ -344,12 +344,12 @@ Key|Type|Default|Description
 allowCabotage|boolean|false|Process duplicate vehicle trips with varying pickup/setdown restrictions as cabotage, described below
 allowCode|boolean|true|Include stop codes
 allowColor|boolean|true|Include route-specific colors
-allowDuplication|boolean|false|Include duplicate vehicle trips (same route, service period, direction and stop times). If false, duplicates are removed (unless cabotage)
+allowDuplication|boolean|false|Include duplicate vehicle trips (same route, service period, direction and stop times)
 allowHeadsign|boolean|false|Include trip-specific headsigns (information may be redundant if using allowRoute)
 allowName|boolean|true|Include stop names (increases file size significantly)
 allowRoute|boolean|true|Include route-specific short names
 allowRouteUrl|boolean|true|Include URLs for routes (can increase file size significantly unless URLs conform to logical repetitive style)
-allowSplit|boolean|false|Include trips on the same route (service period and direction) which share at least two (but not all) stop times as "split". If false, such duplicates are removed (unless cabotage)
+allowSplit|boolean|false|Include trips on the same route (service period and direction) which share at least two (but not all) stop times as "split"
 allowStopUrl|boolean|true|Include URLs for stops (can increase file size significantly unless URLs conform to logical repetitive style)
 coordinatePrecision|integer|5|Coordinate decimal places (smaller values tend to group clusters of stops), described below
 duplicationRouteOnly|boolean|true|Restrict duplicate check to services on the same route
@@ -368,6 +368,8 @@ routeInclude|array|[]|GTFS "route_id" (strings) to be included in analysis, all 
 routeOverride|object|{}|Properties applied to routes, by GTFS "route_id" key, detailed below
 serviceFilter|object|{}|Group services by, using service definitions, detailed below
 servicePer|integer|1|Service average per period in days (1 gives daily totals, 7 gives weekly totals), regardless of fromDate/toDate
+stopExclude|array|[]|GTFS "stop_id" (strings) to be excluded from analysis
+stopInclude|array|[]|GTFS "stop_id" (strings) to be included in analysis, all if empty
 stopOverride|object|{}|Properties applied to stops, by GTFS "stop_id" key, detailed below
 toDate|YYYYMMDD dateString|Next week|End date for service pattern analysis (inclusive)
 translation|object|{}|As [Configuration](#configuration)/[Data Structure](#data-structure) translation key
@@ -412,7 +414,8 @@ Configuration key `stopOverride` allows poorly geocoded stops to be given valid 
 Configuration key `networkFilter` defines groups of product IDs which the user can select to filter the results displayed. These filters are held in the network key of the [Data Structure](#data-structure). `networkFilter` is an `Object` consisting one or more keys:
 
 * `type` - `string` either "agency", which assigns a product code for each operator identified in the GTFS (default), or "mode", which assigns a product code for each vehicle type identified in the GTFS (only the original types and "supported" [extensions](https://developers.google.com/transit/gtfs/reference/extended-route-types) will be named).
-* `network` - `Array` containing network filter definitions, each an `Array` consisting: First, an `Array` of the GTFS codes (`agency_id` values for "agency", or `route_type` values for "mode") included in the filter, and second an `Object` of localised names in the style `{"en-US": "English name"}`.
+* `network` - `Array` containing network filter definitions, each an `Array` consisting: First, an `Array` of the GTFS codes (`agency_id` values for "agency", or `route_type` values for "mode") included in the filter, and second an `Object` of localised names in the style `{"en-US": "English name"}`. If the GTFS file contains no agency_id, specify the `agency_name` instead.
+* `reference` - `Object` whose keys are GTFS codes (`agency_id` values for "agency", or `route_type` values for "mode") and those value is an `Object` of localised names in the style `{"en-US": "English name"}`, which allows the respective names to be specified.
 
 *Tip:* The easiest way to build bespoke network filters is to initially specify only `type`, process the GTFS data once, then manually edit the `config.json` produced. If using GTFS To Aquius via its user interface, a rough count of routes and services by each `productFilter` will be produced after processing, allowing the most important categories to be identified.
 
@@ -463,7 +466,7 @@ Optionally, a [GeoJSON file](http://geojson.org/) can be provided containing pop
 
 GTFS To Aquius will attempt to assign each node (stop) to the boundary it falls within. For consistent results, boundaries should not overlap and specific populations should not be counted more than once. The choice of boundaries should be appropriate for the scale and scope of the services within the GTFS file: Not so small as to routinely exclude nodes used by a local population, but not so large as to suggest unrealistic hinterlands or catchment areas. For example, an entire city may reasonably have access to an inter-regional network whose only stop is in the city centre, and thus city-level boundaries might be appropriate at inter-regional level. In contrast, an urban network within a city should use more detailed boundaries that reflect the inherently local nature of the areas served. Note that the population summaries produced by Aquius are not intended to be precise, rather to provide a broad summary of where people are relative to nearby routes, and to allow basic comparison of differences in network connectivity.
 
-If configuration key `inGeojson` is true (the default), the entire dataset will be limited to services between stops within the GeoJSON boundaries. As currently implemented, unused nodes are retained in the Aquius output file, which may bloat its size considerably. These excess nodes can be removed by passing the output file through Merge Aquius (see below). In future, GTFS to Aquius should perform this function automatically.
+If configuration key `inGeojson` is true (the default), the entire dataset will be limited to services between stops within the GeoJSON boundaries. As currently implemented, unused nodes are retained in the Aquius output file, which may bloat its size considerably. These excess nodes can be removed by passing the output file through [Merge Aquius](#merge-aquius). In future, GTFS to Aquius should perform this function automatically.
 
 ## GeoJSON to Aquius
 
