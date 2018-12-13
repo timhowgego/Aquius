@@ -500,6 +500,16 @@ var mergeAquius = mergeAquius || {
       }
     }
 
+    out.aquius.link.sort(function (a, b) {
+      return b[1].reduce(function(c, d) {
+        return c + d;
+      }, 0) - a[1].reduce(function(c, d) {
+        return c + d;
+      }, 0);
+    });
+      // Descending service count, since busiest most likely to be queried and thus found faster
+    out = optimiseNode(out);
+
     return out;
   }
 
@@ -1289,6 +1299,84 @@ var mergeAquius = mergeAquius || {
         }
         // Logic potentially leaves empty positions in reference.product for products with no name,
         //   but these are converted to null in output, which Aquius ignores as not an object
+      }
+    }
+
+    return out;
+  }
+
+  function optimiseNode(out) {
+    /**
+     * Assigns most frequently referenced nodes to lowest indices and removes unused nodes
+     * @param {object} out
+     * @return {object} out
+     */
+
+     // Function shared with GTFS
+
+    var keys, newNode, newNodeLookup, nodeArray, i, j;
+    var nodeOccurance = {};
+      // OldNode: Count of references
+
+    for (i = 0; i < out.aquius.link.length; i += 1) {
+      nodeArray = out.aquius.link[i][2];
+      if ("u" in out.aquius.link[i][3]) {
+        nodeArray = nodeArray.concat(out.aquius.link[i][3].u);
+      }
+      if ("s" in out.aquius.link[i][3]) {
+        nodeArray = nodeArray.concat(out.aquius.link[i][3].s);
+      }
+      if ("t" in out.aquius.link[i][3]) {
+        nodeArray = nodeArray.concat(out.aquius.link[i][3].t);
+      }
+      for (j = 0; j < nodeArray.length; j += 1) {
+        if (nodeArray[j] in nodeOccurance === false) {
+          nodeOccurance[nodeArray[j]] = 1;
+        } else {
+          nodeOccurance[nodeArray[j]] += 1;
+        }
+      }
+    }
+
+    nodeArray = [];
+      // Reused, now OldNode by count of occurance
+    keys = Object.keys(nodeOccurance);
+    for (i = 0; i < keys.length; i += 1) {
+      nodeArray.push([keys[i], nodeOccurance[keys[i]]]);
+    }
+    nodeArray.sort(function(a, b) {
+      return a[1] - b[1];
+    });
+    nodeArray.reverse();
+
+    newNode = [];
+      // As aquius.node
+    newNodeLookup = {};
+      // OldNodeIndex: NewNodeIndex
+    for (i = 0; i < nodeArray.length; i += 1) {
+      newNode.push(out.aquius.node[nodeArray[i][0]]);
+      newNodeLookup[nodeArray[i][0]] = i;
+    }
+    out.aquius.node = newNode;
+
+    for (i = 0; i < out.aquius.link.length; i += 1) {
+      for (j = 0; j < out.aquius.link[i][2].length; j += 1) {
+        out.aquius.link[i][2][j] = newNodeLookup[out.aquius.link[i][2][j]];
+      }
+      if ("u" in out.aquius.link[i][3]) {
+        for (j = 0; j < out.aquius.link[i][3].u.length; j += 1) {
+          out.aquius.link[i][3].u[j] = newNodeLookup[out.aquius.link[i][3].u[j]];
+        }
+      }
+      if ("s" in out.aquius.link[i][3]) {
+        for (j = 0; j < out.aquius.link[i][3].s.length; j += 1) {
+          out.aquius.link[i][3].s[j] = newNodeLookup[out.aquius.link[i][3].s[j]];
+        }
+      }
+      if ("t" in out.aquius.link[i][3]) {
+        for (j = 0; j < out.aquius.link[i][3].t.length; j += 1) {
+          out.aquius.link[i][3].t[j] = newNodeLookup[out.aquius.link[i][3].t[j]];
+        }
       }
     }
 

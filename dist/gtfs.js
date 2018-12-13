@@ -2733,6 +2733,7 @@ var gtfsToAquius = gtfsToAquius || {
      * @return {object} out
      */
 
+    // Future: Currently parses all routes, regardless of use
     var contentString, color, position, override, reference, route, routeId, wildcard, i, j;
     var routeExclude = {};
     var routeInclude = {};
@@ -2939,10 +2940,13 @@ var gtfsToAquius = gtfsToAquius || {
      * @return {object} out
      */
 
-    var backward, forward, keys, line, nodes, routeId, thisLink, tripId, i, j, k;
+    var backward, forward, keys, line, nodes, routeId, thisLink, trips, i, j, k;
     var link = {};
       // linkUniqueId: {route array, product id, service count,
       // direction unless both, pickup array, setdown array, reference array}
+    var block = {};
+      // Original blockid:New block id
+    var nextBlock = 0;
 
     function isCircular(out, routeId, trip, nodes) {
 
@@ -3018,55 +3022,71 @@ var gtfsToAquius = gtfsToAquius || {
       return service;
     }
 
-    for (i = 0; i < out.gtfs.trips.length; i += 1) {
+    trips = Object.keys(out._.trip);
+    for (i = 0; i < trips.length; i += 1) {
 
-      tripId = out.gtfs.trips[i][out.gtfsHead.trips.trip_id];
-      routeId = out.gtfs.trips[i][out.gtfsHead.trips.route_id];
+      routeId = out._.trip[trips[i]].route_id;
 
-      if (tripId in out._.trip &&
-        routeId in out._.routes
-      ) {
+      if (routeId in out._.routes) {
 
         nodes = [];
-        out._.trip[tripId].stops.sort(function(a, b) {
+        out._.trip[trips[i]].stops.sort(function(a, b) {
           return a[0] - b[0];
         });
 
         forward = "f" + out._.routes[routeId].product;
+        if (out.config.mirrorLink) {
+          backward = "f" + out._.routes[routeId].product;
+        }
 
-        if (out.gtfsHead.stop_times.pickup_type !== -1 &&
-          out._.trip[tripId].setdown.length > 0
+        if ("setdown" in out._.trip[trips[i]] &&
+          out._.trip[trips[i]].setdown.length > 0
         ) {
-          out._.trip[tripId].setdown.sort();
-          forward += "d" + out._.trip[tripId].setdown.join(":");
+          out._.trip[trips[i]].setdown.sort();
+          forward += "s" + out._.trip[trips[i]].setdown.join(":");
         }
 
-        if (out.gtfsHead.stop_times.drop_off_type !== -1 &&
-          out._.trip[tripId].pickup.length > 0
+        if ("pickup" in out._.trip[trips[i]] &&
+          out._.trip[trips[i]].pickup.length > 0
         ) {
-          out._.trip[tripId].pickup.sort();
-          forward += "p" + out._.trip[tripId].pickup.join(":");
+          out._.trip[trips[i]].pickup.sort();
+          forward += "u" + out._.trip[trips[i]].pickup.join(":");
+          if (out.config.mirrorLink) {
+            backward += "s" + out._.trip[trips[i]].pickup.join(":");
+            // Pickup processed as setdown in reverse
+          }
         }
 
-        if ("t" in out._.trip[tripId]) {
-          forward += "t" + out._.trip[tripId].t.join(":");
+        if (out.config.mirrorLink &&
+          "setdown" in out._.trip[trips[i]] &&
+          out._.trip[trips[i]].setdown.length > 0
+        ) {
+          backward += "u" + out._.trip[trips[i]].setdown.join(":");
+          // Setdown processed as pickup in reverse
         }
 
-        for (j = 0; j < out._.trip[tripId].stops.length; j += 1) {
-          nodes.push(out._.trip[tripId].stops[j][1]);
+        if ("t" in out._.trip[trips[i]]) {
+          forward += "t" + out._.trip[trips[i]].t.join(":");
+          if (out.config.mirrorLink) {
+            backward += "t" + out._.trip[trips[i]].t.join(":");
+          }
+        }
+
+        for (j = 0; j < out._.trip[trips[i]].stops.length; j += 1) {
+          nodes.push(out._.trip[trips[i]].stops[j][1]);
         }
 
         if (out.config.mirrorLink) {
-          backward = nodes.slice().reverse().join(":") + forward;
+          backward = nodes.slice().reverse().join(":") + backward;
         }
         forward = nodes.join(":") + forward;
 
         if (forward in link &&
-          ("b" in link[forward] === false ||
-          "b" in out._.trip[tripId])
+          ("b" in out._.trip[trips[i]] === false ||
+          "b" in link[forward])
         ) {
 
-          link[forward].service = mergeService(link[forward].service, out._.trip[tripId].service);
+          link[forward].service = mergeService(link[forward].service, out._.trip[trips[i]].service);
 
           if ("reference" in out._.routes[routeId] &&
             "referenceLookup" in link[forward] &&
@@ -3076,27 +3096,28 @@ var gtfsToAquius = gtfsToAquius || {
             link[forward].referenceLookup[out._.routes[routeId].reference.slug] = "";
           }
 
-          if ("reference" in out._.trip[tripId] &&
+          if ("reference" in out._.trip[trips[i]] &&
             "referenceLookup" in link[forward] &&
-            out._.trip[tripId].reference.slug in link[forward].referenceLookup === false
+            out._.trip[trips[i]].reference.slug in link[forward].referenceLookup === false
           ) {
-            link[forward].reference.push(out._.trip[tripId].reference);
-            link[forward].referenceLookup[out._.trip[tripId].reference.slug] = "";
+            link[forward].reference.push(out._.trip[trips[i]].reference);
+            link[forward].referenceLookup[out._.trip[trips[i]].reference.slug] = "";
           }
 
-          /**
-           * Dangerous presumption that any b different becomes parent's b, thus grouping similar patterns
-           * Only applied forward, since b by definition contains pickup/setdown by direction
-           * Future: Revisit b grouping logic, plus pickup/setdown pattern in reverse can become reverse
-           */
+          if ("b" in out._.trip[trips[i]]) {
+            block[out._.trip[trips[i]].b] = link[forward].b;
+              // Use parent block. Convert (in later loop) all child block to match
+          }
 
         } else {
 
           if (out.config.mirrorLink &&
-            backward in link
+            backward in link &&
+            ("b" in out._.trip[trips[i]] === false ||
+            "b" in link[backward])
           ) {
 
-            link[backward].service = mergeService(link[backward].service, out._.trip[tripId].service);
+            link[backward].service = mergeService(link[backward].service, out._.trip[trips[i]].service);
 
             if ("reference" in out._.routes[routeId] &&
               "referenceLookup" in link[backward] &&
@@ -3109,12 +3130,17 @@ var gtfsToAquius = gtfsToAquius || {
               delete link[backward].direction;
             }
 
-            if ("reference" in out._.trip[tripId] &&
+            if ("reference" in out._.trip[trips[i]] &&
               "referenceLookup" in link[backward] &&
-              out._.trip[tripId].reference.slug in link[backward].referenceLookup === false
+              out._.trip[trips[i]].reference.slug in link[backward].referenceLookup === false
             ) {
-              link[backward].reference.push(out._.trip[tripId].reference);
-              link[backward].referenceLookup[out._.trip[tripId].reference.slug] = "";
+              link[backward].reference.push(out._.trip[trips[i]].reference);
+              link[backward].referenceLookup[out._.trip[trips[i]].reference.slug] = "";
+            }
+
+            if ("b" in out._.trip[trips[i]]) {
+              block[out._.trip[trips[i]].b] = link[backward].b;
+                // Use parent block. Convert (in later loop) all child block to match
             }
 
           } else {
@@ -3123,11 +3149,11 @@ var gtfsToAquius = gtfsToAquius || {
               "direction": 1,
               "product": out._.routes[routeId].product,
               "route": nodes,
-              "service": out._.trip[tripId].service
+              "service": out._.trip[trips[i]].service
             };
 
             if ("reference" in out._.routes[routeId] ||
-              "reference" in out._.trip[tripId]
+              "reference" in out._.trip[trips[i]]
             ) {
               link[forward].reference = [];
               link[forward].referenceLookup = {};
@@ -3141,31 +3167,37 @@ var gtfsToAquius = gtfsToAquius || {
                 // key index for lookup speed
             }
 
-            if ("reference" in out._.trip[tripId] &&
-              "slug" in out._.trip[tripId].reference
+            if ("reference" in out._.trip[trips[i]] &&
+              "slug" in out._.trip[trips[i]].reference
             ) {
-              link[forward].reference.push(out._.trip[tripId].reference);
-              link[forward].referenceLookup[out._.trip[tripId].reference.slug] = "";
+              link[forward].reference.push(out._.trip[trips[i]].reference);
+              link[forward].referenceLookup[out._.trip[trips[i]].reference.slug] = "";
             }
 
-            if (out.gtfsHead.stop_times.pickup_type !== -1 &&
-              out._.trip[tripId].setdown.length > 0
+            if ("setdown" in out._.trip[trips[i]] &&
+              out._.trip[trips[i]].setdown.length > 0
             ) {
-              link[forward].setdown = out._.trip[tripId].setdown;
+              link[forward].setdown = out._.trip[trips[i]].setdown;
             }
-            if (out.gtfsHead.stop_times.drop_off_type !== -1 &&
-              out._.trip[tripId].pickup.length > 0
+            if ("pickup" in out._.trip[trips[i]] &&
+              out._.trip[trips[i]].pickup.length > 0
             ) {
-              link[forward].pickup = out._.trip[tripId].pickup;
+              link[forward].pickup = out._.trip[trips[i]].pickup;
             }
-            if (isCircular(out, routeId, out._.trip[tripId], nodes)) {
+            if (isCircular(out, routeId, out._.trip[trips[i]], nodes)) {
               link[forward].circular = 1;
             }
-            if ("b" in out._.trip[tripId]) {
-              link[forward].b = out._.trip[tripId].b;
+            if ("b" in out._.trip[trips[i]]) {
+              if (out._.trip[trips[i]].b in block) {
+                link[forward].b = block[out._.trip[trips[i]].b];
+              } else {
+                block[out._.trip[trips[i]].b] = nextBlock;
+                link[forward].b = nextBlock;
+                nextBlock += 1;
+              }
             }
-            if ("t" in out._.trip[tripId]) {
-              link[forward].t = out._.trip[tripId].t;
+            if ("t" in out._.trip[trips[i]]) {
+              link[forward].t = out._.trip[trips[i]].t;
             }
 
           }
@@ -3242,12 +3274,18 @@ var gtfsToAquius = gtfsToAquius || {
       if ("setdown" in thisLink) {
         line[3].s = thisLink.setdown;
       }
-      if ("b" in thisLink) {
-        line[3].b = thisLink.b;
-      }
       if ("t" in thisLink) {
         line[3].t = thisLink.t;
       }
+      if ("b" in thisLink) {
+        if (thisLink.b in block) {
+          line[3].b = block[thisLink.b];
+            // Convert all child block to match
+        } else {
+          line[3].b = thisLink.b;
+        }
+      }
+      
 
       out.aquius.link.push(line);
 
@@ -3269,6 +3307,82 @@ var gtfsToAquius = gtfsToAquius || {
     }
 
     delete out._.dayFactor;
+
+    return out;
+  }
+
+  function optimiseNode(out) {
+    /**
+     * Assigns most frequently referenced nodes to lowest indices and removes unused nodes
+     * @param {object} out
+     * @return {object} out
+     */
+
+    var keys, newNode, newNodeLookup, nodeArray, i, j;
+    var nodeOccurance = {};
+      // OldNode: Count of references
+
+    for (i = 0; i < out.aquius.link.length; i += 1) {
+      nodeArray = out.aquius.link[i][2];
+      if ("u" in out.aquius.link[i][3]) {
+        nodeArray = nodeArray.concat(out.aquius.link[i][3].u);
+      }
+      if ("s" in out.aquius.link[i][3]) {
+        nodeArray = nodeArray.concat(out.aquius.link[i][3].s);
+      }
+      if ("t" in out.aquius.link[i][3]) {
+        nodeArray = nodeArray.concat(out.aquius.link[i][3].t);
+      }
+      for (j = 0; j < nodeArray.length; j += 1) {
+        if (nodeArray[j] in nodeOccurance === false) {
+          nodeOccurance[nodeArray[j]] = 1;
+        } else {
+          nodeOccurance[nodeArray[j]] += 1;
+        }
+      }
+    }
+
+    nodeArray = [];
+      // Reused, now OldNode by count of occurance
+    keys = Object.keys(nodeOccurance);
+    for (i = 0; i < keys.length; i += 1) {
+      nodeArray.push([keys[i], nodeOccurance[keys[i]]]);
+    }
+    nodeArray.sort(function(a, b) {
+      return a[1] - b[1];
+    });
+    nodeArray.reverse();
+
+    newNode = [];
+      // As aquius.node
+    newNodeLookup = {};
+      // OldNodeIndex: NewNodeIndex
+    for (i = 0; i < nodeArray.length; i += 1) {
+      newNode.push(out.aquius.node[nodeArray[i][0]]);
+      newNodeLookup[nodeArray[i][0]] = i;
+    }
+    out.aquius.node = newNode;
+
+    for (i = 0; i < out.aquius.link.length; i += 1) {
+      for (j = 0; j < out.aquius.link[i][2].length; j += 1) {
+        out.aquius.link[i][2][j] = newNodeLookup[out.aquius.link[i][2][j]];
+      }
+      if ("u" in out.aquius.link[i][3]) {
+        for (j = 0; j < out.aquius.link[i][3].u.length; j += 1) {
+          out.aquius.link[i][3].u[j] = newNodeLookup[out.aquius.link[i][3].u[j]];
+        }
+      }
+      if ("s" in out.aquius.link[i][3]) {
+        for (j = 0; j < out.aquius.link[i][3].s.length; j += 1) {
+          out.aquius.link[i][3].s[j] = newNodeLookup[out.aquius.link[i][3].s[j]];
+        }
+      }
+      if ("t" in out.aquius.link[i][3]) {
+        for (j = 0; j < out.aquius.link[i][3].t.length; j += 1) {
+          out.aquius.link[i][3].t[j] = newNodeLookup[out.aquius.link[i][3].t[j]];
+        }
+      }
+    }
 
     return out;
   }
@@ -3684,6 +3798,8 @@ var gtfsToAquius = gtfsToAquius || {
   out = serviceTrip(out);
   out = createRoutes(out);
   out = buildLink(out);
+
+  out = optimiseNode(out);
 
   return exitProcess(out, options);
 }

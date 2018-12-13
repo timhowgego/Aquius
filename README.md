@@ -466,7 +466,7 @@ Optionally, a [GeoJSON file](http://geojson.org/) can be provided containing pop
 
 GTFS To Aquius will attempt to assign each node (stop) to the boundary it falls within. For consistent results, boundaries should not overlap and specific populations should not be counted more than once. The choice of boundaries should be appropriate for the scale and scope of the services within the GTFS file: Not so small as to routinely exclude nodes used by a local population, but not so large as to suggest unrealistic hinterlands or catchment areas. For example, an entire city may reasonably have access to an inter-regional network whose only stop is in the city centre, and thus city-level boundaries might be appropriate at inter-regional level. In contrast, an urban network within a city should use more detailed boundaries that reflect the inherently local nature of the areas served. Note that the population summaries produced by Aquius are not intended to be precise, rather to provide a broad summary of where people are relative to nearby routes, and to allow basic comparison of differences in network connectivity.
 
-If configuration key `inGeojson` is true (the default), the entire dataset will be limited to services between stops within the GeoJSON boundaries. As currently implemented, unused nodes are retained in the Aquius output file, which may bloat its size considerably. These excess nodes can be removed by passing the output file through [Merge Aquius](#merge-aquius). In future, GTFS to Aquius should perform this function automatically.
+If configuration key `inGeojson` is true (the default), the entire dataset will be limited to services between stops within the GeoJSON boundaries.
 
 ## GeoJSON to Aquius
 
