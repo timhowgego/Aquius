@@ -823,7 +823,7 @@ var gtfsToAquius = gtfsToAquius || {
         }
 
         if (matches[2]) {
-          match = matches[2].replace(new RegExp( "\"\"", "g" ), "\"");
+          match = matches[2].replace(new RegExp("\"\"", "g"), "\"");
         } else {
           match = matches[3];
         }
@@ -2010,21 +2010,48 @@ var gtfsToAquius = gtfsToAquius || {
 
     var headsign, tripId, tripObject, i;
     var block = {};
-      // block_id: count of trips blocked
+      // block_id: array of trips blocked
     var calendar = serviceCalendar(out);
     var frequent = frequentTrip(out);
     var tripBlock = [];
       // List of trip_id with blocks
+    var routeExclude = {};
+    var routeInclude = {};
+
+    if (out.config.routeExclude.length > 0) {
+      for (i = 0; i < out.config.routeExclude.length; i += 1) {
+        routeExclude[out.config.routeExclude[i]] = "";
+      }
+    }
+
+    if (out.config.routeInclude.length > 0) {
+      for (i = 0; i < out.config.routeInclude.length; i += 1) {
+        routeInclude[out.config.routeInclude[i]] = "";
+      }
+    }
 
     out._.trip = {};
       // trip_id: {service [numbers], stops [sequence, node], pickup [], setdown [], reference [], frequent, block}
+    out._.routes = {};
+      // route_id: {product, reference{n, c, u}}
 
     for (i = 0; i < out.gtfs.trips.length; i += 1) {
 
-      if (out.gtfs.trips[i][out.gtfsHead.trips.service_id] in calendar) {
+      tripObject = out.gtfs.trips[i];
 
-        tripObject = out.gtfs.trips[i];
+      if (tripObject[out.gtfsHead.trips.service_id] in calendar &&
+        (out.config.routeExclude.length === 0 ||
+        tripObject[out.gtfsHead.trips.route_id] in routeExclude === false) &&
+        (out.config.routeInclude.length === 0 ||
+        tripObject[out.gtfsHead.trips.route_id] in routeInclude === true)
+      ) {
+
         tripId = tripObject[out.gtfsHead.trips.trip_id];
+
+        if (tripObject[out.gtfsHead.trips.route_id] in out._.routes === false) {
+          out._.routes[tripObject[out.gtfsHead.trips.route_id]] = {};
+            // Expanded by later function. Here serves to filter only required routes
+        }
 
         out._.trip[tripId] = {
           "calendar": calendar[tripObject[out.gtfsHead.trips.service_id]],
@@ -2057,12 +2084,15 @@ var gtfsToAquius = gtfsToAquius || {
           tripObject[out.gtfsHead.trips.block_id] !== ""
         ) {
           // Block_id used later for evaluation of circular
-          out._.trip[tripId].block = tripObject[out.gtfsHead.trips.block_id];
+          out._.trip[tripId].block = {
+            "id": tripObject[out.gtfsHead.trips.block_id]
+          };
+            // Also "trips" key as array of all trip_id using this block, added later
           tripBlock.push(tripId);
           if (tripObject[out.gtfsHead.trips.block_id] in block) {
-            block[tripObject[out.gtfsHead.trips.block_id]] += 1;
+            block[tripObject[out.gtfsHead.trips.block_id]].push(tripId);
           } else {
-            block[tripObject[out.gtfsHead.trips.block_id]] = 1;
+            block[tripObject[out.gtfsHead.trips.block_id]] = [tripId];
           }
         }
 
@@ -2087,8 +2117,7 @@ var gtfsToAquius = gtfsToAquius || {
     }
 
     for (i = 0; i < tripBlock.length; i += 1) {
-      out._.trip[tripBlock[i]].block = block[out._.trip[tripBlock[i]].block];
-        // Block reference becomes count of trips in that block
+      out._.trip[tripBlock[i]].block.trips = block[out._.trip[tripBlock[i]].block];
     }
 
     return out;
@@ -2728,43 +2757,19 @@ var gtfsToAquius = gtfsToAquius || {
 
   function createRoutes(out) {
     /**
-     * Adds out._.routes lookup of GTFS route_id: complex Object describing route
+     * Describes out._.routes GTFS route_id: complex Object describing route
      * @param {object} out
      * @return {object} out
      */
 
-    // Future: Currently parses all routes, regardless of use
     var contentString, color, position, override, reference, route, routeId, wildcard, i, j;
-    var routeExclude = {};
-    var routeInclude = {};
-
-    out._.routes = {};
-      // route_id: {product, reference{n, c, u}}
-
-    if (out.config.routeExclude.length > 0) {
-      for (i = 0; i < out.config.routeExclude.length; i += 1) {
-        routeExclude[out.config.routeExclude[i]] = "";
-      }
-    }
-
-    if (out.config.routeInclude.length > 0) {
-      for (i = 0; i < out.config.routeInclude.length; i += 1) {
-        routeInclude[out.config.routeInclude[i]] = "";
-      }
-    }
 
     for (i = 0; i < out.gtfs.routes.length; i += 1) {
 
       route = out.gtfs.routes[i];
       routeId = route[out.gtfsHead.routes.route_id];
 
-      if ((out.config.routeExclude.length === 0 ||
-        routeId in routeExclude === false) &&
-        (out.config.routeInclude.length === 0 ||
-        routeId in routeInclude === true)
-      ) {
-
-        out._.routes[routeId] = {};
+      if (routeId in out._.routes) {
 
         reference = {"slug": ""};
           // Slug is a temporary indexable unique reference
@@ -2940,15 +2945,20 @@ var gtfsToAquius = gtfsToAquius || {
      * @return {object} out
      */
 
-    var backward, forward, keys, line, nodes, routeId, thisLink, trips, i, j, k;
+    var backward, blockNodes, check, forward, isBackward, keys, line, merge, nodes, reference,
+      routeId, stops, thisLink, trips, i, j, k, l;
     var link = {};
       // linkUniqueId: {route array, product id, service count,
       // direction unless both, pickup array, setdown array, reference array}
     var block = {};
       // Original blockid:New block id
     var nextBlock = 0;
+    var skipTrip = {};
+      // Trip_id index of trips to skip (since already processed via block group)
 
     function isCircular(out, routeId, trip, nodes) {
+
+      var check, stops, target, i, j;
 
       function haversineDistance(lat1, lng1, lat2, lng2) {
         // Earth distance. Modified from Leaflet CRS.Earth.js
@@ -2980,10 +2990,29 @@ var gtfsToAquius = gtfsToAquius || {
       }
 
       if ("block" in trip &&
-        trip.block > 1
+        trip.block.trips.length > 1
       ) {
-        // Block had multiple trips
-        return true;
+        // Block had multiple trips. Circular if nodes are the same on all trips
+        target = nodes.join(":");
+        check = null;
+        for (i = 0; i < trip.block.trips.length; i += 1) {
+          if (trip.block.trips[i] in out._.trip) {
+            stops = out._.trip[trip.block.trips[i]].stops.slice().sort(function(a, b) {
+              return a[0] - b[0];
+            });
+            check = [];
+            for (j = 0; j < stops.length; j += 1) {
+              check.push(stops[j][1]);
+            }
+            if (check.join(":") !== target) {
+              check = null;
+              break;
+            }
+          }
+        }
+        if (check !== null) {
+          return true;
+        }
       }
 
       if (nodes.length < 5) {
@@ -3027,12 +3056,132 @@ var gtfsToAquius = gtfsToAquius || {
 
       routeId = out._.trip[trips[i]].route_id;
 
-      if (routeId in out._.routes) {
+      if (routeId in out._.routes &&
+        trips[i] in skipTrip === false
+      ) {
 
+        isBackward = false;
         nodes = [];
         out._.trip[trips[i]].stops.sort(function(a, b) {
           return a[0] - b[0];
         });
+
+        reference = {};
+          // slug:reference
+        if ("reference" in out._.routes[routeId] &&
+          out._.routes[routeId].reference.slug in reference === false
+        ) {
+          reference[out._.routes[routeId].reference.slug] = out._.routes[routeId].reference;
+        }
+        if ("reference" in out._.trip[trips[i]] &&
+          out._.trip[trips[i]].reference.slug in reference === false
+        ) {
+          reference[out._.trip[trips[i]].reference.slug] = out._.trip[trips[i]].reference;
+        }
+
+        if ("block" in out._.trip[trips[i]] &&
+          out._.trip[trips[i]].block.trips.length > 1
+        ) {
+          /**
+           * Blocked trips require same service and stop differences to be merged here
+           * Trips with identical stop sequence will be evalulated later as circulars
+           * Blocked trips with different calendars could break this logic,
+           * but since service is the same, such a break should not impact on the final link totals
+           * Note blocks rarely used, while imperfect block processing tends to fail gracefully,
+           * since failed trips are retained separately (only the through-journey is lost)
+           */
+          merge = [];
+            // TimeMS, nodes, tripId
+
+          for (j = 0; j < out._.trip[trips[i]].block.trips.length; j += 1) {
+            if (out._.trip[trips[i]].block.trips[j] in skipTrip === false &&
+              out._.trip[trips[i]].block.trips[j] in out._.trip &&
+              out._.trip[out._.trip[trips[i]].block.trips[j]].service.join(":")
+                === out._.trip[trips[i]].service.join(":") &&
+              out._.trip[out._.trip[trips[i]].block.trips[j]].route_id in out._.routes &&
+              out._.routes[out._.trip[out._.trip[trips[i]].block.trips[j]].route_id].product
+                === out._.routes[routeId].product &&
+              "start" in out._.trip[out._.trip[trips[i]].block.trips[j]] &&
+              "end" in out._.trip[out._.trip[trips[i]].block.trips[j]]
+            ) {
+              // Block.trips includes parent trip
+              stops = out._.trip[out._.trip[trips[i]].block.trips[j]].stops.sort(function(a, b) {
+                return a[0] - b[0];
+              });
+              blockNodes = [];
+              for (k = 0; k < stops.length; k += 1) {
+                blockNodes.push(stops[k]);
+              }
+              if (blockNodes.join(":") !== nodes.join(":")) {
+                merge.push([(out._.trip[out._.trip[trips[i]].block.trips[j]].start +
+                  out._.trip[out._.trip[trips[i]].block.trips[j]].end) / 2,
+                  blockNodes,  out._.trip[trips[i]].block.trips[j]]);
+              }
+            }
+          }
+
+          if (merge.length > 1) {
+            // Else only parent trip
+            merge.sort(function(a, b) {
+              return a[0] - b[0];
+            });
+            nodes = [];
+
+            for (j = 0; j < merge.length; j += 1) {
+              if (merge[j][1].length > 0) {
+                if (nodes.length > 0 &&
+                  merge[j][1][0] === nodes[nodes.length - 1]
+                ) {
+                  merge[j][1] = merge[j][1].slice(1);
+                }
+                nodes = nodes.concat(merge[j][1]);
+                if (merge[j][2] !== trips[i]) {
+
+                  skipTrip[merge[j][2]] = "";
+
+                  check = ["t", "setdown", "pickup"];
+                  for (k = 0; k < check.length; k += 1) {
+                    if (check[k] in out._.trip[merge[j][2]]) {
+                      if (check[k] in out._.trip[trips[i]] === false) {
+                        out._.trip[trips[i]][check[k]] = [];
+                      }
+                      for (l = 0; l < out._.trip[merge[j][2]][check[k]].length; l += 1) {
+                        if (out._.trip[trips[i]][check[k]].indexOf(out._.trip[merge[j][2]][check[k]][l]) === -1) {
+                          // Likely never called. Block with splits or pickup/setdowns may be messy, but try
+                          out._.trip[trips[i]][check[k]].push(out._.trip[merge[j][2]][check[k]][l]);
+                        }
+                      }
+                    }
+                  }
+
+                  if ("b" in out._.trip[merge[j][2]]) {
+                    if ("b" in out._.trip[trips[i]] === false) {
+                      out._.trip[trips[i]].b = out._.trip[merge[j][2]].b;
+                    } else {
+                      if (out._.trip[trips[i]].b !== out._.trip[merge[j][2]].b) {
+                        block[out._.trip[merge[j][2]].b] = out._.trip[trips[i]].b;
+                      }
+                    }
+                  }
+
+                  if ("reference" in out._.routes[out._.trip[merge[j][2]].route_id] &&
+                    out._.routes[out._.trip[merge[j][2]].route_id].reference.slug in reference === false
+                  ) {
+                    reference[out._.routes[out._.trip[merge[j][2]].route_id].reference.slug] =
+                      out._.routes[out._.trip[merge[j][2]].route_id].reference;
+                  }
+                  if ("reference" in out._.trip[merge[j][2]] &&
+                    out._.trip[merge[j][2]].reference.slug in reference === false
+                  ) {
+                    reference[out._.trip[merge[j][2]].reference.slug] = out._.trip[merge[j][2]].reference;
+                  }
+
+                  // Service remains as parent
+                }
+              }
+            }
+          }
+        }
 
         forward = "f" + out._.routes[routeId].product;
         if (out.config.mirrorLink) {
@@ -3072,8 +3221,10 @@ var gtfsToAquius = gtfsToAquius || {
           }
         }
 
-        for (j = 0; j < out._.trip[trips[i]].stops.length; j += 1) {
-          nodes.push(out._.trip[trips[i]].stops[j][1]);
+        if (nodes.length === 0) {
+          for (j = 0; j < out._.trip[trips[i]].stops.length; j += 1) {
+            nodes.push(out._.trip[trips[i]].stops[j][1]);
+          }
         }
 
         if (out.config.mirrorLink) {
@@ -3088,22 +3239,6 @@ var gtfsToAquius = gtfsToAquius || {
 
           link[forward].service = mergeService(link[forward].service, out._.trip[trips[i]].service);
 
-          if ("reference" in out._.routes[routeId] &&
-            "referenceLookup" in link[forward] &&
-            out._.routes[routeId].reference.slug in link[forward].referenceLookup === false
-          ) {
-            link[forward].reference.push(out._.routes[routeId].reference);
-            link[forward].referenceLookup[out._.routes[routeId].reference.slug] = "";
-          }
-
-          if ("reference" in out._.trip[trips[i]] &&
-            "referenceLookup" in link[forward] &&
-            out._.trip[trips[i]].reference.slug in link[forward].referenceLookup === false
-          ) {
-            link[forward].reference.push(out._.trip[trips[i]].reference);
-            link[forward].referenceLookup[out._.trip[trips[i]].reference.slug] = "";
-          }
-
           if ("b" in out._.trip[trips[i]]) {
             block[out._.trip[trips[i]].b] = link[forward].b;
               // Use parent block. Convert (in later loop) all child block to match
@@ -3117,25 +3252,11 @@ var gtfsToAquius = gtfsToAquius || {
             "b" in link[backward])
           ) {
 
+            isBackward = true;
             link[backward].service = mergeService(link[backward].service, out._.trip[trips[i]].service);
 
-            if ("reference" in out._.routes[routeId] &&
-              "referenceLookup" in link[backward] &&
-              out._.routes[routeId].reference.slug in link[backward].referenceLookup === false
-            ) {
-              link[backward].reference.push(out._.routes[routeId].reference);
-              link[backward].referenceLookup[out._.routes[routeId].reference.slug] = "";
-            }
             if ("direction" in link[backward]) {
               delete link[backward].direction;
-            }
-
-            if ("reference" in out._.trip[trips[i]] &&
-              "referenceLookup" in link[backward] &&
-              out._.trip[trips[i]].reference.slug in link[backward].referenceLookup === false
-            ) {
-              link[backward].reference.push(out._.trip[trips[i]].reference);
-              link[backward].referenceLookup[out._.trip[trips[i]].reference.slug] = "";
             }
 
             if ("b" in out._.trip[trips[i]]) {
@@ -3151,28 +3272,6 @@ var gtfsToAquius = gtfsToAquius || {
               "route": nodes,
               "service": out._.trip[trips[i]].service
             };
-
-            if ("reference" in out._.routes[routeId] ||
-              "reference" in out._.trip[trips[i]]
-            ) {
-              link[forward].reference = [];
-              link[forward].referenceLookup = {};
-            }
-
-            if ("reference" in out._.routes[routeId] &&
-              "slug" in out._.routes[routeId].reference
-            ) {
-              link[forward].reference.push(out._.routes[routeId].reference);
-              link[forward].referenceLookup[out._.routes[routeId].reference.slug] = "";
-                // key index for lookup speed
-            }
-
-            if ("reference" in out._.trip[trips[i]] &&
-              "slug" in out._.trip[trips[i]].reference
-            ) {
-              link[forward].reference.push(out._.trip[trips[i]].reference);
-              link[forward].referenceLookup[out._.trip[trips[i]].reference.slug] = "";
-            }
 
             if ("setdown" in out._.trip[trips[i]] &&
               out._.trip[trips[i]].setdown.length > 0
@@ -3200,6 +3299,38 @@ var gtfsToAquius = gtfsToAquius || {
               link[forward].t = out._.trip[trips[i]].t;
             }
 
+          }
+        }
+
+        keys = Object.keys(reference);
+        if (keys.length > 0) {
+
+          if (isBackward &&
+            "reference" in link[backward] === false
+          ) {
+            link[backward].reference = [];
+            link[backward].referenceLookup = {};
+          }
+          if (isBackward == false &&
+            "reference" in link[forward] === false
+          ) {
+            link[forward].reference = [];
+            link[forward].referenceLookup = {};
+          }
+
+          for (j = 0; j < keys.length; j += 1) {
+            if (isBackward &&
+              keys[j] in link[backward].referenceLookup === false
+            ) {
+              link[backward].reference.push(reference[keys[j]]);
+              link[backward].referenceLookup[keys[j]] = "";
+            }
+            if (isBackward === false &&
+              keys[j] in link[forward].referenceLookup === false
+            ) {
+              link[forward].reference.push(reference[keys[j]]);
+              link[forward].referenceLookup[keys[j]] = "";
+            }
           }
         }
 
