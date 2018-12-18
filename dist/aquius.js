@@ -2898,7 +2898,8 @@ var aquius = aquius || {
               ((i === 0 &&
               service.route[i + 1] in linkChecks.here === false) ||
               (i === lastIndex &&
-              service.route[i - 1] in linkChecks.here === false))
+              service.route[i - 1] in linkChecks.here === false)) &&
+              "circular" in service === false
             ) {
               // Terminus
               thisLevel = service.level / 2;

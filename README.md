@@ -348,9 +348,11 @@ allowDuplication|boolean|false|Include duplicate vehicle trips (same route, serv
 allowHeadsign|boolean|false|Include trip-specific headsigns (information may be redundant if using allowRoute)
 allowName|boolean|true|Include stop names (increases file size significantly)
 allowRoute|boolean|true|Include route-specific short names
+allowRouteLong|boolean|false|Include route-specific long names
 allowRouteUrl|boolean|true|Include URLs for routes (can increase file size significantly unless URLs conform to logical repetitive style)
 allowSplit|boolean|false|Include trips on the same route (service period and direction) which share at least two (but not all) stop times as "split"
 allowStopUrl|boolean|true|Include URLs for stops (can increase file size significantly unless URLs conform to logical repetitive style)
+allowZeroCoordinate|boolean|true|Include stops with 0,0 coordinates, else stops are skipped
 coordinatePrecision|integer|5|Coordinate decimal places (smaller values tend to group clusters of stops), described below
 duplicationRouteOnly|boolean|true|Restrict duplicate check to services on the same route
 fromDate|YYYYMMDD dateString|Today|Start date for service pattern analysis (inclusive)
@@ -407,7 +409,7 @@ Configuration key `productOverride` allows colors to be applied to all links of 
 
 Configuration key `routeOverride` allows bespoke colors or route names to be applied by route (taking precedence). The `routeOverride` key's value is an `Object` whose keys are GTFS "route_id" values. The value of each "route_id" key is an `Object` containing keys "route_short_name", "route_color", "route_text_color" and/or "route_url", with content matching GTFS specification.
 
-Configuration key `stopOverride` allows poorly geocoded stops to be given valid coordinates, and bespoke (user friendly) codes, names, and URLs to be specified. The `stopOverride` key's value is is an `Object` whose keys are GTFS "stop_id" values. The value of each "stop_id" key is an `Object` containing override coordinates (WGS 84 floats) "x" and "y", and/or "stop_code", "stop_name" and "stop_url". If GTFS to Aquius encounters 0,0 coordinates it will automatically add these stops to `stopOverride` for manual editing.
+Configuration key `stopOverride` allows poorly geocoded stops to be given valid coordinates, and bespoke (user friendly) codes, names, and URLs to be specified. The `stopOverride` key's value is is an `Object` whose keys are GTFS "stop_id" values. The value of each "stop_id" key is an `Object` containing override coordinates (WGS 84 floats) "x" and "y", and/or "stop_code", "stop_name" and "stop_url". If GTFS to Aquius encounters 0,0 coordinates it will automatically add these stops to `stopOverride` for manual editing. Alternatively 0,0 coordinate stops can be skipped entirely by setting config `allowZeroCoordinate` to false.
 
 #### Network Filter
 

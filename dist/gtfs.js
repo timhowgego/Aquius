@@ -638,12 +638,16 @@ var gtfsToAquius = gtfsToAquius || {
         // Include stop names (increases file size)
       "allowRoute": true,
         // Include route-specific short names
+      "allowRouteLong": false,
+        // Include route-specific long names
       "allowRouteUrl": true,
         // Include service URLs (increases file size)
       "allowSplit": false,
         // Count trips on the same route which share at least two, but not all, stop times as "split" at their unique stops
       "allowStopUrl": true,
         // Include stop URLs (increases file size)
+      "allowZeroCoordinate": true,
+        // Include stops with 0,0 coordinates, else stops are skipped
       "coordinatePrecision": 5,
         // Coordinate decimal places (smaller values tend to group clusters of stops)
       "duplicationRouteOnly": true,
@@ -1650,19 +1654,26 @@ var gtfsToAquius = gtfsToAquius || {
             // Is parent
 
             coords = stopCoordinates(out, out.gtfs.stops[i]);
-            out = checkStopCoordinates(out, coords, out.gtfs.stops[i][out.gtfsHead.stops.stop_id]);
-            key = coords[0].toString() + "," + coords[1].toString();
 
-            if (key in out._.nodeCoord) {
-              index = out._.nodeCoord[key];
-            } else {
-              index = out.aquius.node.length;
-              out.aquius.node.push([coords[0], coords[1], {}]);
-              out._.nodeCoord[key] = index;
+            if (out.config.allowZeroCoordinate ||
+              (coords[0] !== 0 ||
+              coords[1] !== 0)
+            ) {
+
+              out = checkStopCoordinates(out, coords, out.gtfs.stops[i][out.gtfsHead.stops.stop_id]);
+              key = coords[0].toString() + "," + coords[1].toString();
+
+              if (key in out._.nodeCoord) {
+                index = out._.nodeCoord[key];
+              } else {
+                index = out.aquius.node.length;
+                out.aquius.node.push([coords[0], coords[1], {}]);
+                out._.nodeCoord[key] = index;
+              }
+
+              out._.nodeLookup[out.gtfs.stops[i][out.gtfsHead.stops.stop_id]] = index;
+              out = createNodeProperties(out, out.gtfs.stops[i], index);
             }
-
-            out._.nodeLookup[out.gtfs.stops[i][out.gtfsHead.stops.stop_id]] = index;
-            out = createNodeProperties(out, out.gtfs.stops[i], index);
 
           } else {
 
@@ -1749,21 +1760,28 @@ var gtfsToAquius = gtfsToAquius || {
                       if (out.gtfs.stops[j][out.gtfsHead.stops.stop_id] === fromStop) {
 
                         coords = stopCoordinates(out, out.gtfs.stops[j]);
-                        out = checkStopCoordinates(out, coords, out.gtfs.stops[j][out.gtfsHead.stops.stop_id]);
-                        key = coords[0].toString() + "," + coords[1].toString();
 
-                        if (key in out._.nodeCoord) {
-                          index = out._.nodeCoord[key];
-                        } else {
-                          index = out.aquius.node.length;
-                          out.aquius.node.push([coords[0], coords[1], {}]);
-                          out._.nodeCoord[key] = index;
+                        if (out.config.allowZeroCoordinate ||
+                          (coords[0] !== 0 ||
+                          coords[1] !== 0)
+                        ) {
+
+                          out = checkStopCoordinates(out, coords, out.gtfs.stops[j][out.gtfsHead.stops.stop_id]);
+                          key = coords[0].toString() + "," + coords[1].toString();
+
+                          if (key in out._.nodeCoord) {
+                            index = out._.nodeCoord[key];
+                          } else {
+                            index = out.aquius.node.length;
+                            out.aquius.node.push([coords[0], coords[1], {}]);
+                            out._.nodeCoord[key] = index;
+                          }
+
+                          out._.nodeLookup[fromStop] = index;
+                          out._.nodeLookup[toStop] = index;
+                          out = createNodeProperties(out, out.gtfs.stops[j], index);
+                          break;
                         }
-
-                        out._.nodeLookup[fromStop] = index;
-                        out._.nodeLookup[toStop] = index;
-                        out = createNodeProperties(out, out.gtfs.stops[j], index);
-                        break;
                       }
 
                     }
@@ -1808,19 +1826,26 @@ var gtfsToAquius = gtfsToAquius || {
         out.gtfs.stops[i][out.gtfsHead.stops.stop_id] in out._.stopInclude)
       ) {
         coords = stopCoordinates(out, out.gtfs.stops[i]);
+
+        if (out.config.allowZeroCoordinate ||
+          (coords[0] !== 0 ||
+          coords[1] !== 0)
+        ) {
+
         out = checkStopCoordinates(out, coords, out.gtfs.stops[i][out.gtfsHead.stops.stop_id]);
         key = coords[0].toString() + "," + coords[1].toString();
 
-        if (key in out._.nodeCoord) {
-          index = out._.nodeCoord[key];
-        } else {
-          index = out.aquius.node.length;
-          out.aquius.node.push([coords[0], coords[1], {}]);
-          out._.nodeCoord[key] = index;
-        }
+          if (key in out._.nodeCoord) {
+            index = out._.nodeCoord[key];
+          } else {
+            index = out.aquius.node.length;
+            out.aquius.node.push([coords[0], coords[1], {}]);
+            out._.nodeCoord[key] = index;
+          }
 
-        out._.nodeLookup[out.gtfs.stops[i][out.gtfsHead.stops.stop_id]] = index;
-        out = createNodeProperties(out, out.gtfs.stops[i], index);
+          out._.nodeLookup[out.gtfs.stops[i][out.gtfsHead.stops.stop_id]] = index;
+          out = createNodeProperties(out, out.gtfs.stops[i], index);
+        }
       }
     }
 
@@ -2177,7 +2202,8 @@ var gtfsToAquius = gtfsToAquius || {
             if (out.gtfsHead.stop_times.drop_off_type !== -1 &&
               stopObject[out.gtfsHead.stop_times.drop_off_type] === "1"
             ) {
-              out._.trip[trips[i]].pickup.push(out._.nodeLookup[stopObject[out.gtfsHead.stop_times.stop_id]]);
+              out._.trip[trips[i]
+              ].pickup.push(out._.nodeLookup[stopObject[out.gtfsHead.stop_times.stop_id]]);
             }
 
             if ("frequent" in out._.trip[trips[i]] === false) {
@@ -2790,23 +2816,40 @@ var gtfsToAquius = gtfsToAquius || {
           }
         }
 
-        if (out.config.allowRoute === true) {
+        if (out.config.allowRoute ||
+          out.config.allowRouteLong
+        ) {
 
           contentString = "";
 
-          if (routeId in out.config.routeOverride &&
+          if (out.config.allowRoute &&
+            routeId in out.config.routeOverride &&
             "route_short_name" in out.config.routeOverride[routeId]
           ) {
             contentString = out.config.routeOverride[routeId].route_short_name;
           } else {
-            if (out.gtfsHead.routes.route_short_name !== -1) {
+            if (out.config.allowRoute &&
+              out.gtfsHead.routes.route_short_name !== -1
+            ) {
               contentString = route[out.gtfsHead.routes.route_short_name].trim();
             }
-            if (contentString === "" &&
+          }
+          if (out.config.allowRouteLong &&
+            routeId in out.config.routeOverride &&
+            "route_long_name" in out.config.routeOverride[routeId]
+          ) {
+            if (contentString !== "") {
+              contentString += ": ";
+            }
+            contentString += out.config.routeOverride[routeId].route_long_name;
+          } else {
+            if (out.config.allowRouteLong &&
               out.gtfsHead.routes.route_long_name !== -1
             ) {
-              // Long name only if short name unavailable
-              contentString = route[out.gtfsHead.routes.route_long_name].trim();
+              if (contentString !== "") {
+                contentString += ": ";
+              }
+              contentString += route[out.gtfsHead.routes.route_long_name].trim();
             }
           }
 
@@ -2816,8 +2859,10 @@ var gtfsToAquius = gtfsToAquius || {
           }
 
         }
+        
+        
 
-        if (out.config.allowColor === true) {
+        if (out.config.allowColor) {
 
           color = [["route_color", "c"], ["route_text_color", "t"]];
           for (j = 0; j < color.length; j += 1) {
@@ -2945,8 +2990,8 @@ var gtfsToAquius = gtfsToAquius || {
      * @return {object} out
      */
 
-    var backward, blockNodes, check, forward, isBackward, keys, line, merge, nodes, reference,
-      routeId, stops, thisLink, trips, i, j, k, l;
+    var add, backward, blockNodes, check, forward, isBackward, keys, line, merge, nodeCount, nodes,
+      nodeStack, reference, routeId, stops, thisLink, trips, i, j, k, l;
     var link = {};
       // linkUniqueId: {route array, product id, service count,
       // direction unless both, pickup array, setdown array, reference array}
@@ -2974,7 +3019,7 @@ var gtfsToAquius = gtfsToAquius || {
 
       if (out.config.isCircular.length > 0) {
         if (routeId in out._.circular) {
-          // Predefined circular
+          // Predefined circular, come what may
           return true;
         } else {
           // Circulars are defined and this is not one
@@ -3062,6 +3107,8 @@ var gtfsToAquius = gtfsToAquius || {
 
         isBackward = false;
         nodes = [];
+        nodeCount = {};
+          // Node:Count. Prevents inclusion in p/u/split where node occurs >1
         out._.trip[trips[i]].stops.sort(function(a, b) {
           return a[0] - b[0];
         });
@@ -3112,11 +3159,9 @@ var gtfsToAquius = gtfsToAquius || {
               for (k = 0; k < stops.length; k += 1) {
                 blockNodes.push(stops[k]);
               }
-              if (blockNodes.join(":") !== nodes.join(":")) {
-                merge.push([(out._.trip[out._.trip[trips[i]].block.trips[j]].start +
-                  out._.trip[out._.trip[trips[i]].block.trips[j]].end) / 2,
-                  blockNodes,  out._.trip[trips[i]].block.trips[j]]);
-              }
+              merge.push([(out._.trip[out._.trip[trips[i]].block.trips[j]].start +
+                out._.trip[out._.trip[trips[i]].block.trips[j]].end) / 2,
+                blockNodes,  out._.trip[trips[i]].block.trips[j]]);
             }
           }
 
@@ -3125,7 +3170,6 @@ var gtfsToAquius = gtfsToAquius || {
             merge.sort(function(a, b) {
               return a[0] - b[0];
             });
-            nodes = [];
 
             for (j = 0; j < merge.length; j += 1) {
               if (merge[j][1].length > 0) {
@@ -3222,8 +3266,18 @@ var gtfsToAquius = gtfsToAquius || {
         }
 
         if (nodes.length === 0) {
-          for (j = 0; j < out._.trip[trips[i]].stops.length; j += 1) {
+          add = true;
+        } else {
+          add = false;
+        }
+        for (j = 0; j < out._.trip[trips[i]].stops.length; j += 1) {
+          if (add) {
             nodes.push(out._.trip[trips[i]].stops[j][1]);
+          }
+          if (out._.trip[trips[i]].stops[j][1] in nodeCount) {
+            nodeCount[out._.trip[trips[i]].stops[j][1]] += 1; 
+          } else {
+            nodeCount[out._.trip[trips[i]].stops[j][1]] = 1;
           }
         }
 
@@ -3273,15 +3327,31 @@ var gtfsToAquius = gtfsToAquius || {
               "service": out._.trip[trips[i]].service
             };
 
-            if ("setdown" in out._.trip[trips[i]] &&
-              out._.trip[trips[i]].setdown.length > 0
-            ) {
-              link[forward].setdown = out._.trip[trips[i]].setdown;
+            if ("setdown" in out._.trip[trips[i]]) {
+              nodeStack = [];
+              for (j = 0; j < out._.trip[trips[i]].setdown.length; j += 1) {
+                if (out._.trip[trips[i]].setdown[j] in nodeCount &&
+                  nodeCount[out._.trip[trips[i]].setdown[j]] === 1
+                ) {
+                  nodeStack.push(out._.trip[trips[i]].setdown[j]);
+                }
+              }
+              if (nodeStack.length > 0) {
+                link[forward].setdown = nodeStack;
+              }
             }
-            if ("pickup" in out._.trip[trips[i]] &&
-              out._.trip[trips[i]].pickup.length > 0
-            ) {
-              link[forward].pickup = out._.trip[trips[i]].pickup;
+            if ("pickup" in out._.trip[trips[i]]) {
+              nodeStack = [];
+              for (j = 0; j < out._.trip[trips[i]].pickup.length; j += 1) {
+                if (out._.trip[trips[i]].pickup[j] in nodeCount &&
+                  nodeCount[out._.trip[trips[i]].pickup[j]] === 1
+                ) {
+                  nodeStack.push(out._.trip[trips[i]].pickup[j]);
+                }
+              }
+              if (nodeStack.length > 0) {
+                link[forward].pickup = nodeStack;
+              }
             }
             if (isCircular(out, routeId, out._.trip[trips[i]], nodes)) {
               link[forward].circular = 1;
@@ -3296,7 +3366,17 @@ var gtfsToAquius = gtfsToAquius || {
               }
             }
             if ("t" in out._.trip[trips[i]]) {
-              link[forward].t = out._.trip[trips[i]].t;
+              nodeStack = [];
+              for (j = 0; j < out._.trip[trips[i]].t.length; j += 1) {
+                if (out._.trip[trips[i]].t[j] in nodeCount &&
+                  nodeCount[out._.trip[trips[i]].t[j]] === 1
+                ) {
+                  nodeStack.push(out._.trip[trips[i]].t[j]);
+                }
+              }
+              if (nodeStack.length > 0) {
+                link[forward].t = nodeStack;
+              }
             }
 
           }
