@@ -686,6 +686,8 @@ var gtfsToAquius = gtfsToAquius || {
         // Group services by, using service definitions (see docs)
       "servicePer": 1,
         // Service average per period in days (1 gives daily totals, 7 gives weekly totals)
+      "splitMinimumJoin": 2,
+        // Minimum number of concurrent nodes that split services must share
       "stopExclude": [],
         // GTFS "stop_id" (strings) to be excluded from analysis
       "stopInclude": [],
@@ -2142,7 +2144,7 @@ var gtfsToAquius = gtfsToAquius || {
     }
 
     for (i = 0; i < tripBlock.length; i += 1) {
-      out._.trip[tripBlock[i]].block.trips = block[out._.trip[tripBlock[i]].block];
+      out._.trip[tripBlock[i]].block.trips = block[out._.trip[tripBlock[i]].block.id];
     }
 
     return out;
@@ -2161,8 +2163,8 @@ var gtfsToAquius = gtfsToAquius || {
     var trips = Object.keys(out.gtfs.stop_times);
 
     if (out.config.allowDuplicate === false ||
-      out.config.allowSplit === true ||
-      out.config.allowCabotage === true
+      out.config.allowSplit ||
+      out.config.allowCabotage
     ) {
       duplicate = {};
         // dateMS: Unique key = node:time:dateMS:direction(:route): trip_id
@@ -2341,7 +2343,7 @@ var gtfsToAquius = gtfsToAquius || {
      * @return {object} out
      */ 
 
-    var dupCalendar, keys, parentCalendar, tripId, i, j;
+    var concurrentCount, dupCalendar, joinOk, keys, lastConcurrentIndex, parentCalendar, tripId, i, j;
     var nextB = 0;
     var trips = Object.keys(out._.trip);
 
@@ -2418,22 +2420,42 @@ var gtfsToAquius = gtfsToAquius || {
           } else {
 
             if (out.config.allowSplit &&
+              out._.trip[trips[i]].dup.stops.length >= out.config.splitMinimumJoin &&
               out._.trip[trips[i]].dup.stops.length < out._.trip[trips[i]].stops.length
             ) {
 
               if (dupCalendar.length === 0) {
                 // Commonly: Dup calendar entirely within parent, so apply split to dup 
                 out._.trip[trips[i]].t = [];
+                lastConcurrentIndex = -1;
+                concurrentCount = 0;
+                joinOk = false;
                 for (j = 0; j < out._.trip[trips[i]].stops.length; j += 1) {
                   if (out._.trip[trips[i]].dup.stops.indexOf(out._.trip[trips[i]].stops[j][1]) === -1) {
                     // IndexOf unlikely to be used frequently or on long arrays
                     out._.trip[trips[i]].t.push(out._.trip[trips[i]].stops[j][1]);
+                  } else {
+                    if (j - 1 === lastConcurrentIndex) {
+                      concurrentCount += 1;
+                      if (concurrentCount === out.config.splitMinimumJoin) {
+                        joinOk = true;
+                      }
+                    } else {
+                      concurrentCount = 0
+                    }
+                    lastConcurrentIndex = j;
                   }
+                }
+                if (joinOk === false) {
+                  delete out._.trip[trips[i]].t;
                 }
               } else {
                 if (parentCalendar.length === 0) {
                   // Unlikely: Parent calendar entirely within dup, so apply split to parent
                   out._.trip[tripId].t = [];
+                  lastConcurrentIndex = -1;
+                  concurrentCount = 0;
+                  joinOk = false;
                   keys = {};
                     // Index of all duplicate trip's nodes. Rarely called, so built as required
                   for (j = 0; j < out._.trip[trips[i]].stops.length; j += 1) {
@@ -2442,7 +2464,20 @@ var gtfsToAquius = gtfsToAquius || {
                   for (j = 0; j < out._.trip[tripId].stops.length; j += 1) {
                     if (out._.trip[tripId].stops[j][1] in keys === false) {
                       out._.trip[tripId].t.push(out._.trip[tripId].stops[j][1]);
+                    } else {
+                      if (j - 1 === lastConcurrentIndex) {
+                        concurrentCount += 1;
+                        if (concurrentCount === out.config.splitMinimumJoin) {
+                          joinOk = true;
+                        }
+                      } else {
+                        concurrentCount = 0
+                      }
+                      lastConcurrentIndex = j;
                     }
+                  }
+                  if (joinOk === false) {
+                    delete out._.trip[trips[i]].t;
                   }
                 }
                 // Else excessively complex split: Neither entirely in other's calendar, so fallback to retain full trip
@@ -2859,8 +2894,6 @@ var gtfsToAquius = gtfsToAquius || {
           }
 
         }
-        
-        
 
         if (out.config.allowColor) {
 
@@ -2995,9 +3028,6 @@ var gtfsToAquius = gtfsToAquius || {
     var link = {};
       // linkUniqueId: {route array, product id, service count,
       // direction unless both, pickup array, setdown array, reference array}
-    var block = {};
-      // Original blockid:New block id
-    var nextBlock = 0;
     var skipTrip = {};
       // Trip_id index of trips to skip (since already processed via block group)
 
@@ -3101,9 +3131,11 @@ var gtfsToAquius = gtfsToAquius || {
 
       routeId = out._.trip[trips[i]].route_id;
 
-      if (routeId in out._.routes &&
-        trips[i] in skipTrip === false
+      if (trips[i] in skipTrip === false &&
+        routeId in out._.routes &&
+        "product" in out._.routes[routeId]
       ) {
+        // Product check only fails if route_id was missing from GTFS routes
 
         isBackward = false;
         nodes = [];
@@ -3157,11 +3189,11 @@ var gtfsToAquius = gtfsToAquius || {
               });
               blockNodes = [];
               for (k = 0; k < stops.length; k += 1) {
-                blockNodes.push(stops[k]);
+                blockNodes.push(stops[k][1]);
               }
               merge.push([(out._.trip[out._.trip[trips[i]].block.trips[j]].start +
                 out._.trip[out._.trip[trips[i]].block.trips[j]].end) / 2,
-                blockNodes,  out._.trip[trips[i]].block.trips[j]]);
+                blockNodes, out._.trip[trips[i]].block.trips[j]]);
             }
           }
 
@@ -3198,17 +3230,8 @@ var gtfsToAquius = gtfsToAquius || {
                     }
                   }
 
-                  if ("b" in out._.trip[merge[j][2]]) {
-                    if ("b" in out._.trip[trips[i]] === false) {
-                      out._.trip[trips[i]].b = out._.trip[merge[j][2]].b;
-                    } else {
-                      if (out._.trip[trips[i]].b !== out._.trip[merge[j][2]].b) {
-                        block[out._.trip[merge[j][2]].b] = out._.trip[trips[i]].b;
-                      }
-                    }
-                  }
-
-                  if ("reference" in out._.routes[out._.trip[merge[j][2]].route_id] &&
+                  if (out._.trip[merge[j][2]].route_id in out._.routes &&
+                    "reference" in out._.routes[out._.trip[merge[j][2]].route_id] &&
                     out._.routes[out._.trip[merge[j][2]].route_id].reference.slug in reference === false
                   ) {
                     reference[out._.routes[out._.trip[merge[j][2]].route_id].reference.slug] =
@@ -3220,7 +3243,7 @@ var gtfsToAquius = gtfsToAquius || {
                     reference[out._.trip[merge[j][2]].reference.slug] = out._.trip[merge[j][2]].reference;
                   }
 
-                  // Service remains as parent
+                  // Service/product remains as parent. Ignores any b (unlikely scenario)
                 }
               }
             }
@@ -3287,23 +3310,16 @@ var gtfsToAquius = gtfsToAquius || {
         forward = nodes.join(":") + forward;
 
         if (forward in link &&
-          ("b" in out._.trip[trips[i]] === false ||
-          "b" in link[forward])
+          "b" in out._.trip[trips[i]] === false
         ) {
 
           link[forward].service = mergeService(link[forward].service, out._.trip[trips[i]].service);
-
-          if ("b" in out._.trip[trips[i]]) {
-            block[out._.trip[trips[i]].b] = link[forward].b;
-              // Use parent block. Convert (in later loop) all child block to match
-          }
 
         } else {
 
           if (out.config.mirrorLink &&
             backward in link &&
-            ("b" in out._.trip[trips[i]] === false ||
-            "b" in link[backward])
+            "b" in out._.trip[trips[i]] === false
           ) {
 
             isBackward = true;
@@ -3311,11 +3327,6 @@ var gtfsToAquius = gtfsToAquius || {
 
             if ("direction" in link[backward]) {
               delete link[backward].direction;
-            }
-
-            if ("b" in out._.trip[trips[i]]) {
-              block[out._.trip[trips[i]].b] = link[backward].b;
-                // Use parent block. Convert (in later loop) all child block to match
             }
 
           } else {
@@ -3357,13 +3368,8 @@ var gtfsToAquius = gtfsToAquius || {
               link[forward].circular = 1;
             }
             if ("b" in out._.trip[trips[i]]) {
-              if (out._.trip[trips[i]].b in block) {
-                link[forward].b = block[out._.trip[trips[i]].b];
-              } else {
-                block[out._.trip[trips[i]].b] = nextBlock;
-                link[forward].b = nextBlock;
-                nextBlock += 1;
-              }
+              link[forward].b = out._.trip[trips[i]].b;
+                // Currently .b are always unique links
             }
             if ("t" in out._.trip[trips[i]]) {
               nodeStack = [];
@@ -3378,7 +3384,6 @@ var gtfsToAquius = gtfsToAquius || {
                 link[forward].t = nodeStack;
               }
             }
-
           }
         }
 
@@ -3489,14 +3494,8 @@ var gtfsToAquius = gtfsToAquius || {
         line[3].t = thisLink.t;
       }
       if ("b" in thisLink) {
-        if (thisLink.b in block) {
-          line[3].b = block[thisLink.b];
-            // Convert all child block to match
-        } else {
-          line[3].b = thisLink.b;
-        }
+        line[3].b = thisLink.b;
       }
-      
 
       out.aquius.link.push(line);
 
@@ -3557,10 +3556,10 @@ var gtfsToAquius = gtfsToAquius || {
       // Reused, now OldNode by count of occurance
     keys = Object.keys(nodeOccurance);
     for (i = 0; i < keys.length; i += 1) {
-      nodeArray.push([keys[i], nodeOccurance[keys[i]]]);
+      nodeArray.push([nodeOccurance[keys[i]], keys[i]]);
     }
     nodeArray.sort(function(a, b) {
-      return a[1] - b[1];
+      return a[0] - b[0];
     });
     nodeArray.reverse();
 
@@ -3569,8 +3568,8 @@ var gtfsToAquius = gtfsToAquius || {
     newNodeLookup = {};
       // OldNodeIndex: NewNodeIndex
     for (i = 0; i < nodeArray.length; i += 1) {
-      newNode.push(out.aquius.node[nodeArray[i][0]]);
-      newNodeLookup[nodeArray[i][0]] = i;
+      newNode.push(out.aquius.node[nodeArray[i][1]]);
+      newNodeLookup[nodeArray[i][1]] = i;
     }
     out.aquius.node = newNode;
 
