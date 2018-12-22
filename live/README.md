@@ -24,6 +24,14 @@
 
 Those examples are not intended to replace detailed (but specific) analysis of proposals in isolation. Rather to show how quite different proposals can be considered in their shared context - which for cities can otherwise be extremely difficult to comprehend. And Aquius doesn't just allow networks to better understood: Even without a proper interface (proposed routes currently need to be outlined in GIS software, base networks filtered appropriately, and the combination rebuilt), the networks demonstrated here can be built and probed in a matter of minutes.
 
+## FlixBus
+
+[FlixBus (20-26 August 2018](https://timhowgego.github.io/Aquius/live/flixbus-aug-2018/): Snapshot of all European FlixBus (and FlixTrain) services - [more information about this dataset](https://timhowgego.github.io/AquiusData/eu-interbus/).
+
+The FlixBus network is almost impossible to communicate on a fixed map because its service patterns are often defined by cabotage restrictions, especially in Iberia and the Balkans. Such cabotage restrictions may prevent FlixBus conveying passengers _within_ countries or regions, often rendering the destinations available to passengers quite different to the route taken by the vehicle. This added complexity is not a limitation for [Aquius](https://timhowgego.github.io/Aquius/), which always draws its route map from a user-specified _here_.
+
+FlixBus represents an extreme test case of cabotaged international operation, since on some routes almost every place served is defined with a different set of boarding and alighting restrictions. FlixBus [host their own dynamic network map](https://www.flixbus.co.uk/bus-routes), however this can feel laggy, and does not give any indication of service frequency - destinations with one bus a week are shown just as prominantly as destinations with one bus an hour. The Aquius dataset is relatively large - almost 1 MegaByte uncompressed, even without headcode information and day-by-day service filters (which can potentially be [built from GTFS](https://timhowgego.github.io/Aquius/live/gtfs/)) - but is smoother to use and more indicative of services.
+
 ## Spanish Railways
 
 [![Aquius at Ciudad Real](https://timhowgego.github.io/Aquius/static/aquius-ciudad-real.jpg)](https://timhowgego.github.io/Aquius/live/es-rail-20-jul-2018/#x-3.296/y39.092/z7/c-3.966/k38.955/m8/s7/vlphn)
