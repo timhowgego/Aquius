@@ -2,6 +2,13 @@
 
 > _Here+Us_ - An Alternative Approach to Public Transport Network Discovery
 
+This section contains examples of [Aquius](https://timhowgego.github.io/Aquius/) displaying public transport networks, plus hosted tools for constructing Aquius datasets:
+
+* [Àrea Metropolitana de Barcelona](#àrea-metropolitana-de-barcelona) - comprehensive urban network, including strategic analysis of network changes.
+* [FlixBus](#flixbus) - long-distance international network, containing extensive cabotage (pickup and setdown) restrictions.
+* [Spanish Railways](#spanish-railways) - traditional national railway network, including split trains and mixed products.
+* [Tools](#tools) - build networks from GTFS or GeoJSON, or merge network together.
+
 ## Àrea Metropolitana de Barcelona
 
 [![Aquius at Plaça Catalunya](https://timhowgego.github.io/Aquius/static/aquius-placa-catalunya.jpg)](https://timhowgego.github.io/Aquius/live/amb-2018/#r1/p2/s4/z13/tca-ES)
@@ -26,7 +33,9 @@ Those examples are not intended to replace detailed (but specific) analysis of p
 
 ## FlixBus
 
-[FlixBus (20-26 August 2018](https://timhowgego.github.io/Aquius/live/flixbus-aug-2018/): Snapshot of all European FlixBus (and FlixTrain) services - [more information about this dataset](https://timhowgego.github.io/AquiusData/eu-interbus/).
+[![Aquius FlixBus at Braga, showing journeys to Spain, not to Portugal](https://timhowgego.github.io/Aquius/static/aquius-flix-braga.jpg)](https://timhowgego.github.io/Aquius/live/flixbus-aug-2018/#x-6.064/y41.311/z7/c-8.443/k41.546/m8)
+
+[FlixBus (20-26 August 2018)](https://timhowgego.github.io/Aquius/live/flixbus-aug-2018/): Snapshot of all European FlixBus (and FlixTrain) services - [more information about this dataset](https://timhowgego.github.io/AquiusData/eu-interbus/).
 
 The FlixBus network is almost impossible to communicate on a fixed map because its service patterns are often defined by cabotage restrictions, especially in Iberia and the Balkans. Such cabotage restrictions may prevent FlixBus conveying passengers _within_ countries or regions, often rendering the destinations available to passengers quite different to the route taken by the vehicle. This added complexity is not a limitation for [Aquius](https://timhowgego.github.io/Aquius/), which always draws its route map from a user-specified _here_.
 

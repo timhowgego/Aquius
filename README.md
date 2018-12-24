@@ -11,7 +11,13 @@ Aquius visualises the links between people that are made possible by transport n
 1. Conventional journey planners are aimed at users that already have some understanding of what routes exist. Aquius summarises overall service patterns.
 1. Most network maps are pre-defined and necessarily simplified, typically showing an entire city or territory. Aquius relates to a bespoke location.
 
-The application makes no server queries (once the initial dataset has been loaded), so responds near-instantly. That speed allows network discovery by trial and error, which changes the user dynamic from _being told_, to playful learning. Aquius can be configured to locate stops and services very precisely, or to summarise networks strategically. Aquius can even allow proposed route and service changes to be rapidly visualised and assessed in context, prior to any detailed scheduling or modelling.
+The application makes no server queries (once the initial dataset has been loaded), so responds near-instantly. That speed allows network discovery by trial and error, which changes the user dynamic from _being told_, to playful learning.
+
+Aquius allows maps that are physically impossible to draw as single networks, such as cabotaged international routes where the available destinations change depending on where the passenger boards. For example, FlixBus can only carry passengers from places in Portugal to destinations in other countries, even where the bus itself serves many places in Portgual.
+
+[![Aquius FlixBus at Braga, showing journeys to Spain, not to Portugal](https://timhowgego.github.io/Aquius/static/aquius-flix-braga.jpg)](https://timhowgego.github.io/Aquius/live/flixbus-aug-2018/#x-6.064/y41.311/z7/c-8.443/k41.546/m8)
+
+Aquius can be configured to locate stops and services very precisely, or to summarise networks strategically. Aquius can even allow proposed route and service changes to be rapidly visualised and assessed in context, prior to any detailed scheduling or modelling, as exemplified for Barcelona.
 
 [![Aquius at Torrassa with Barcelona Metro Line 9/10 Connection](https://timhowgego.github.io/Aquius/static/aquius-barcelona-l9-l10.jpg)](https://timhowgego.github.io/Aquius/live/amb-vortex-2018/#c2.11985/k41.36972/m13/x2.153/y41.3832/z12/p2/r2/s3/tca-ES)
 
