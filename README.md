@@ -13,7 +13,7 @@ Aquius visualises the links between people that are made possible by transport n
 
 The application makes no server queries (once the initial dataset has been loaded), so responds near-instantly. That speed allows network discovery by trial and error, which changes the user dynamic from _being told_, to playful learning.
 
-Aquius allows maps that are physically impossible to draw as single networks, such as cabotaged international routes where the available destinations change depending on where the passenger boards. For example, FlixBus can only carry passengers from places in Portugal to destinations in other countries, even where the bus itself serves many places in Portgual.
+Aquius enables maps that are physically impossible to draw as single unified networks, such as cabotaged international routes where the available destinations change depending on where the passenger boards. For example, FlixBus can only carry passengers from places in Portugal to destinations in other countries, even where the bus itself serves many places in Portugal. The reverse is true for passengers travelling _from_ Spain - a range of destinations within Portugal are offered, but none within Spain herself.
 
 [![Aquius FlixBus at Braga, showing journeys to Spain, not to Portugal](https://timhowgego.github.io/Aquius/static/aquius-flix-braga.jpg)](https://timhowgego.github.io/Aquius/live/flixbus-aug-2018/#x-6.064/y41.311/z7/c-8.443/k41.546/m8)
 

@@ -496,7 +496,6 @@ var mergeAquius = mergeAquius || {
       // And Finally Loop
       if (typeof input[i] === "object") {
         out = buildNetwork(out, input[i], i);
-        out = buildReferenceProduct(out, input[i], i);
       }
     }
 
@@ -684,7 +683,7 @@ var mergeAquius = mergeAquius || {
           typeof dataObject.link[i][3] === "object"
         ) {
 
-          product = parseProduct(out, dataObject.link[i][0], iteration);
+          product = parseProduct(out, dataObject, dataObject.link[i][0], iteration);
           out = product.out;
           node = parseNode(out, dataObject, dataObject.link[i][2], iteration);
           out = node.out;
@@ -711,10 +710,11 @@ var mergeAquius = mergeAquius || {
     return out;
   }
 
-  function parseProduct(out, productArray, iteration) {
+  function parseProduct(out, dataObject, productArray, iteration) {
     /**
      * Reassigns product IDs
      * @param {object} out
+     * @param {object} dataObject
      * @param {array} productArray
      * @param {interger} iteration - original dataset referenced by index
      * @return {object} {out, product}
@@ -728,8 +728,7 @@ var mergeAquius = mergeAquius || {
         out._.productSwitch[iteration] = {};
       }
       if (productArray[i] in out._.productSwitch[iteration] === false) {
-        out._.productSwitch[iteration][productArray[i]] = out._.productNext;
-        out._.productNext += 1;
+        out = addProduct(out, dataObject, iteration, productArray[i]);
       }
       productArray[i] = out._.productSwitch[iteration][productArray[i]];
         // Each original dataset takes unique product IDs
@@ -1083,8 +1082,7 @@ var mergeAquius = mergeAquius || {
             propertyObject[keys[i]][j] = 0;
           }
           if (propertyObject[keys[i]][j] in out._.productSwitch[iteration] === false) {
-            out._.productSwitch[iteration][propertyObject[keys[i]][j]] = out._.productNext;
-            out._.productNext += 1;
+            out = addProduct(out, dataObject, iteration, propertyObject[keys[i]][j]);
           }
           propertyObject[keys[i]][j] = out._.productSwitch[iteration][propertyObject[keys[i]][j]];
             // Cannot fail, merely create a product ID unused by existing filter
@@ -1261,45 +1259,59 @@ var mergeAquius = mergeAquius || {
     return out;
   }
 
-  function buildReferenceProduct(out, dataObject, iteration) {
+  function addProduct(out, dataObject, iteration, product) {
     /**
-     * Creates aquius.reference.product
+     * Parses original product into new product. Creates aquius.reference.product
      * @param {object} out
      * @param {object} dataObject
      * @param {interger} iteration - original dataset referenced by index
+     * @param {interger} product - original product index
      * @return {object} out
      */
 
-    var index, i;
+    var keys, match, i, j;
+    var newProduct = true;
+    var reference = {};
+
+    if ("reference" in out.aquius === false) {
+      out.aquius.reference = {};
+    }
+    if ("product" in out.aquius.reference === false) {
+      out.aquius.reference.product = [];
+    }
 
     if ("reference" in dataObject &&
       typeof dataObject.reference === "object" &&
       "product" in dataObject.reference &&
-      Array.isArray(dataObject.reference.product)
+      Array.isArray(dataObject.reference.product) &&
+      product >= 0 &&
+      product < dataObject.reference.product.length &&
+      typeof dataObject.reference.product[product] === "object"
     ) {
-      if ("reference" in out.aquius === false) {
-        out.aquius.reference = {};
-      }
-      if ("product" in out.aquius.reference === false) {
-        out.aquius.reference.product = [];
-      }
-      for (i = 0; i < dataObject.reference.product.length; i += 1) {
-        if (iteration in out._.productSwitch &&
-          i in out._.productSwitch[iteration]
-        ) {
-          index = out._.productSwitch[iteration][i];
-          if (typeof dataObject.reference.product[i] === "object") {
-            if (out.aquius.reference.product[index] !== undefined) {
-              out.aquius.reference.product[index] =
-                mergePropertyObject(out.aquius.reference.product[index], dataObject.reference.product[i]);
-            } else {
-              out.aquius.reference.product[index] = dataObject.reference.product[i];
-            }
+      reference = dataObject.reference.product[product];
+      keys = Object.keys(dataObject.reference.product[product]);
+      for (i = 0; i < out.aquius.reference.product.length; i += 1) {
+        match = true;
+        for (j = 0; j < keys.length; j += 1) {
+          if (keys[j] in out.aquius.reference.product[i] === false ||
+            dataObject.reference.product[product][keys[j]] !== out.aquius.reference.product[i][keys[j]]
+          ) {
+            match = false;
+            break;
           }
         }
-        // Logic potentially leaves empty positions in reference.product for products with no name,
-        //   but these are converted to null in output, which Aquius ignores as not an object
+        if (match) {
+          out._.productSwitch[iteration][product] = i;
+          newProduct = false;
+          break;
+        }
       }
+    }
+
+    if (newProduct) {
+      out._.productSwitch[iteration][product] = out._.productNext;
+      out.aquius.reference.product[out._.productNext] = reference;
+      out._.productNext += 1;
     }
 
     return out;
