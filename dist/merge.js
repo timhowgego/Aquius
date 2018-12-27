@@ -464,6 +464,8 @@ var mergeAquius = mergeAquius || {
       // InputIndex:{OldBlockID:NewBlockID} (link property)
     out._.colorSwitch = {};
       // InputIndex:{OldColorIndex:NewColorIndex} (reference color)
+    out._.linkLookup = {};
+      // key nodes:etc : link index
     out._.nodeLookup = {};
       // X:Y key: aquius.node index
     out._.nodeSwitch = {};
@@ -666,7 +668,7 @@ var mergeAquius = mergeAquius || {
      * @return {object} out
      */
 
-    var node, product, property, i;
+    var key, keys, match, node, product, property, reference, i, j, k, l, m;
 
     if ("link" in dataObject &&
       Array.isArray(dataObject.link) &&
@@ -690,18 +692,87 @@ var mergeAquius = mergeAquius || {
           property = parseLinkProperty(out, dataObject, dataObject.link[i][3], iteration);
           out = property.out;
 
-          /**
-           * Products differ for each original dataset, so no duplication of link lines is possible,
-           *   between datasets. Service assumed correct - see buildService() limitations
-           * Future: Logical mergers result from coordinatePrecision changes,
-           *   but the consequence is simply larger filesize
-           */
-          out.aquius.link.push([
-            product.product,
-            dataObject.link[i][1],
-            node.node,
-            property.property
-          ]);
+          // Exact matches, including same product and direction, will merge
+          // Further evaluation is marginal and may introduce unwanted aggregation
+          key = "p" + product.product.join(":") + "n" + node.node.join(":");
+
+          keys = ["b", "block", "d", "direction"];
+            // Optional variables
+          for (j = 0; j < keys.length; j += 1) {
+            if (keys[j] in property.property) {
+              key += j + property.property[keys[j]];
+            }
+          }
+
+          keys = ["h", "shared", "pickup", "s", "setdown", "split", "t", "u"];
+            // Optional arrays
+          for (j = 0; j < keys.length; j += 1) {
+            if (keys[j] in property.property) {
+              key += j + property.property[keys[j]].join(":");
+            }
+          }
+
+          if (key in out._.linkLookup) {
+
+            for (j = 0; j < out.aquius.link[out._.linkLookup[key]][1].length; j += 1) {
+              if (dataObject.link[i][1][j] !== undefined &&
+                dataObject.link[i][1][j] > 0
+              ) {
+                // Update service
+                out.aquius.link[out._.linkLookup[key]][1][j] =
+                  out.aquius.link[out._.linkLookup[key]][1][j] + dataObject.link[i][1][j];
+              }
+            }
+
+            keys = ["r", "reference"];
+            for (j = 0; j < keys.length; j += 1) {
+              if (keys[j] in property.property) {
+                if ("r" in out.aquius.link[out._.linkLookup[key]][3] ||
+                  "reference" in  out.aquius.link[out._.linkLookup[key]][3]
+                ) {
+                  for (k = 0; k < property.property[keys[j]].length; k += 1) {
+
+                    // Merge each reference if missing
+                    match = false;
+                    reference = Object.keys(property.property[keys[j]][k]);
+                    for (l = 0; l < out.aquius.link[out._.linkLookup[key]][3][keys[j]].length; l += 1) {
+                      for (m = 0; m < reference.length; m += 1) {
+                        if (reference[m] in out.aquius.link[out._.linkLookup[key]][3][keys[j]][l] &&
+                          property.property[keys[j]][k][reference[m]] ===
+                            out.aquius.link[out._.linkLookup[key]][3][keys[j]][l][reference[m]]
+                        ) {
+                          match = true;
+                          break;
+                        }
+                      }
+                      if (match) {
+                        break;
+                      }
+                    }
+                    if (match === false) {
+                      out.aquius.link[out._.linkLookup[key]][3][keys[j]].push(property.property[keys[j]][k]);
+                    }
+
+                  }
+                } else {
+                  // New reference
+                  out.aquius.link[out._.linkLookup[key]][3][keys[j]] = property.property[keys[j]];
+                }
+
+              }
+            }
+
+          } else {
+
+            out.aquius.link.push([
+              product.product,
+              dataObject.link[i][1],
+              node.node,
+              property.property
+            ]);
+            out._.linkLookup[key] = out.aquius.link.length - 1;
+
+          }
 
         }
       }
