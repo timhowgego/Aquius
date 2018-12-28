@@ -234,7 +234,7 @@ linkColor|string|"#f00"|CSS Color for link (service) layer strokes
 linkScale|float|1.0|Scale factor for link (service) layer strokes: ceil( log( 1 + ( service * ( 1 / ( scale * 4 ) ) ) ) * scale * 4)
 minWidth|integer|2|Minimum pixel width of links, regardless of scaling. Assists click useability
 minZoom|integer|0|Minimum map zoom. Sets a soft cap on query complexity
-nodeColor|string|"#000"|CSS Color for node (stop) layer circle strokes
+nodeColor|string|"#333"|CSS Color for node (stop) layer circle strokes
 nodeScale|float|1.0|Scale factor for node (stop) layer circles: ceil( log( 1 + ( service * ( 1 / ( scale * 4) ) ) ) * scale * 2)
 panelOpacity|float|0.7|CSS Opacity for background of the bottom-left summary panel
 panelScale|float|1.0|Scale factor for text on the bottom-left summary panel

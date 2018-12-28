@@ -129,7 +129,7 @@ var aquius = aquius || {
         // Extension of network: Array of products, Object of locale keyed names
       "networkAdd": true,
         // Append this network extension to dataset defaults. Set false to replace defaults
-      "nodeColor": "#000",
+      "nodeColor": "#333",
         // CSS Color for node (stop) layer circle strokes
       "nodeScale": 1.0,
         // Scale factor for node (stop) layer circles: ceil(log(1+(service*(1/(scale*2))))*scale)

@@ -402,7 +402,8 @@ var gtfsToAquius = gtfsToAquius || {
       if (zeroCoord.length > 0) {
         outputDOM.appendChild(createElement("p", {
           "textContent": "Caution: Contains " + zeroCoord.length.toString() +
-            " stop_id with coordinates 0,0, which can be corrected in config.stopOverride."
+            " stop_id with coordinates 0,0, which can be corrected in config.stopOverride," +
+            " or ignored by setting config.allowZeroCoordinate to false."
         }));
       }
     }
@@ -2920,6 +2921,19 @@ var gtfsToAquius = gtfsToAquius || {
 
               contentString = "#" + contentString;
               out = addToReference(out, "color", contentString);
+
+              if (color[j][1] === "t" &&
+               "c" in reference &&
+               reference.c === out._.color[contentString]
+              ) {
+                if (contentString.toLowerCase() === "#ffffff") {
+                  contentString = "#000000";
+                } else {
+                  contentString = "#ffffff";
+                }
+                out = addToReference(out, "color", contentString);
+              }
+
               reference[color[j][1]] = out._.color[contentString];
               reference.slug += contentString;
 
