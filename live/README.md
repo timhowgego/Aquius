@@ -4,18 +4,18 @@
 
 This section contains examples of [Aquius](https://timhowgego.github.io/Aquius/) displaying public transport networks, plus hosted tools for constructing Aquius datasets:
 
-* [Àrea Metropolitana de Barcelona](#àrea-metropolitana-de-barcelona) - comprehensive urban network built from multiple sources, including strategic analysis of network changes.
-* [FlixBus](#flixbus) - long-distance international network, containing extensive cabotage (pickup and setdown) restrictions.
+* [Barcelona](#barcelona) - comprehensive urban network built from multiple sources, including strategic analysis of network changes.
+* [FlixBus](#flixbus) - long-distance international European network, containing extensive cabotage (pickup and setdown) restrictions.
 * [Paris](#paris) - one of the largest European urban networks.
 * [Spanish Railways](#spanish-railways) - traditional national railway network, including split trains and mixed products.
 * [York](#york) - basic small city network, including lasso routes.
 * [Tools](#tools) - build networks from GTFS or GeoJSON, or merge network together.
 
-## Àrea Metropolitana de Barcelona
+## Barcelona
 
 [![Aquius at Plaça Catalunya](https://timhowgego.github.io/Aquius/static/aquius-placa-catalunya.jpg)](https://timhowgego.github.io/Aquius/live/amb-2018/#r1/p2/s4/z13/tca-ES)
 
-[AMB (26 November-2 December 2018)](https://timhowgego.github.io/Aquius/live/amb-2018/): Snapshot of all non-tourist scheduled public transport within the [Àrea Metropolitana de Barcelona](http://www.amb.cat/) (AMB) - [more information about this dataset](https://timhowgego.github.io/AquiusData/es-amb/).
+[Àrea Metropolitana de Barcelona (26 November-2 December 2018)](https://timhowgego.github.io/Aquius/live/amb-2018/): Snapshot of all non-tourist scheduled public transport within the [Àrea Metropolitana de Barcelona](http://www.amb.cat/) (AMB) - [more information about this dataset](https://timhowgego.github.io/AquiusData/es-amb/).
 
 [AMB Vortex (26 November-2 December 2018)](https://timhowgego.github.io/Aquius/live/amb-vortex-2018/): As above, but in a fixed coordinate grid, ideal for strategic analysis.
 
@@ -35,7 +35,7 @@ The FlixBus network is almost impossible to communicate on a fixed map because i
 
 ## Spanish Railways
 
-[![Aquius at Ciudad Real](https://timhowgego.github.io/Aquius/static/aquius-ciudad-real.jpg)](https://timhowgego.github.io/Aquius/live/es-rail-20-jul-2018/#x-3.296/y39.092/z7/c-3.966/k38.955/m8/s7/vlphn)
+[![Aquius at Ciudad Real](https://timhowgego.github.io/Aquius/static/aquius-ciudad-real.jpg)](https://timhowgego.github.io/Aquius/live/es-rail-20-jul-2018/#x-3.296/y39.092/z7/c-3.966/k38.955/m8/s7/vlphn/tes-ES)
 
 [Spanish Railways (Friday 20 July 2018)](https://timhowgego.github.io/Aquius/live/es-rail-20-jul-2018/): Snapshot of all non-tourist passenger train services within Spain - [more information about this dataset](https://timhowgego.github.io/AquiusData/es-rail/).
 

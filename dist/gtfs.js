@@ -3110,7 +3110,7 @@ var gtfsToAquius = gtfsToAquius || {
       }
 
       if (haversineDistance(out.aquius.node[nodes[1]][1], out.aquius.node[nodes[1]][0],
-        out.aquius.node[nodes[nodes.length - 2]][1], out.aquius.node[nodes.length - 2][0]) > 200
+        out.aquius.node[nodes[nodes.length - 2]][1], out.aquius.node[nodes[nodes.length - 2]][0]) > 200
       ) {
         // Stop after start and stop prior to end > 200 metres from each other
         return true;
