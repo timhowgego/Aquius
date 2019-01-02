@@ -4,7 +4,7 @@
 
 ## Description
 
-[![Aquius at Ciudad Real](https://timhowgego.github.io/Aquius/static/aquius-ciudad-real.jpg)](https://timhowgego.github.io/Aquius/live/es-rail-20-jul-2018/#x-3.296/y39.092/z7/c-3.966/k38.955/m8/s7/vlphn)
+[![Aquius at the University of York](https://timhowgego.github.io/Aquius/static/aquius-university-york.jpg)](https://timhowgego.github.io/Aquius/live/york-2019/#x-1.03271/y53.95073/z13/c-1.05143/k53.94608/m13/p1)
 
 Aquius visualises the links between people that are made possible by transport networks. The user clicks once on a location, and near-instantly all the routes, stops, services, and connected populations are summarised visually. Aquius answers the question, what services are available _here_? And to a degree, who am I connected to by those services? Population is a proxy for all manner of socio-economic activity and facilities, measured both in utility and in perception. Conceptually Aquius is half-way between the two common approaches to public transport information:
 
@@ -17,7 +17,7 @@ Aquius enables maps that are physically impossible to draw as single unified net
 
 [![Aquius FlixBus at Braga, showing journeys to Spain, not to Portugal](https://timhowgego.github.io/Aquius/static/aquius-flix-braga.jpg)](https://timhowgego.github.io/Aquius/live/flixbus-aug-2018/#x-6.064/y41.311/z7/c-8.443/k41.546/m8)
 
-Aquius can be configured to locate stops and services very precisely, or to summarise networks strategically. Aquius can even allow proposed route and service changes to be rapidly visualised and assessed in context, prior to any detailed scheduling or modelling, as exemplified for Barcelona.
+Aquius is capable of displaying the largest urban networks in the world, [such as Paris](https://timhowgego.github.io/Aquius/live/petite-paris-2019/). Aquius can be configured to locate stops and services very precisely, or to summarise networks strategically. Aquius can even allow proposed route and service changes to be rapidly visualised and assessed in context, prior to any detailed scheduling or modelling, as exemplified for Barcelona.
 
 [![Aquius at Torrassa with Barcelona Metro Line 9/10 Connection](https://timhowgego.github.io/Aquius/static/aquius-barcelona-l9-l10.jpg)](https://timhowgego.github.io/Aquius/live/amb-vortex-2018/#c2.11985/k41.36972/m13/x2.153/y41.3832/z12/p2/r2/s3/tca-ES)
 
@@ -26,6 +26,7 @@ Some caveats:
 * Aquius maps straight-line links, not the precise geographic route taken. This allows services that do not stop at all intermediate stops to be clearly differentiated. It also makes it technically possible for an internet client to work with a large transport network. Aquius is however limited to conventional scheduled public transport with fixed stopping points.
 * Aquius summarises the patterns of fixed public transport networks. It presumes a degree of network stability over time, and cannot sensibly be used to describe a transport network that is in constant flux. The Aquius data structure allows filtering by time period, but such periods must be pre-defined and cannot offer the same precision as schedule-based systems.
 * Aquius only shows the direct service from _here_, not journeys achieved by interchange. If the intention is to show all possible interchanges without letting users explore the possibilities for themselves, then Aquius is not the logical platform to use: Displaying all possible interchanges ultimately results in a map of every service which fails to convey what is genuinely local to _here_.
+* As an internet application, Aquius is limited by the filesize of its datasets, which are currently always loaded as a single file. So while multiple local networks can be aggregated into a single large national dataset, such a dataset may be many megabytes in size, implying unacceptably long load times for online users.
 
 > Ready to explore? [Try a live demonstration](https://timhowgego.github.io/Aquius/live/)!
 
@@ -158,12 +159,12 @@ network|Array|[]|Extension of `network`: Array of products, Object of locale key
 networkAdd|boolean|true|Append this network extension to dataset defaults. Set false to replace defaults
 translation|Object|{}|Custom translations, format described below
 
-For base mapping, `base` is a complex `Array` containing one or more tile layers, each represented as an `Object`. Within, the key `url` contains a `string` URI of the resource, potentially formatted as [described by Leaflet](https://leafletjs.com/reference-1.3.4.html#tilelayer). WMS layers require a specific key `type`: "wms". Finally a key called `options` may be provided, itself containing an `Object` of keys and values, matching Leaflet's options. Or in summary:
+For base mapping, `base` is a complex `Array` containing one or more tile layers, each represented as an `Object`. Within, the key `url` contains a `string` URI of the resource, potentially formatted as [described by Leaflet](https://leafletjs.com/reference-1.4.0.html#tilelayer). WMS layers require a specific key `type`: "wms". Finally a key called `options` may be provided, itself containing an `Object` of keys and values, matching Leaflet's options. Or in summary:
 
 ```javascript
 "base": [
   {
-    "url": "http://{s}.tiles.wmflabs.org/bw-mapnik/{z}/{x}/{y}.png", 
+    "url": "https://maps.wikimedia.org/osm-intl/{z}/{x}/{y}.png", 
     "type": "",
       // Optional, if WMS: "wms"
     "options": {

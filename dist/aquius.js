@@ -66,6 +66,22 @@ var aquius = aquius || {
         "place": "Personas",
         "scale": "Escala",
         "service": "Período"
+      },
+
+      "fr-FR": {
+        "lang": "Français",
+        "connectivity": "Connectivité",
+        "connectivityRange": "Tout - Fréquent",
+        "embed": "Insérer",
+        "export": "Exporter",
+        "here": "Ici",
+        "language": "Langue",
+        "link": "Services",
+        "network": "Réseau",
+        "node": "Arrêts",
+        "place": "Personnes",
+        "scale": "Échelle",
+        "service": "Période"
       }
         // Each custom BCP 47-style locale matches en-US keys
 
@@ -89,7 +105,7 @@ var aquius = aquius || {
           },
           "type": "",
             // For WMS maps, type: "wms"
-          "url": "http://{s}.tiles.wmflabs.org/bw-mapnik/{z}/{x}/{y}.png"
+          "url": "https://maps.wikimedia.org/osm-intl/{z}/{x}/{y}.png"
             // Without https likely to trigger mixed content warnings
         }
           // Multiple bases supported but only first can be solid, while others must be transparent
@@ -1133,7 +1149,10 @@ var aquius = aquius || {
         nodes = configOptions._control.getContainer().childNodes;
 
         for (i = 0; i < nodes.length; i += 1) {
-          if (nodes[i].tagName === "FORM") {
+          if (nodes[i].tagName === "SECTION" ||
+            nodes[i].tagName === "FORM"
+          ) {
+            // Form becomes Section in Leaflet 1.4
             return nodes[i];
           }
         }
@@ -2141,8 +2160,8 @@ var aquius = aquius || {
       leafletURLs = [];
     } else {
       leafletURLs = [
-        "https://unpkg.com/leaflet@1.3.4/dist/leaflet.css",
-        "https://unpkg.com/leaflet@1.3.4/dist/leaflet.js"
+        "https://unpkg.com/leaflet@1.4.0/dist/leaflet.css",
+        "https://unpkg.com/leaflet@1.4.0/dist/leaflet.js"
       ];
         // Default Leaflet library CSS and JS
     }
