@@ -501,15 +501,17 @@ var mergeAquius = mergeAquius || {
       }
     }
 
-    out.aquius.link.sort(function (a, b) {
-      return b[1].reduce(function(c, d) {
-        return c + d;
-      }, 0) - a[1].reduce(function(c, d) {
-        return c + d;
-      }, 0);
-    });
+    if ("link" in out.aquius) {
+      out.aquius.link.sort(function (a, b) {
+        return b[1].reduce(function(c, d) {
+          return c + d;
+        }, 0) - a[1].reduce(function(c, d) {
+          return c + d;
+        }, 0);
+      });
       // Descending service count, since busiest most likely to be queried and thus found faster
-    out = optimiseNode(out);
+      out = optimiseNode(out);
+    }
 
     return out;
   }

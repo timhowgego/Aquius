@@ -625,6 +625,8 @@ var gtfsToAquius = gtfsToAquius || {
 
     var i;
     var defaults = {
+      "allowBlock": false,
+        // Process block_id as sequence of inter-operated trips, else blocked trips are processed separately
       "allowCabotage": false,
         // Process duplicate vehicle trips with varying pickup/setdown restrictions as cabotage (see docs)
       "allowCode": true,
@@ -2108,7 +2110,8 @@ var gtfsToAquius = gtfsToAquius || {
             // Drop_off_type tested for none, thus pickup only
         }
 
-        if (out.gtfsHead.trips.block_id !== -1 &&
+        if (out.config.allowBlock &&
+          out.gtfsHead.trips.block_id !== -1 &&
           tripObject[out.gtfsHead.trips.block_id] !== ""
         ) {
           // Block_id used later for evaluation of circular
@@ -3173,7 +3176,9 @@ var gtfsToAquius = gtfsToAquius || {
         }
 
         if ("block" in out._.trip[trips[i]] &&
-          out._.trip[trips[i]].block.trips.length > 1
+          out._.trip[trips[i]].block.trips.length > 1 &&
+          (out.config.isCircular.length === 0 ||
+          routeId in out._.circular == false)
         ) {
           /**
            * Blocked trips require same service and stop differences to be merged here
