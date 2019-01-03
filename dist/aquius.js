@@ -2492,13 +2492,14 @@ var aquius = aquius || {
     }
 
     function isHereOK(linkChecks, linkNodeArray, linkPropertiesObject) {
-      // At least one node is in here that is not setdown only
+      // At least one node is in here that is not setdown only, or if unidirectional, pickup
 
       var i;
 
       for (i = 0; i < linkNodeArray.length; i += 1) {
         // Length of linkNodeArray logically not 1, so no optimisation from length===1 check
         if (linkNodeArray[i] in linkChecks.here) {
+
           if ("s" in linkPropertiesObject === false &&
             "setdown" in linkPropertiesObject === false
           ) {
@@ -2518,6 +2519,30 @@ var aquius = aquius || {
               return true;
             }
           }
+
+          if ("d" in linkPropertiesObject === false &&
+            "direction" in linkPropertiesObject === false
+          ) {
+            if ("u" in linkPropertiesObject === false &&
+              "pickup" in linkPropertiesObject === false
+            ) {
+              return true;
+            } else {
+              if ("u" in linkPropertiesObject &&
+                Array.isArray(linkPropertiesObject.u) &&
+                linkPropertiesObject.u.indexOf(linkNodeArray[i]) === -1
+              ) {
+                return true;
+              }
+              if ("pickup" in linkPropertiesObject &&
+                Array.isArray(linkPropertiesObject.pickup) &&
+                linkPropertiesObject.pickup.indexOf(linkNodeArray[i]) === -1
+              ) {
+                return true;
+              }
+            }
+          }
+
         }
       }
 
@@ -2985,7 +3010,11 @@ var aquius = aquius || {
         ) {
           // Add link
           if ("direction" in service === false &&
-            service.route[prevIndex] in linkChecks.here
+            service.route[prevIndex] in linkChecks.here &&
+            ("setdownIndex" in service === false ||
+            "pickupIndex" in service === false ||
+            node in service.setdownIndex === false ||
+            node in service.pickupIndex === false)
           ) {
             serviceLevel = thisLevel;
           } else {
