@@ -362,6 +362,7 @@ allowRouteLong|boolean|false|Include route-specific long names
 allowRouteUrl|boolean|true|Include URLs for routes (can increase file size significantly unless URLs conform to logical repetitive style)
 allowSplit|boolean|false|Include trips on the same route (service period and direction) which share at least two (but not all) stop times as "split"
 allowStopUrl|boolean|true|Include URLs for stops (can increase file size significantly unless URLs conform to logical repetitive style)
+allowWaypoint|boolean|true|Include stops with no pickup and no setdown as dummy routing nodes
 allowZeroCoordinate|boolean|true|Include stops with 0,0 coordinates, else stops are skipped
 coordinatePrecision|integer|5|Coordinate decimal places (smaller values tend to group clusters of stops), described below
 duplicationRouteOnly|boolean|true|Restrict duplicate check to services on the same route

@@ -649,6 +649,8 @@ var gtfsToAquius = gtfsToAquius || {
         // Count trips on the same route which share at least two, but not all, stop times as "split" at their unique stops
       "allowStopUrl": true,
         // Include stop URLs (increases file size)
+      "allowWaypoint": true,
+        // Include stops with no pickup and no setdown as dummy routing nodes
       "allowZeroCoordinate": true,
         // Include stops with 0,0 coordinates, else stops are skipped
       "coordinatePrecision": 5,
@@ -3478,6 +3480,25 @@ var gtfsToAquius = gtfsToAquius || {
           thisLink.service[j] = parseFloat(thisLink.service[j].toPrecision(1));
         } else {
           thisLink.service[j] = parseInt(thisLink.service[j], 10);
+        }
+      }
+      
+      if (out.config.allowWaypoint === false &&
+        "pickup" in thisLink &&
+        "setdown" in thisLink
+      ) {
+        for (j = thisLink.pickup.length - 1; j >= 0; j--) {
+          // Reverse since may deform pickup
+          check = thisLink.setdown.indexOf(thisLink.pickup[j]);
+          if (check !== -1) {
+            for (k = thisLink.route.length - 1; k >= 0 ; k--) {
+              if (thisLink.route[k] === thisLink.pickup[j]) {
+                thisLink.route.splice(k, 1);
+              }
+            }
+            thisLink.pickup.splice(j, 1);
+            thisLink.setdown.splice(check, 1);
+          }
         }
       }
 
