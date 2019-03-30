@@ -30,6 +30,8 @@ Some caveats:
 
 > Ready to explore? [Try a live demonstration](https://timhowgego.github.io/Aquius/live/)!
 
+The remainder of this document provides a technical manual for Aquius as software. For a transport-orientated review of Aquius, see [Aquius – An Alternative Approach to Public Transport Network Discovery](https://timhowgego.wordpress.com/2019/01/09/aquius/).
+
 ## Manual
 
 In this document:
@@ -61,12 +63,12 @@ The population is that of the local area containing one or more nodes (stops, st
 
 Connectivity factors the population linked (as described above) by the service level linking it - every unique service linking _here_ with the local area is counted once. The Connectivity slider can be moved to reflect one of four broad service expectations, the defaults summarised in the table below (for left to right on the slider, read down the table). The slider attempts to capture broad differences in network perception, for example that 14 trains per day from London to Paris is considered a "good" service, while operating 14 daily _within_ either city would be almost imperceptible. Except for Any, which does not factor population, the precise formula is: 1 - ( 1 / (service * factor)), if the result is greater than 0, with the default factor values: 2 (long distance), 0.2 (local/interurban) and 0.02 (city). The dataset creator or host may change the factor value (see [Configuration](#configuration) key `connectivity`), but not the formula.
 
-Connectivity Expectation|0% Factor Service|50% Factor Service|95% Factor Service
-------------------------|-----------------|------------------|------------------
+Connectivity Expectation|0% Minimum Service|50% Factor Service|95% Factor Service
+------------------------|------------------|------------------|------------------
 Any|0|Entire population always counted|Entire population always counted
-Long Distance|0.5|1|10
-Local/Interurban|5|10|100
-City|50|100|1000
+Long Distance (low frequency)|0.5|1|10
+Local/Interurban (mid frequency)|5|10|100
+City (high frequency)|50|100|1000
 
 #### What do the line widths and circle diameters indicate?
 
@@ -360,7 +362,7 @@ allowName|boolean|true|Include stop names (increases file size significantly)
 allowRoute|boolean|true|Include route-specific short names
 allowRouteLong|boolean|false|Include route-specific long names
 allowRouteUrl|boolean|true|Include URLs for routes (can increase file size significantly unless URLs conform to logical repetitive style)
-allowSplit|boolean|false|Include trips on the same route (service period and direction) which share at least two (but not all) stop times as "split"
+allowSplit|boolean|false|Include trips on the same route (service period and direction) which share at least splitMinimumJoin (but not all) stop times as "split"
 allowStopUrl|boolean|true|Include URLs for stops (can increase file size significantly unless URLs conform to logical repetitive style)
 allowWaypoint|boolean|true|Include stops with no pickup and no setdown as dummy routing nodes
 allowZeroCoordinate|boolean|true|Include stops with 0,0 coordinates, else stops are skipped
@@ -385,6 +387,7 @@ splitMinimumJoin|integer|2|Minimum number of concurrent nodes that split service
 stopExclude|array|[]|GTFS "stop_id" (strings) to be excluded from analysis
 stopInclude|array|[]|GTFS "stop_id" (strings) to be included in analysis, all if empty
 stopOverride|object|{}|Properties applied to stops, by GTFS "stop_id" key, detailed below
+stopPlace|boolean|false|Group and merge stops by their respective place centroid (assumes geojson)
 toDate|YYYYMMDD dateString|Next week|End date for service pattern analysis (inclusive)
 translation|object|{}|As [Configuration](#configuration)/[Data Structure](#data-structure) translation key
 
@@ -409,7 +412,7 @@ If `isCircular` is empty, GTFS to Aquius will attempt to evaulate whether a rout
 
 #### Coordinates
 
-Lowering the value of `coordinatePrecision` reduces the size of the Aquius output file, but not just because the coordinate data stored is shorter: At lower `coordinatePrecision`, stops that are in close proximity will tend to merge into single nodes, which in turn tends to result in fewer unique links between nodes. Such merges reflect mathematical rounding, and will not necessarily group clusters of stops in a way that users or operators might consider logical. Networks with widespread use of pickup and setdown restrictions may be rendered illogical by excessive grouping. Aggregation of different stops into the same node may also create false duplicate trips, since duplication is assessed by node, not original stop - in most case setting `allowDuplication` to true will avoid this issue (as detailed below). If the precise identification of individual stops is important, increase the default `coordinatePrecision` to avoid grouping. Very low `coordinatePrecision` values effectively transform the entire network into a fixed "[Vortex Grid](https://en.wikipedia.org/wiki/The_Adventure_Game)", useful for strategic geospatial analysis.
+Lowering the value of `coordinatePrecision` reduces the size of the Aquius output file, but not just because the coordinate data stored is shorter: At lower `coordinatePrecision`, stops that are in close proximity will tend to merge into single nodes, which in turn tends to result in fewer unique links between nodes. Such merges reflect mathematical rounding, and will not necessarily group clusters of stops in a way that users or operators might consider logical. Networks with widespread use of pickup and setdown restrictions may be rendered illogical by excessive grouping. Aggregation of different stops into the same node may also create false duplicate trips, since duplication is assessed by node, not original stop - in most case setting `allowDuplication` to true will avoid this issue (as detailed below). If the precise identification of individual stops is important, increase the default `coordinatePrecision` to avoid grouping. Very low `coordinatePrecision` values effectively transform the entire network into a fixed "[Vortex Grid](https://en.wikipedia.org/wiki/The_Adventure_Game)", useful for strategic geospatial analysis. For greater control over such Vortex Grids, specify the desired grid as GeoJSON boundaries and set `stopPlace` to true, which groups all nodes on the centroid of their respective (GeoJSON) place.
 
 #### Duplication
 

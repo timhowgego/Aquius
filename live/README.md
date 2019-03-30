@@ -37,7 +37,7 @@ The GB Rail dataset makes extensive use of dummy waypoints to show the route tak
 
 ## New York City
 
-[New York City (January 2019)](https://timhowgego.github.io/Aquius/live/nyc-2019/): Snapshot of every scheduled public transport service within the five Boroughs of New York City - [more information about this dataset](https://timhowgego.github.io/AquiusData/us-nyc/).
+[New York City (January 2019)](https://timhowgego.github.io/Aquius/live/nyc-2019/): Snapshot of every scheduled public transportation service within the five Boroughs of New York City - [more information about this dataset](https://timhowgego.github.io/AquiusData/us-nyc/).
 
 ## Paris
 

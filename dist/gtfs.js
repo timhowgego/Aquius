@@ -699,6 +699,8 @@ var gtfsToAquius = gtfsToAquius || {
         // GTFS "stop_id" (strings) to be included in analysis, all if empty
       "stopOverride": {},
         // Properties applied to stops, by GTFS "stop_id" key (see docs)
+      "stopPlace": false,
+        // Group and merge stops by their respective place centroid (assumes geojson)
       "toDate": formatGtfsDate(Date.now() + 5184e5),
         // End date for service pattern analysis (inclusive), thus +6 days for 1 week
       "translation": {}
@@ -3995,6 +3997,72 @@ var gtfsToAquius = gtfsToAquius || {
     return out;
   }
 
+  function stopPlace(out) {
+    /**
+     * Merges stops are their respective place centroid
+     * @param {object} out - internal data references
+     * @return {object} out
+     */
+
+     var keys, node, stops, i, j, k;
+
+     if (out.config.stopPlace === true &&
+       "place" in out.aquius
+     ) {
+
+       // Only out._.nodeLookup adjusted: nodeCoord already discarded.
+       stops = {};
+         // node index: [stop_ids]
+       keys = Object.keys(out._.nodeLookup);
+       for (i = 0; i < keys.length; i += 1) {
+         if (out._.nodeLookup[keys[i]] in stops === false) {
+           stops[out._.nodeLookup[keys[i]]] = [];
+         }
+         stops[out._.nodeLookup[keys[i]]].push(keys[i]);
+       }
+
+       for (i = 0; i < out.aquius.place.length; i += 1) {
+         node = -1;
+
+         for (j = 0; j< out.aquius.node.length; j += 1) {
+           if ("p" in out.aquius.node[j][2] &&
+             out.aquius.node[j][2].p === i
+           ) {
+
+             if (node === -1) {
+               // Use this node for this place
+
+               out.aquius.node[j][0] = out.aquius.place[i][0];
+               out.aquius.node[j][1] = out.aquius.place[i][1];
+               if ("r" in out.aquius.place[i][2]) {
+                 // Node inherits place references, else no node references
+                 out.aquius.node[j][2].r = out.aquius.place[i][2].r;
+               } else {
+                 if ("r" in out.aquius.node[j][2]) {
+                   delete out.aquius.node[j][2].r;
+                 }
+               }
+               node = j;
+
+             } else {
+               if (j in stops) {
+                 for (k = 0; k < stops[j].length; k += 1) {
+                   out._.nodeLookup[stops[j][k]] = node;
+                 }
+               }
+               // Cleanup unused nodes later via optimiseNode()
+             }
+
+           }
+         }
+
+       }
+
+     }
+
+     return out;
+  }
+
   function exitProcess(out, options) {
     /**
      * Called to exit
@@ -4040,6 +4108,7 @@ var gtfsToAquius = gtfsToAquius || {
   out = regularStopsToNode(out);
 
   out = buildPlace(out, options);
+  out = stopPlace(out);
 
   out = createCalendar(out);
   out = baseTrip(out);
