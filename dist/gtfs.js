@@ -673,6 +673,8 @@ var gtfsToAquius = gtfsToAquius || {
         "type": "agency"
       },
         // Group services by, using network definitions (see docs)
+      "nodeGeojson": {},
+        // Cache containing node "x:y": Geojson "x:y" (both coordinates at coordinatePrecision) (see docs)
       "option": {},
         // As Data Structure/Configuration option key
       "populationProperty": "population",
@@ -3799,6 +3801,8 @@ var gtfsToAquius = gtfsToAquius || {
      */
 
     var centroid, checked, content, index, key, keys, lastDiff, node, population, xyDiff, i, j;
+    var centroidLookup = {};
+      // "x:y": GeojsonLine (for cache processing)
     var centroidStack = {};
       // For efficient searching = GeojsonLine: {x, y}
     var centroidKeys = [];
@@ -3838,6 +3842,7 @@ var gtfsToAquius = gtfsToAquius || {
             "x": Math.round(centroid[0] * precision) / precision,
             "y": Math.round(centroid[1] * precision) / precision
           };
+          centroidLookup[centroidStack[i].x + ":" + centroidStack[i].y] = i;
         }
       }
 
@@ -3855,11 +3860,21 @@ var gtfsToAquius = gtfsToAquius || {
         thisPlace = -1;
         node = out.aquius.node[nodeStack[i][1]];
 
-        if (isPointInFeature(node[0], node[1], options.geojson.features[previousPlace])) {
+        key = node[0] + ":" + node[1];
+        if (key in out.config.nodeGeojson &&
+          out.config.nodeGeojson[key] in centroidLookup
+        ) {
+          thisPlace = centroidLookup[out.config.nodeGeojson[key]];
+        }
+
+        if (thisPlace === -1 &&
+          isPointInFeature(node[0], node[1], options.geojson.features[previousPlace])
+        ) {
           // Often the next node is near the last, so check the last result first
           thisPlace = previousPlace;
+        }
 
-        } else {
+        if (thisPlace === -1) {
 
           checked = {};
           checked[previousPlace] = previousPlace;
@@ -3963,6 +3978,12 @@ var gtfsToAquius = gtfsToAquius || {
             }
 
           }
+
+          if (thisPlace in centroidStack) {
+            out.config.nodeGeojson[node[0] + ":" + node[1]] =
+              centroidStack[thisPlace].x + ":" + centroidStack[thisPlace].y;
+          }
+
         } else {
 
           if (out.config.inGeojson === true) {

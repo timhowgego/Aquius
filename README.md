@@ -374,6 +374,7 @@ isCircular|array|[]|GTFS "route_id" (strings) to be referenced as circular. If e
 meta|object|{"schema": "0"}|As [Data Structure](#data-structure) meta key
 mirrorLink|boolean|true|Services mirrored in reverse are combined into the same link. Reduces filesize, but can distort service averages
 networkFilter|object|{"type": "agency"}|Group services by, using network definitions, detailed below
+nodeGeojson|object|{}|Cache containing node "x:y": Geojson "x:y" (both coordinates at coordinatePrecision), described below
 option|object|{}|As [Configuration](#configuration)/[Data Structure](#data-structure) option key
 placeNameProperty|string|"name"|Field name in GeoJSON properties containing the name or identifier of the place
 populationProperty|string|"population"|Field name in GeoJSON properties containing the number of people (or equivalent demographic statistic)
@@ -488,6 +489,10 @@ Optionally, a [GeoJSON file](http://geojson.org/) can be provided containing pop
 GTFS To Aquius will attempt to assign each node (stop) to the boundary it falls within. For consistent results, boundaries should not overlap and specific populations should not be counted more than once. The choice of boundaries should be appropriate for the scale and scope of the services within the GTFS file: Not so small as to routinely exclude nodes used by a local population, but not so large as to suggest unrealistic hinterlands or catchment areas. For example, an entire city may reasonably have access to an inter-regional network whose only stop is in the city centre, and thus city-level boundaries might be appropriate at inter-regional level. In contrast, an urban network within a city should use more detailed boundaries that reflect the inherently local nature of the areas served. Note that the population summaries produced by Aquius are not intended to be precise, rather to provide a broad summary of where people are relative to nearby routes, and to allow basic comparison of differences in network connectivity.
 
 If configuration key `inGeojson` is true (the default), the entire dataset will be limited to services between stops within the GeoJSON boundaries.
+
+Processing can be time consuming for Geojson files containing thousands of boundaries, so the results are cached as configuration key `nodeGeojson`. If populated, this key will assign nodes to boundaries based on the centroids provided, without first searching the entire Geojson file for a match. For extremely large datasets, this key can potentially be pre-populated with data calculated by (computationally more efficient) GIS software. The coordinate precision within `nodeGeojson` must match that of the key `coordinatePrecision` for the cache to be used. Any node not found in the cache will be processed as normal, so the cache need not be complete.
+
+**Caution:** Caching with `nodeGeojson` assumes boundaries have unique centroids. Nodes cannot be reliably cached where different boundaries share the same centroid, for example perfect concentric rings. To work round this limitation exclude such nodes from `nodeGeojson`, or do not specify the key in the configuration (which defaults to empty).
 
 ## GeoJSON to Aquius
 
