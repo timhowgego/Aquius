@@ -309,7 +309,7 @@ var gtfsToAquius = gtfsToAquius || {
      * @param {object} options - as sent, including _vars
      */
 
-    var caption, keys, tableData, tableFormat, tableHeader, tableRow, zeroCoord, i, j;
+    var caption, content, keys, tableData, tableFormat, tableHeader, tableRow, zeroCoord, i, j;
     var vars = options._vars;
     var fileDOM = document.getElementById(vars.configId + "ImportFiles");
     var outputDOM = document.getElementById(vars.configId + "Output");
@@ -346,10 +346,16 @@ var gtfsToAquius = gtfsToAquius || {
         Object.keys(out[keys[i]]).length > 0
       ) {
 
+        if (keys[i] === "config") {
+          content = JSON.stringify(out[keys[i]], null, 1);
+        } else {
+          content = JSON.stringify(out[keys[i]]);
+        }
+
         progressDOM.appendChild(createElement("a", {
           "className": vars.configId + "Download",
           "href": window.URL.createObjectURL(
-            new Blob([JSON.stringify(out[keys[i]])],
+            new Blob([content],
             {type: "application/json;charset=utf-8"})
           ),
           "download": keys[i] + ".json",
@@ -2167,7 +2173,7 @@ var gtfsToAquius = gtfsToAquius || {
      * @return {object} out
      */ 
 
-    var arrive, dates, depart, duplicate, key, lastDepart, node, stopObject, times, i, j, k, l;
+    var arrive, dates, depart, duplicate, key, lastDepart, node, position, stopObject, times, i, j, k, l;
     var timeCache = {};
       // TimeStrings cached temporarily for speed - times tend to be reused
     var trips = Object.keys(out.gtfs.stop_times);
@@ -2190,151 +2196,175 @@ var gtfsToAquius = gtfsToAquius || {
 
           stopObject = out.gtfs.stop_times[trips[i]][j];
 
-          if (stopObject[out.gtfsHead.stop_times.stop_id] in out._.nodeLookup &&
-            (out._.trip[trips[i]].stops.length === 0 ||
-            out._.trip[trips[i]].stops[out._.trip[trips[i]].stops.length - 1][1] !==
-              out._.nodeLookup[stopObject[out.gtfsHead.stop_times.stop_id]])
+          if (stopObject[out.gtfsHead.stop_times.stop_id] in out._.nodeLookup) {
+
+            if (out._.trip[trips[i]].stops.length === 0 ||
+              out._.trip[trips[i]].stops[out._.trip[trips[i]].stops.length - 1][1] !==
+                out._.nodeLookup[stopObject[out.gtfsHead.stop_times.stop_id]]
             ) {
             // Excludes concurrent stops
 
-            node = out._.nodeLookup[stopObject[out.gtfsHead.stop_times.stop_id]];
-            arrive = 0;
-            depart = 0;
+              node = out._.nodeLookup[stopObject[out.gtfsHead.stop_times.stop_id]];
+              arrive = 0;
+              depart = 0;
 
-            out._.trip[trips[i]].stops.push([
-              stopObject[out.gtfsHead.stop_times.stop_sequence],
-              node
-            ]);
+              out._.trip[trips[i]].stops.push([
+                stopObject[out.gtfsHead.stop_times.stop_sequence],
+                node
+              ]);
 
-            if (out.gtfsHead.stop_times.pickup_type !== -1 &&
-              stopObject[out.gtfsHead.stop_times.pickup_type] === "1"
-            ) {
-              out._.trip[trips[i]].setdown.push(out._.nodeLookup[stopObject[out.gtfsHead.stop_times.stop_id]]);
-            }
-            if (out.gtfsHead.stop_times.drop_off_type !== -1 &&
-              stopObject[out.gtfsHead.stop_times.drop_off_type] === "1"
-            ) {
-              out._.trip[trips[i]
-              ].pickup.push(out._.nodeLookup[stopObject[out.gtfsHead.stop_times.stop_id]]);
-            }
-
-            if ("frequent" in out._.trip[trips[i]] === false) {
-              // Frequent trips initially untimed, and cannot be part of any duplication
-
-              if (out.gtfsHead.stop_times.departure_time !== -1 &&
-                stopObject[out.gtfsHead.stop_times.departure_time] !== ""
+              if (out.gtfsHead.stop_times.pickup_type !== -1 &&
+                stopObject[out.gtfsHead.stop_times.pickup_type] === "1"
               ) {
-                if (stopObject[out.gtfsHead.stop_times.departure_time] in timeCache === false) {
-                  timeCache[stopObject[out.gtfsHead.stop_times.departure_time]] =
-                    getGtfsTimeSeconds(stopObject[out.gtfsHead.stop_times.departure_time]);
-                }
-                depart = timeCache[stopObject[out.gtfsHead.stop_times.departure_time]];
-                if ("start" in out._.trip[trips[i]] === false ||
-                  depart < out._.trip[trips[i]].start
-                ) {
-                  out._.trip[trips[i]].start = depart;
-                }
+                out._.trip[trips[i]].setdown.push(out._.nodeLookup[stopObject[out.gtfsHead.stop_times.stop_id]]);
+              }
+              if (out.gtfsHead.stop_times.drop_off_type !== -1 &&
+                stopObject[out.gtfsHead.stop_times.drop_off_type] === "1"
+              ) {
+                out._.trip[trips[i]].pickup.push(out._.nodeLookup[stopObject[out.gtfsHead.stop_times.stop_id]]);
               }
 
-              if (out.gtfsHead.stop_times.arrival_time !== -1 &&
-                stopObject[out.gtfsHead.stop_times.arrival_time] !== ""
-              ) {
-                if (stopObject[out.gtfsHead.stop_times.arrival_time] in timeCache === false) {
-                  timeCache[stopObject[out.gtfsHead.stop_times.arrival_time]] =
-                    getGtfsTimeSeconds(stopObject[out.gtfsHead.stop_times.arrival_time]);
-                }
-                arrive = timeCache[stopObject[out.gtfsHead.stop_times.arrival_time]];
-                if ("end" in out._.trip[trips[i]] === false ||
-                  arrive > out._.trip[trips[i]].end
+              if ("frequent" in out._.trip[trips[i]] === false) {
+                // Frequent trips initially untimed, and cannot be part of any duplication
+
+                if (out.gtfsHead.stop_times.departure_time !== -1 &&
+                  stopObject[out.gtfsHead.stop_times.departure_time] !== ""
                 ) {
-                  out._.trip[trips[i]].end = arrive;
-                }
-              }
-
-              if (typeof duplicate !== "undefined") {
-
-                times = [];
-
-                if (arrive !== 0 ||
-                  depart !== 0
-                ) {
-                  times.push({
-                    "key": [node, arrive, depart].join(":"),
-                    "node": node
-                  });
-                }
-
-                // Also keys for each time, since at nodes where joins occurs, only one time is shared
-                // with second value = previous (for arrive) or next (for depart) node
-                if (out.config.allowSplit === true &&
-                  arrive !== 0 &&
-                  out._.trip[trips[i]].stops.length > 1
-                ) {
-                  times.push({
-                    "key": [node, arrive, out._.trip[trips[i]].stops[out._.trip[trips[i]].stops.length - 1]].join(":"),
-                    "node": node
-                  });
-                }
-
-                // Departure needs next node, so offset by 1 position in stop_times loop
-                if (lastDepart !== null) {
-                  // This position in loop evalulates previous
-                  times.push({
-                    "key": [node, lastDepart.key].join(":"),
-                    "node": lastDepart.node
-                  });
-                }
-
-                for (k = 0; k < times.length; k += 1) {
-
-                  key = [times[k].key, out._.trip[trips[i]].direction_id];
-                  if (out.config.duplicationRouteOnly) {
-                    key.push(out._.trip[trips[i]].route_id);
+                  if (stopObject[out.gtfsHead.stop_times.departure_time] in timeCache === false) {
+                    timeCache[stopObject[out.gtfsHead.stop_times.departure_time]] =
+                      getGtfsTimeSeconds(stopObject[out.gtfsHead.stop_times.departure_time]);
                   }
-                  key = key.join(":");
-
-                  for (l = 0; l < dates.length; l += 1) {
-
-                    if (dates[l] in duplicate === false) {
-                      duplicate[dates[l]] = {};
-                    }
-
-                    if (key in duplicate[dates[l]]) {
-                      if ("dup" in out._.trip[trips[i]] === false) {
-                        out._.trip[trips[i]].dup = {
-                          "stops": [],
-                          "trip_id": duplicate[dates[l]][key]
-                        };
-                        // Each duplicate currently reference sole parent trip. Assumption could fail with mixed calendars
-                      }
-                      if (out._.trip[trips[i]].dup.stops.length === 0 ||
-                        out._.trip[trips[i]].dup.stops.indexOf(times[k].node) === -1
-                      ) {
-                        // Infrequently called
-                        out._.trip[trips[i]].dup.stops.push(times[k].node);
-                      }
-                      
-                    } else {
-                      duplicate[dates[l]][key] = trips[i];
-                    }
-
+                  depart = timeCache[stopObject[out.gtfsHead.stop_times.departure_time]];
+                  if ("start" in out._.trip[trips[i]] === false ||
+                    depart < out._.trip[trips[i]].start
+                  ) {
+                    out._.trip[trips[i]].start = depart;
                   }
-
                 }
 
-                if (out.config.allowSplit === true) {
-                  if (depart !== 0) {
-                    // Setup next in loop
-                    lastDepart = {
-                      "key": [depart, node].join(":"),
+                if (out.gtfsHead.stop_times.arrival_time !== -1 &&
+                  stopObject[out.gtfsHead.stop_times.arrival_time] !== ""
+                ) {
+                  if (stopObject[out.gtfsHead.stop_times.arrival_time] in timeCache === false) {
+                    timeCache[stopObject[out.gtfsHead.stop_times.arrival_time]] =
+                      getGtfsTimeSeconds(stopObject[out.gtfsHead.stop_times.arrival_time]);
+                  }
+                  arrive = timeCache[stopObject[out.gtfsHead.stop_times.arrival_time]];
+                  if ("end" in out._.trip[trips[i]] === false ||
+                    arrive > out._.trip[trips[i]].end
+                  ) {
+                    out._.trip[trips[i]].end = arrive;
+                  }
+                }
+
+                if (typeof duplicate !== "undefined") {
+
+                  times = [];
+
+                  if (arrive !== 0 ||
+                    depart !== 0
+                  ) {
+                    times.push({
+                      "key": [node, arrive, depart].join(":"),
                       "node": node
-                    };
-                  } else {
-                    lastDepart = null;
+                    });
                   }
-                }
 
+                  // Also keys for each time, since at nodes where joins occurs, only one time is shared
+                  // with second value = previous (for arrive) or next (for depart) node
+                  if (out.config.allowSplit === true &&
+                    arrive !== 0 &&
+                    out._.trip[trips[i]].stops.length > 1
+                  ) {
+                    times.push({
+                      "key": [node, arrive, out._.trip[trips[i]].stops[out._.trip[trips[i]].stops.length - 1]].join(":"),
+                      "node": node
+                    });
+                  }
+
+                  // Departure needs next node, so offset by 1 position in stop_times loop
+                  if (lastDepart !== null) {
+                    // This position in loop evalulates previous
+                    times.push({
+                      "key": [node, lastDepart.key].join(":"),
+                      "node": lastDepart.node
+                    });
+                  }
+
+                  for (k = 0; k < times.length; k += 1) {
+
+                    key = [times[k].key, out._.trip[trips[i]].direction_id];
+                    if (out.config.duplicationRouteOnly) {
+                      key.push(out._.trip[trips[i]].route_id);
+                    }
+                    key = key.join(":");
+
+                    for (l = 0; l < dates.length; l += 1) {
+
+                      if (dates[l] in duplicate === false) {
+                        duplicate[dates[l]] = {};
+                      }
+
+                      if (key in duplicate[dates[l]]) {
+                        if ("dup" in out._.trip[trips[i]] === false) {
+                          out._.trip[trips[i]].dup = {
+                            "stops": [],
+                            "trip_id": duplicate[dates[l]][key]
+                          };
+                          // Each duplicate currently reference sole parent trip. Assumption could fail with mixed calendars
+                        }
+                        if (out._.trip[trips[i]].dup.stops.length === 0 ||
+                          out._.trip[trips[i]].dup.stops.indexOf(times[k].node) === -1
+                        ) {
+                          // Infrequently called
+                          out._.trip[trips[i]].dup.stops.push(times[k].node);
+                        }
+
+                      } else {
+                        duplicate[dates[l]][key] = trips[i];
+                      }
+
+                    }
+
+                  }
+
+                  if (out.config.allowSplit === true) {
+                    if (depart !== 0) {
+                      // Setup next in loop
+                      lastDepart = {
+                        "key": [depart, node].join(":"),
+                        "node": node
+                      };
+                    } else {
+                      lastDepart = null;
+                    }
+                  }
+
+                }
               }
+
+            } else {
+
+              // Concurrent stops may clear pickup and/or setdown (typically when grouping nodes)
+              if (out.gtfsHead.stop_times.drop_off_type !== -1 &&
+                stopObject[out.gtfsHead.stop_times.drop_off_type] !== "1"
+              ) {
+                position = out._.trip[trips[i]].pickup.indexOf(
+                  out._.nodeLookup[stopObject[out.gtfsHead.stop_times.stop_id]]);
+                if (position !== -1) {
+                  out._.trip[trips[i]].pickup = out._.trip[trips[i]].pickup.slice(position, 1);
+                }
+              }
+              if (out.gtfsHead.stop_times.pickup_type !== -1 &&
+                stopObject[out.gtfsHead.stop_times.pickup_type] !== "1"
+              ) {
+                position = out._.trip[trips[i]].setdown.indexOf(
+                  out._.nodeLookup[stopObject[out.gtfsHead.stop_times.stop_id]]);
+                if (position !== -1) {
+                  out._.trip[trips[i]].setdown = out._.trip[trips[i]].setdown.slice(position, 1);
+                }
+              }
+
             }
 
           }
