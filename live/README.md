@@ -6,7 +6,7 @@ This section contains examples of [Aquius](https://timhowgego.github.io/Aquius/)
 
 * [Barcelona](#barcelona) - comprehensive urban network built from multiple sources, including strategic analysis of network changes.
 * [FlixBus](#flixbus) - long-distance international European network, containing extensive cabotage (pickup and setdown) restrictions.
-* [Great Britain](#gb) - national and local networks.
+* [Great Britain](#great-britain) - national and local networks.
 * [New York City](#new-york-city) - one of the largest American urban networks.
 * [Paris](#paris) - one of the largest European urban networks.
 * [Spanish Railways](#spanish-railways) - traditional national railway network, including split trains and mixed products.
