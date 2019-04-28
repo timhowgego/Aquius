@@ -1011,9 +1011,31 @@ var geojsonToAquius = geojsonToAquius || {
               }
 
             }
-            if (inside) {
+
+            if (inside &&
+              i === 0 &&
+              polygonArray.length === 1
+            ) {
+              // Found in sole polygon
               return true;
             }
+            if (inside === false &&
+              i === 0
+            ) {
+              // Missing in parent polygon
+              return false;
+            }
+            if (inside &&
+              i > 0
+            ) {
+              // Found in a hole
+              return false;
+            }
+            if (i === polygonArray.length - 1) {
+              // Beholed polygon found in outer but not inner
+              return true;
+            }
+
           }
         }
       }
