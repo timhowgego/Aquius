@@ -464,7 +464,8 @@ In categorising services by time, GTFS To Aquius interprets times as equal to or
 {
   "serviceFilter": {
     "type": "period",
-    "period": {
+    "period": [
+      {
       "name": {"en-US": "00:00-06:00 Catchall"},
       "time": [
         {"end": "06:00:00"},
@@ -473,7 +474,8 @@ In categorising services by time, GTFS To Aquius interprets times as equal to or
           // Midnight until before 06:00, as tomorrow
       ]
       // No "day" key = all days
-    }
+      } 
+    ]
   }
 }
 ```
