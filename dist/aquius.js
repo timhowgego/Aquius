@@ -105,7 +105,7 @@ var aquius = aquius || {
           },
           "type": "",
             // For WMS maps, type: "wms"
-          "url": "https://maps.wikimedia.org/osm-intl/{z}/{x}/{y}.png"
+          "url": "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"  // Often overloaded: "https://maps.wikimedia.org/osm-intl/{z}/{x}/{y}.png"
             // Without https likely to trigger mixed content warnings
         }
           // Multiple bases supported but only first can be solid, while others must be transparent
@@ -2160,8 +2160,8 @@ var aquius = aquius || {
       leafletURLs = [];
     } else {
       leafletURLs = [
-        "https://unpkg.com/leaflet@1.4.0/dist/leaflet.css",
-        "https://unpkg.com/leaflet@1.4.0/dist/leaflet.js"
+        "https://unpkg.com/leaflet@1.6.0/dist/leaflet.css",
+        "https://unpkg.com/leaflet@1.6.0/dist/leaflet.js"
       ];
         // Default Leaflet library CSS and JS
     }
