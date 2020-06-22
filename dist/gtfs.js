@@ -605,7 +605,7 @@ var gtfsToAquius = gtfsToAquius || {
   function unformatGtfsDate(dateString) {
     /**
      * Helper: Converts GTFS date to millisecond date
-     * @param{string} dateString - date in GTFS (YYYYMMDD) format
+     * @param {string} dateString - date in GTFS (YYYYMMDD) format
      * @return {integer} milliseconds from epoch
      */
 
@@ -619,6 +619,22 @@ var gtfsToAquius = gtfsToAquius || {
       dateString.slice(4, 6) - 1,
       dateString.slice(6, 8)
     );
+  }
+  
+  function haversineDistance(lat1, lng1, lat2, lng2) {
+    /**
+     * Helper: Earth distance. Modified from Leaflet CRS.Earth.js
+     * @param {float} lat from, lng from, lat to, lng to.
+     * @return {integer} 
+     */
+
+    var rad = Math.PI / 180;
+    var sinDLat = Math.sin((lat2 - lat1) * rad / 2);
+    var sinDLon = Math.sin((lng2 - lng1) * rad / 2);
+    var a = sinDLat * sinDLat + Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * sinDLon * sinDLon;
+    var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return 6371000 * c;
   }
 
   function parseConfig(out, options) {
@@ -666,7 +682,7 @@ var gtfsToAquius = gtfsToAquius || {
       "fromDate": formatGtfsDate(Date.now()),
         // Start date for service pattern analysis (inclusive)
       "inGeojson": true,
-        // If geojson boundaries are provided, only services at stops within a boundary will be analysed
+        // If geojson boundaries are provided, only services at stops within a boundary will be analysed. If false, assigns stops to nearest boundary (by centroid)
       "isCircular": [],
         // GTFS "route_id" (strings) to be referenced as circular. If empty, GTFS to Aquius follows own logic (see docs)
       "meta": {
@@ -3088,18 +3104,6 @@ var gtfsToAquius = gtfsToAquius || {
 
       var check, stops, target, i, j;
 
-      function haversineDistance(lat1, lng1, lat2, lng2) {
-        // Earth distance. Modified from Leaflet CRS.Earth.js
-
-        var rad = Math.PI / 180;
-        var sinDLat = Math.sin((lat2 - lat1) * rad / 2);
-        var sinDLon = Math.sin((lng2 - lng1) * rad / 2);
-        var a = sinDLat * sinDLat + Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * sinDLon * sinDLon;
-        var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-        return 6371000 * c;
-      }
-
       if (out.config.isCircular.length > 0) {
         if (routeId in out._.circular) {
           // Predefined circular, come what may
@@ -3852,7 +3856,7 @@ var gtfsToAquius = gtfsToAquius || {
      * @return {object} out
      */
 
-    var centroid, checked, content, index, key, keys, lastDiff, node, population, xyDiff, i, j;
+    var centroid, checked, content, distance, index, key, keys, lastDiff, minDistance, node, population, xyDiff, i, j;
     var centroidLookup = {};
       // "x:y": GeojsonLine (for cache processing)
     var centroidStack = {};
@@ -3966,6 +3970,20 @@ var gtfsToAquius = gtfsToAquius || {
               ) {
                 thisPlace = j;
                 break;
+              }
+
+            }
+          }
+          
+          if (thisPlace === -1 && out.config.inGeojson === false) {
+            // Assign point to nearest boundary centroid (imprecise, inefficient, but catches outliers)
+            minDistance = -1;
+            for (j = 0; j < centroidKeys.length; j += 1) {
+
+              distance = haversineDistance(node[1], node[0], centroidStack[centroidKeys[j]].y, centroidStack[centroidKeys[j]].x);
+              if (minDistance === -1 || distance < minDistance) {
+                minDistance = distance;
+                thisPlace = j;
               }
 
             }
