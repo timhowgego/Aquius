@@ -2189,7 +2189,7 @@ var gtfsToAquius = gtfsToAquius || {
      * @return {object} out
      */ 
 
-    var arrive, dates, depart, duplicate, key, lastDepart, node, position, stopObject, times, i, j, k, l;
+    var arrive, dates, depart, duplicate, key, keys, lastDepart, node, onOffCache, stopObject, times, i, j, k, l;
     var timeCache = {};
       // TimeStrings cached temporarily for speed - times tend to be reused
     var trips = Object.keys(out.gtfs.stop_times);
@@ -2207,6 +2207,10 @@ var gtfsToAquius = gtfsToAquius || {
 
         dates = Object.keys(out._.trip[trips[i]].calendar);
         lastDepart = null;
+        
+        onOffCache = {};
+          // Per trip. Node key = {optional both, setdown, pickup, route}
+          // Processed into setdown/pickup after to allow quirks of merged stops
 
         for (j = 0; j < out.gtfs.stop_times[trips[i]].length; j += 1) {
 
@@ -2214,13 +2218,37 @@ var gtfsToAquius = gtfsToAquius || {
 
           if (stopObject[out.gtfsHead.stop_times.stop_id] in out._.nodeLookup) {
 
+            node = out._.nodeLookup[stopObject[out.gtfsHead.stop_times.stop_id]];
+
+            if (node in onOffCache === false) {
+              onOffCache[node] = {};
+            }
+
+            if (out.gtfsHead.stop_times.pickup_type !== -1 &&
+              stopObject[out.gtfsHead.stop_times.pickup_type] === "1" &&
+              out.gtfsHead.stop_times.drop_off_type !== -1 &&
+              stopObject[out.gtfsHead.stop_times.drop_off_type] === "1"
+            ) {
+              onOffCache[node]["route"] = true; // Routing only
+            } else if (out.gtfsHead.stop_times.pickup_type !== -1 &&
+              stopObject[out.gtfsHead.stop_times.pickup_type] === "1"
+            ) {
+              onOffCache[node]["setdown"] = true;  // No pickup
+            } else if (out.gtfsHead.stop_times.drop_off_type !== -1 &&
+              stopObject[out.gtfsHead.stop_times.drop_off_type] === "1"
+            ) {
+              onOffCache[node]["pickup"] = true;  // No drop off
+            } else {
+              onOffCache[node]["both"] = true; // On and off
+            }
+            // All stops are analysed for pickup/setdown
+
             if (out._.trip[trips[i]].stops.length === 0 ||
               out._.trip[trips[i]].stops[out._.trip[trips[i]].stops.length - 1][1] !==
                 out._.nodeLookup[stopObject[out.gtfsHead.stop_times.stop_id]]
             ) {
-            // Excludes concurrent stops
+            // But exclude concurrent stops from other processing
 
-              node = out._.nodeLookup[stopObject[out.gtfsHead.stop_times.stop_id]];
               arrive = 0;
               depart = 0;
 
@@ -2228,17 +2256,6 @@ var gtfsToAquius = gtfsToAquius || {
                 stopObject[out.gtfsHead.stop_times.stop_sequence],
                 node
               ]);
-
-              if (out.gtfsHead.stop_times.pickup_type !== -1 &&
-                stopObject[out.gtfsHead.stop_times.pickup_type] === "1"
-              ) {
-                out._.trip[trips[i]].setdown.push(out._.nodeLookup[stopObject[out.gtfsHead.stop_times.stop_id]]);
-              }
-              if (out.gtfsHead.stop_times.drop_off_type !== -1 &&
-                stopObject[out.gtfsHead.stop_times.drop_off_type] === "1"
-              ) {
-                out._.trip[trips[i]].pickup.push(out._.nodeLookup[stopObject[out.gtfsHead.stop_times.stop_id]]);
-              }
 
               if ("frequent" in out._.trip[trips[i]] === false) {
                 // Frequent trips initially untimed, and cannot be part of any duplication
@@ -2359,33 +2376,29 @@ var gtfsToAquius = gtfsToAquius || {
                 }
               }
 
-            } else {
-
-              // Concurrent stops may clear pickup and/or setdown (typically when grouping nodes)
-              if (out.gtfsHead.stop_times.drop_off_type !== -1 &&
-                stopObject[out.gtfsHead.stop_times.drop_off_type] !== "1"
-              ) {
-                position = out._.trip[trips[i]].pickup.indexOf(
-                  out._.nodeLookup[stopObject[out.gtfsHead.stop_times.stop_id]]);
-                if (position !== -1) {
-                  out._.trip[trips[i]].pickup = out._.trip[trips[i]].pickup.slice(position, 1);
-                }
-              }
-              if (out.gtfsHead.stop_times.pickup_type !== -1 &&
-                stopObject[out.gtfsHead.stop_times.pickup_type] !== "1"
-              ) {
-                position = out._.trip[trips[i]].setdown.indexOf(
-                  out._.nodeLookup[stopObject[out.gtfsHead.stop_times.stop_id]]);
-                if (position !== -1) {
-                  out._.trip[trips[i]].setdown = out._.trip[trips[i]].setdown.slice(position, 1);
-                }
-              }
-
             }
-
           }
 
         }
+
+        keys = Object.keys(onOffCache);
+        for (j = 0; j < keys.length; j += 1) {
+          if ("both" in onOffCache[keys[j]] === false) {
+            if ("setdown" in onOffCache[keys[j]] &&
+              "pickup" in onOffCache[keys[j]] === false
+            ) {
+              out._.trip[trips[i]].setdown.push(parseInt(keys[j], 10));
+            } else if ("pickup" in onOffCache[keys[j]] &&
+              "setdown" in onOffCache[keys[j]] === false
+            ) {
+              out._.trip[trips[i]].pickup.push(parseInt(keys[j], 10));
+            } else if ("route" in onOffCache[keys[j]]) {
+              out._.trip[trips[i]].setdown.push(parseInt(keys[j], 10));
+              out._.trip[trips[i]].pickup.push(parseInt(keys[j], 10));
+            }
+          }
+        }
+        
       }
     }
 
