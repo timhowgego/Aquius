@@ -11,7 +11,7 @@ This section contains examples of [Aquius](https://timhowgego.github.io/Aquius/)
 * [Paris](#paris) - one of the largest European urban networks.
 * [Spanish Railways](#spanish-railways) - traditional national railway network, including split trains and mixed products.
 * [York](#york) - basic small city network, including lasso routes.
-* [Tools](#tools) - build networks from GTFS or GeoJSON, or merge network together.
+* [Tools](#tools) - build networks from GTFS or GeoJSON, merge network together, or bulk analyse Aquius data.
 
 ## Barcelona
 
@@ -35,7 +35,9 @@ The FlixBus network is almost impossible to communicate on a fixed map because i
 
 [Great Britain Public Transport by District (weekdays, April 2019)](https://timhowgego.github.io/Aquius/live/gb-pt-district-2019/): Snapshot of all weekday scheduled service except aviation, mapped between Districts, ideal for strategic analysis of longer-distance transport - [more information about this dataset](https://timhowgego.github.io/AquiusData/uk-pt/).
 
-Both are Vortex-style maps that groups stops by their administrative geography. Such aggregation just about makes it possible to contain any entire country withina  single dataset, although the Ward maps is large (over 5 MegaBytes).
+Similar maps are available by [traditional county](https://timhowgego.github.io/Aquius/live/gb-pt-county-2019/) and [region/nation](https://timhowgego.github.io/Aquius/live/gb-pt-region-2019/), primarily for long-distance analysis.
+
+All are Vortex-style maps that groups stops by their administrative geography. Such aggregation just about makes it possible to contain any entire country within a single dataset, although the Ward maps is large (over 5 MegaBytes).
 
 [Great Britain National Rail (weekdays, January 2019)](https://timhowgego.github.io/Aquius/live/gb-rail-2019/): Snapshot of all weekday passenger train service patterns across Network Rail - [more information about this dataset](https://timhowgego.github.io/AquiusData/uk-rail/).
 
@@ -80,6 +82,10 @@ The GB Rail dataset makes extensive use of dummy waypoints to show the route tak
 ### Merge Aquius
 
 [Merge Aquius](https://timhowgego.github.io/Aquius/live/merge/) - Tool to merge Aquius datasets together. Also see [Merge Aquius documentation](https://timhowgego.github.io/Aquius/#merge-aquius).
+
+### Aquius Analysis
+
+[Aquius Analysis](https://timhowgego.github.io/Aquius/live/analysis/) - Work in progress tool for bulk analysis of Aquius datasets.
 
 ## More Information
 
