@@ -31,9 +31,9 @@ The FlixBus network is almost impossible to communicate on a fixed map because i
 
 ## Great Britain 
 
-[Great Britain Public Transport by Ward (weekdays, April 2019)](https://timhowgego.github.io/Aquius/live/gb-pt-ward-2019/): Snapshot of all weekday scheduled service except aviation, mapped between Wards, ideal for strategic analysis of local transport - [more information about this dataset](https://timhowgego.github.io/AquiusData/uk-pt/).
+[Great Britain Public Transport by Ward, weekdays/operating group April 2019](https://timhowgego.github.io/Aquius/live/gb-pt-ward-2019/), [all days/mode February 2020](https://timhowgego.github.io/Aquius/live/gb-pt-ward-2020/), and [all days/mode February 2021](https://timhowgego.github.io/Aquius/live/gb-pt-ward-2021/) (in COVID-19 lockdown): Snapshot of all scheduled services except aviation, mapped between Wards, ideal for strategic analysis of local transport - [more information about this dataset](https://timhowgego.github.io/AquiusData/uk-pt/).
 
-[Great Britain Public Transport by District (weekdays, April 2019)](https://timhowgego.github.io/Aquius/live/gb-pt-district-2019/): Snapshot of all weekday scheduled service except aviation, mapped between Districts, ideal for strategic analysis of longer-distance transport - [more information about this dataset](https://timhowgego.github.io/AquiusData/uk-pt/).
+[Great Britain Public Transport by District, weekdays April 2019](https://timhowgego.github.io/Aquius/live/gb-pt-district-2019/): Snapshot of all weekday scheduled services except aviation, mapped between Districts, ideal for strategic analysis of longer-distance transport - [more information about this dataset](https://timhowgego.github.io/AquiusData/uk-pt/).
 
 Similar maps are available by [traditional county](https://timhowgego.github.io/Aquius/live/gb-pt-county-2019/) and [region/nation](https://timhowgego.github.io/Aquius/live/gb-pt-region-2019/), primarily for long-distance analysis.
 

@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html style="height:100%;" lang="en-US">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width" />
+<title>Aquius - GB Public Transport by Ward</title>
+</head>
+<body style="height:100%;margin:0;">
+<div id="aquius" style="height:100%;"></div>
+<script src="https://timhowgego.github.io/Aquius/dist/aquius.min.js" async></script>
+<script>window.addEventListener("load",function(){aquius.init("aquius",{
+  "dataset":"https://timhowgego.github.io/AquiusData/uk-pt/gb-pt-ward-2021.json",
+  "uiHash":true,
+  "base": [
+    {
+          "options": {
+            "attribution":
+              "&copy; <a href='https://www.openstreetmap.org/copyright'>OpenStreetMap</a> contributors",
+            "maxZoom": 18
+          },
+          "type": "",
+          "url": "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+    },
+    {
+    "url": "https://ons-inspire.esriuk.com/arcgis/services/Administrative_Boundaries/Wards_December_2018_Boundaries_GB_V2/MapServer/WMSServer", 
+    "type": "wms",
+    "options":{
+      "layers":1,
+      "format":"image/png32",
+      "transparent":true,
+      "continuousWorld":true,
+      "opacity":0.5
+    }
+  }
+  ]
+})});</script>
+</body>
+</html>
