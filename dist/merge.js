@@ -706,7 +706,7 @@ var mergeAquius = mergeAquius || {
             }
           }
 
-          keys = ["h", "shared", "pickup", "s", "setdown", "split", "t", "u"];
+          keys = ["h", "shared", "pickup", "s", "setdown", "split", "t", "u", "duration", "m"];
             // Optional arrays
           for (j = 0; j < keys.length; j += 1) {
             if (keys[j] in property.property) {

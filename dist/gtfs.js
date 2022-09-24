@@ -649,6 +649,9 @@ var gtfsToAquius = gtfsToAquius || {
     var defaults = {
       "allowBlock": false,
         // Process block_id as sequence of inter-operated trips, else blocked trips are processed separately
+      "allowDuration": false,
+        // Include array of total minutes per trip and link (caution - must set service time bands &
+        // while any non-time banded service currently produces incorrect totals)
       "allowCabotage": false,
         // Process duplicate vehicle trips with varying pickup/setdown restrictions as cabotage (see docs)
       "allowCode": true,
@@ -2772,11 +2775,12 @@ var gtfsToAquius = gtfsToAquius || {
      * @return {object} out
      */
 
-    var dayCount, hour, inPeriod, time, i, j, k;
+    var dayCount, hour, inPeriod, minutes, time, total_minutes, i, j, k;
     var dayFactor = createDayFactor(out);
     var timeFactor = createTimeFactor(out);
     var trips = Object.keys(out._.trip);
     var scheduled = [];
+
 
     for (i = 0; i < timeFactor.length; i += 1) {
       scheduled.push(0);
@@ -2794,6 +2798,17 @@ var gtfsToAquius = gtfsToAquius || {
           // Cleanup after duplicate checks best fits this loop
       } else {
 
+        if (out.config.allowDuration) {
+          minutes = [];
+          out._.trip[trips[i]].minutes = [];
+          for (j = 0; j < scheduled.length; j += 1) {
+            out._.trip[trips[i]].minutes.push(0);
+            minutes.push([]);
+          }
+        } else {
+          minutes = null;
+        }
+        
         // calendar to service
         for (j = 0; j < dayFactor.length; j += 1) {
           dayCount = 0;
@@ -2818,6 +2833,7 @@ var gtfsToAquius = gtfsToAquius || {
           }
 
           for (j = 0; j < timeFactor.length; j += 1) {
+
             if (j < out._.trip[trips[i]].service.length &&
               out._.trip[trips[i]].service[j] !== 0
             ) {
@@ -2845,6 +2861,9 @@ var gtfsToAquius = gtfsToAquius || {
 
                 if (inPeriod == false) {
                 out._.trip[trips[i]].service[j] = 0;
+                if (out.config.allowDuration) {
+                  out._.trip[trips[i]].minutes[j] = 0;
+                }
                 }
 
               } else {
@@ -2861,7 +2880,29 @@ var gtfsToAquius = gtfsToAquius || {
                   }
                 }
                 out.summary.service[hour][j] = out.summary.service[hour][j] + 1;
+
+                if (out.config.allowDuration) {
+                  if (out._.trip[trips[i]].start > out._.trip[trips[i]].end) {
+                    // Assume across midnight, so add 24 hours to end
+                    minutes[j].push(((out._.trip[trips[i]].end + 86400) - out._.trip[trips[i]].start) / 60);
+                  } else {
+                    minutes[j].push((out._.trip[trips[i]].end - out._.trip[trips[i]].start) / 60);
+                  }
+                }
               }
+            }
+          }
+        }
+        if (minutes !== null) {
+          for (j = 0; j < minutes.length; j += 1) {
+            if (minutes[j].length > 0) {
+              total_minutes = 0;
+              for (k = 0; k < minutes[j].length; k += 1) {
+                total_minutes = total_minutes + minutes[j][k];
+              }
+              out._.trip[trips[i]].minutes[j] = Math.round(total_minutes / k);
+            } else {
+              out._.trip[trips[i]].minutes[j] = 0;
             }
           }
         }
@@ -3196,6 +3237,33 @@ var gtfsToAquius = gtfsToAquius || {
       return service;
     }
 
+    function mergeDuration(minutesA, minutesB) { 
+
+      var duration, i;
+
+      if (minutesA === minutesB) {
+        return minutesA;
+      }
+      
+      duration = [];
+      for (i = 0; i < minutesA.length; i += 1) {
+        if (i > minutesB.length) {
+          break;
+        }
+        if (minutesB[i] === 0) {
+          duration.push(minutesA[i]);
+        } else if (minutesA[i] === 0) {
+          duration.push(minutesB[i]);
+        } else {
+          duration.push(Math.round((minutesA[i] + minutesB[i]) / 2));
+          // Crude - average may gradually skew, but values should be very similar, since describe the same trip segment
+        }
+
+      }
+
+      return duration;
+    }
+
     trips = Object.keys(out._.trip);
     for (i = 0; i < trips.length; i += 1) {
 
@@ -3387,6 +3455,10 @@ var gtfsToAquius = gtfsToAquius || {
 
           link[forward].service = mergeService(link[forward].service, out._.trip[trips[i]].service);
 
+          if ("minutes" in link[forward] && "minutes" in out._.trip[trips[i]]) {
+            link[forward].minutes = mergeDuration(link[forward].minutes, out._.trip[trips[i]].minutes);
+          }
+
         } else {
 
           if (out.config.mirrorLink &&
@@ -3396,6 +3468,10 @@ var gtfsToAquius = gtfsToAquius || {
 
             isBackward = true;
             link[backward].service = mergeService(link[backward].service, out._.trip[trips[i]].service);
+
+            if ("minutes" in link[backward] && "minutes" in out._.trip[trips[i]]) {
+              link[backward].minutes = mergeDuration(link[backward].minutes, out._.trip[trips[i]].minutes);
+            }
 
             if ("direction" in link[backward]) {
               delete link[backward].direction;
@@ -3409,6 +3485,10 @@ var gtfsToAquius = gtfsToAquius || {
               "route": nodes,
               "service": out._.trip[trips[i]].service
             };
+
+            if ("minutes" in out._.trip[trips[i]]) {
+              link[forward].minutes = out._.trip[trips[i]].minutes;
+            }
 
             if ("setdown" in out._.trip[trips[i]]) {
               nodeStack = [];
@@ -3586,6 +3666,9 @@ var gtfsToAquius = gtfsToAquius || {
       }
       if ("b" in thisLink) {
         line[3].b = thisLink.b;
+      }
+      if ("minutes" in thisLink) {
+        line[3].m = thisLink.minutes;
       }
 
       out.aquius.link.push(line);
