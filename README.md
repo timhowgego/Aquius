@@ -344,7 +344,21 @@ Without callback, the function returns an `Object` with possible keys:
 
 **Caution:** Runtime is typically about a second per 10 megabytes of GTFS text data (with roughly half that time spent processing the Comma Separated Values), plus time to assign stops (nodes) to population (places), which varies depending on the number and complexity of GeoJSON boundaries processed. The single-operator networks found in most GTFS archives should process within 5-10 seconds, but very complex multi-operator conurbations or regions may take longer. Processing requires operating system memory of up to 10 times the total size of the raw text data. If processing takes more than a minute, it is highly likely that the machine has run out of free physical memory, and processing should be aborted.
 
-*Tip:* To work around any memory limitation, copy all the GTFS file and divide `stop_times.txt` (which is almost always far larger than any other file, and thus most likely the trigger for any memory issue) into two or more pieces, each placed in a separate file directory. The `stop_times.txt` divide must not break a trip (divide immediately before a `stop_sequence` 0) and for optimum efficiency should break between different `route_id`. The first (header) line of `stop_times.txt` must be present as the first line of each file piece. Add to each directory identical config.json files and a complete copy of all the other GTFS files used - except `frequencies.txt`, which if present must only be added in one directory. GTFS file `shapes.txt` (which is sometimes large) is not used by GTFS to Aquius, so can also be skipped. Run GTFS to Aquius on each directory separately, then use [Merge Aquius](#merge-aquius) to merge the two (or more) outputs together. GTFS to Aquius will skip any (not-frequency) link it cannot find stop_times for, while Merge Aquius automatically merges the duplicate nodes created.
+*Tip:* There are two ways to work around any memory limitation, both of which can be used together if required:
+1. Run GTFS to Aquius [As Node Script](#as-node-script) (detailed below). Node can specifically be allocated system memory that is not necessarily available to browser processes.
+2. Copy all the GTFS file and divide `stop_times.txt` (which is almost always far larger than any other file, and thus most likely the trigger for any memory issue) into two or more pieces, each placed in a separate file directory. The `stop_times.txt` divide must not break a trip (divide immediately before a `stop_sequence` 0) and for optimum efficiency should break between different `route_id`. The first (header) line of `stop_times.txt` must be present as the first line of each file piece. Add to each directory identical config.json files and a complete copy of all the other GTFS files used - except `frequencies.txt`, which if present must only be added in one directory. GTFS file `shapes.txt` (which is sometimes large) is not used by GTFS to Aquius, so can also be skipped. Run GTFS to Aquius on each directory separately, then use [Merge Aquius](#merge-aquius) to merge the two (or more) outputs together. GTFS to Aquius will skip any (not-frequency) link it cannot find stop_times for, while Merge Aquius automatically merges the duplicate nodes created.
+
+### As Node Script
+
+A [Node](https://nodejs.org/) script is available to run GTFS to Aquius from the command line: `dist/gtfs-node.js`. Recommended when handling large (100+ MB) GTFS datasets. Thereafter the limit is Node and ultimately System memory. Try granting Node up to 10MB of memory per MB of GTFS text. For example, for 30GB: `node --max-old-space-size=30000`.
+
+Setup is the same as the browser version: Extract the GTFS into a directory, alongside any `config.json` and `boundaries.geojson`. Other operations, such as unzipping the GTFS, or managing config files,will need be done using other bespoke scripts. Then command line: `node path/to/gtfs-node.js path/to/data_directory/`. Or with more memory: `node --max-old-space-size=30000 path/to/gtfs-node.js path/to/data_directory/`.
+
+Outputs added (created or overwritten) in the data directory:
+* `aquius.json` - output for use in the wider Aquius ecosystem.
+* `config.auto` - augmented or generated `config.json` - rename to `config.json` to reuse in future GTFS processing.
+* `histogram.csv` - proprotion of services by hour of day, useful for quality assurance.
+* `network.csv` - service totals by network, useful for quality assurance.
 
 ### Configuration File
 
@@ -360,6 +374,7 @@ allowDuplication|boolean|false|Include duplicate vehicle trips (same route, serv
 allowDuration|boolean|false|Include array of average total minutes per trip by service period (experimental)
 allowHeadsign|boolean|false|Include trip-specific headsigns (information may be redundant if using allowRoute)
 allowName|boolean|true|Include stop names (increases file size significantly)
+allowNoc|boolean|true|Append Great Britain NOC to operator name if available (for newly generated network filter only)
 allowRoute|boolean|true|Include route-specific short names
 allowRouteLong|boolean|false|Include route-specific long names
 allowRouteUrl|boolean|true|Include URLs for routes (can increase file size significantly unless URLs conform to logical repetitive style)

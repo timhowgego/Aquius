@@ -4,7 +4,7 @@
 var gtfsToAquius = gtfsToAquius || {
 /**
  * @namespace GTFS to Aquius
- * @version 0
+ * @version 0.1
  * @copyright MIT License
  */
 
@@ -309,7 +309,7 @@ var gtfsToAquius = gtfsToAquius || {
      * @param {object} options - as sent, including _vars
      */
 
-    var caption, content, keys, tableData, tableFormat, tableHeader, tableRow, zeroCoord, i, j;
+    var caption, content, keys, i;
     var vars = options._vars;
     var fileDOM = document.getElementById(vars.configId + "ImportFiles");
     var outputDOM = document.getElementById(vars.configId + "Output");
@@ -391,119 +391,22 @@ var gtfsToAquius = gtfsToAquius || {
       });
     }
 
-    if ("config" in out &&
-      "stopOverride" in out.config
-    ) {
-      keys = Object.keys(out.config.stopOverride);
-      zeroCoord = [];
-      for (i = 0; i < keys.length; i += 1) {
-        if ("x" in out.config.stopOverride[keys[i]] &&
-          out.config.stopOverride[keys[i]].x === 0 &&
-          "y" in out.config.stopOverride[keys[i]] &&
-          out.config.stopOverride[keys[i]].y === 0 
-        ) {
-          zeroCoord.push(keys[i]);
-        }
-      }
-      if (zeroCoord.length > 0) {
+    if ("warning" in out) {
+      for (i = 0; i < out.warning.length; i += 1) {
         outputDOM.appendChild(createElement("p", {
-          "textContent": "Caution: Contains " + zeroCoord.length.toString() +
-            " stop_id with coordinates 0,0, which can be corrected in config.stopOverride," +
-            " or ignored by setting config.allowZeroCoordinate to false."
+          "textContent": out.warning[i]
         }));
       }
     }
 
-    if ("aquius" in out &&
-      "network" in out.aquius &&
-      "summary" in out &&
-      "network" in out.summary
-    ) {
-
-      tableHeader = ["Network"];
-      tableFormat = [vars.configId + "Text"];
-
-      if ("service" in out.aquius === false ||
-        out.aquius.service.length === 0
-      ) {
-        tableHeader.push("Service");
-        tableFormat.push(vars.configId + "Number");
-      } else {
-        for (i = 0; i < out.aquius.service.length; i += 1) {
-          if ("en-US" in out.aquius.service[i][1]) {
-            tableHeader.push(out.aquius.service[i][1]["en-US"]);
-          } else {
-            tableHeader.push(JSON.stringify(out.aquius.service[i][1]));
-          }
-          tableFormat.push(vars.configId + "Number");
-        }
-      }
-
-      tableData = [];
-      for (i = 0; i < out.summary.network.length; i += 1) {
-        if ("en-US" in out.aquius.network[i][1]) {
-          tableData.push([out.aquius.network[i][1]["en-US"]].concat(out.summary.network[i]));
-        } else {
-          tableData.push([JSON.stringify(out.aquius.network[i][1])].concat(out.summary.network[i]));
-        }
-      }
-
-      outputDOM.appendChild(createTabulation(tableData, tableHeader,
-        tableFormat, caption + " by Network"));
+    if ("networkTable" in out) {
+      outputDOM.appendChild(createTabulation(out.networkTable.data, out.networkTable.header,
+        out.networkTable.format, caption + " by Network"));
     }
 
-    if ("summary" in out &&
-      "service" in out.summary &&
-      out.summary.service.length > 0
-    ) {
-
-      tableHeader = ["Hour"];
-      tableFormat = [vars.configId + "Text"];
-
-      if ("service" in out.aquius === false ||
-        out.aquius.service.length === 0
-      ) {
-        tableHeader.push("All")
-        tableFormat.push(vars.configId + "Number");
-      } else {
-        for (i = 0; i < out.aquius.service.length; i += 1) {
-          if ("en-US" in out.aquius.service[i][1]) {
-            tableHeader.push(out.aquius.service[i][1]["en-US"]);
-          } else {
-            tableHeader.push(JSON.stringify(out.aquius.service[i][1]));
-          }
-          tableFormat.push(vars.configId + "Number");
-        }
-      }
-
-      tableData = [];
-      for (i = 0; i < out.summary.service.length; i += 1) {
-        tableRow = [i];
-        if (out.summary.service[i] === undefined) {
-          if ("service" in out.aquius === false ||
-            out.aquius.service.length === 0
-          ) {
-            tableRow.push("-");
-          } else {
-            for (j = 0; j < out.aquius.service.length; j += 1) {
-              tableRow.push("-");
-            }
-          }
-        } else {
-          for (j = 0; j < out.summary.service[i].length; j += 1) {
-            if (out.summary.service[i][j] > 0) {
-              tableRow.push((out.summary.service[i][j] * 100).toFixed(2));
-            } else {
-              tableRow.push("-");
-            }
-          }
-        }
-        tableData.push(tableRow);
-      }
-
-      outputDOM.appendChild(createTabulation(tableData, tableHeader,
-        tableFormat, caption + " % by Hour (scheduled only)"));
-
+    if ("summaryTable" in out) {
+      outputDOM.appendChild(createTabulation(out.summaryTable.data, out.summaryTable.header,
+        out.summaryTable.format, caption + " % by Hour (scheduled only)"));
     }
   }
 
@@ -664,6 +567,8 @@ var gtfsToAquius = gtfsToAquius || {
         // Include trip-specific headsigns within link references
       "allowName": true,
         // Include stop names (increases file size)
+      "allowNoc": false,
+        // Append Great Britain NOC to operator name if available (for newly generated network filter only)
       "allowRoute": true,
         // Include route-specific short names
       "allowRouteLong": false,
@@ -904,7 +809,8 @@ var gtfsToAquius = gtfsToAquius || {
       // Numbers record column position, true if index, -1 if missing
       "agency": {
         "agency_id": -1,
-        "agency_name": -1
+        "agency_name": -1,
+        "agency_noc": -1
       },
       "calendar": {
         "service_id": -1,
@@ -1119,7 +1025,7 @@ var gtfsToAquius = gtfsToAquius || {
      * @return {object} out
      */
 
-    var agencyColumn, index, keys, product, i, j;
+    var agencyColumn, index, keys, nameExtra, product, i, j;
     var modeLookup = {
       "0": {"en-US": "Tram"},
       "1": {"en-US": "Metro"},
@@ -1230,12 +1136,14 @@ var gtfsToAquius = gtfsToAquius || {
             ) {
               out._.productIndex[out.gtfs.agency[i][agencyColumn]] = index;
               if (out.gtfs.agency[i][agencyColumn] in out.config.networkFilter.reference === false) {
+                nameExtra = (out.config.allowNoc === true && out.gtfsHead.agency.agency_noc !== -1) ?
+                " [" + out.gtfs.agency[i][out.gtfsHead.agency.agency_noc] + "]" : "";
                 if (out.gtfsHead.agency.agency_name !== -1) {
                   out.config.networkFilter.reference[out.gtfs.agency[i][agencyColumn]] = 
-                    {"en-US": out.gtfs.agency[i][out.gtfsHead.agency.agency_name]};
+                    {"en-US": out.gtfs.agency[i][out.gtfsHead.agency.agency_name] + nameExtra};
                 } else {
                   out.config.networkFilter.reference[out.gtfs.agency[i][agencyColumn]] = 
-                    {"en-US": out.gtfs.agency[i][out.gtfsHead.agency.agency_id]};
+                    {"en-US": out.gtfs.agency[i][out.gtfsHead.agency.agency_id] + nameExtra};
                 }
               }
               out.aquius.reference.product[index] = out.config.networkFilter.reference[out.gtfs.agency[i][agencyColumn]];
@@ -1299,9 +1207,11 @@ var gtfsToAquius = gtfsToAquius || {
               ) {
                 for (j = 0; j < out.gtfs.agency.length; j += 1) {
                   if (out.gtfs.agency[j][out.gtfsHead.agency.agency_id] === keys[i]) {
+                    nameExtra = (out.config.allowNoc === true && out.gtfsHead.agency.agency_noc !== -1) ?
+                      " [" + out.gtfs.agency[j][out.gtfsHead.agency.agency_noc] + "]" : "";
                     out.config.networkFilter.network.push([
                       [keys[i]],
-                      {"en-US": out.gtfs.agency[j][out.gtfsHead.agency.agency_name]}
+                      {"en-US": out.gtfs.agency[j][out.gtfsHead.agency.agency_name] + nameExtra}
                     ]);
                     break;
                   }
@@ -4250,6 +4160,173 @@ var gtfsToAquius = gtfsToAquius || {
      return out;
   }
 
+  function applyZeroCoordWarning(out) {
+    /**
+     * Adds out.warning enty text related to zero coordinates, if any exist.
+     * @param {object} out - internal data references
+     * @return {object} out - internal data references
+     */
+    let keys, zeroCoord, i;
+
+    if("stopOverride" in out.config) {
+      keys = Object.keys(out.config.stopOverride);
+      zeroCoord = [];
+      for (i = 0; i < keys.length; i += 1) {
+        if ("x" in out.config.stopOverride[keys[i]] &&
+          out.config.stopOverride[keys[i]].x === 0 &&
+          "y" in out.config.stopOverride[keys[i]] &&
+          out.config.stopOverride[keys[i]].y === 0 
+        ) {
+          zeroCoord.push(keys[i]);
+        }
+      }
+      if (zeroCoord.length > 0) {
+        if ("warning" in out === false) {
+          out["warning"] = [];
+        }
+        out["warning"].push("Caution: Contains " + zeroCoord.length.toString() +
+          " stop_id with coordinates 0,0, which can be corrected in config.stopOverride," +
+          " or ignored by setting config.allowZeroCoordinate to false.");
+      }
+    }
+    return out;
+  }
+
+  function buildNetworkTable(out, options) {
+    /**
+     * Builds data needed for a table networks with service totals.
+     * @param {object} out - internal data references
+     * @param {object} options
+     * @return {object} out, with out.networkTable added if data available
+     */
+
+    if ("aquius" in out &&
+      "network" in out.aquius &&
+      "summary" in out &&
+      "network" in out.summary
+    ) {
+      let tableData, tableFormat, tableHeader, prefix, i;
+
+      if ("_vars" in options && "configId" in options._vars) {
+        prefix = options._vars.configId;
+      } else {
+        prefix = "";
+      }
+
+      tableHeader = ["Network"];
+      tableFormat = [prefix + "Text"];
+
+      if ("service" in out.aquius === false ||
+        out.aquius.service.length === 0
+      ) {
+        tableHeader.push("Service");
+        tableFormat.push(prefix + "Number");
+      } else {
+        for (i = 0; i < out.aquius.service.length; i += 1) {
+          if ("en-US" in out.aquius.service[i][1]) {
+            tableHeader.push(out.aquius.service[i][1]["en-US"]);
+          } else {
+            tableHeader.push(JSON.stringify(out.aquius.service[i][1]));
+          }
+          tableFormat.push(prefix + "Number");
+        }
+      }
+
+      tableData = [];
+      for (i = 0; i < out.summary.network.length; i += 1) {
+        if ("en-US" in out.aquius.network[i][1]) {
+          tableData.push([out.aquius.network[i][1]["en-US"]].concat(out.summary.network[i]));
+        } else {
+          tableData.push([JSON.stringify(out.aquius.network[i][1])].concat(out.summary.network[i]));
+        }
+      }
+
+      out["networkTable"] = {
+        "data": tableData,
+        "format": tableFormat,
+        "header": tableHeader,
+      }
+    }
+
+    return out;
+  }
+
+  function buildSummaryTable(out, options) {
+    /**
+     * Builds data needed for a histogram of proportion of services by hour.
+     * @param {object} out - internal data references
+     * @param {object} options
+     * @return {object} out, with out.summaryTable added if data available
+     */
+
+    if ("summary" in out &&
+      "service" in out.summary &&
+      out.summary.service.length > 0
+    ) {
+
+      let tableData, tableFormat, tableHeader, tableRow, prefix, i, j;
+
+      if ("_vars" in options && "configId" in options._vars) {
+        prefix = options._vars.configId;
+      } else {
+        prefix = "";
+      }
+
+      tableHeader = ["Hour"];
+      tableFormat = [prefix + "Number"];
+
+      if ("service" in out.aquius === false ||
+        out.aquius.service.length === 0
+      ) {
+        tableHeader.push("All")
+        tableFormat.push(prefix + "Number");
+      } else {
+        for (i = 0; i < out.aquius.service.length; i += 1) {
+          if ("en-US" in out.aquius.service[i][1]) {
+            tableHeader.push(out.aquius.service[i][1]["en-US"]);
+          } else {
+            tableHeader.push(JSON.stringify(out.aquius.service[i][1]));
+          }
+          tableFormat.push(prefix + "Number");
+        }
+      }
+
+      tableData = [];
+      for (i = 0; i < out.summary.service.length; i += 1) {
+        tableRow = [i];
+        if (out.summary.service[i] === undefined) {
+          if ("service" in out.aquius === false ||
+            out.aquius.service.length === 0
+          ) {
+            tableRow.push("-");
+          } else {
+            for (j = 0; j < out.aquius.service.length; j += 1) {
+              tableRow.push("-");
+            }
+          }
+        } else {
+          for (j = 0; j < out.summary.service[i].length; j += 1) {
+            if (out.summary.service[i][j] > 0) {
+              tableRow.push((out.summary.service[i][j] * 100).toFixed(2));
+            } else {
+              tableRow.push("-");
+            }
+          }
+        }
+        tableData.push(tableRow);
+      }
+
+      out["summaryTable"] = {
+        "data": tableData,
+        "format": tableFormat,
+        "header": tableHeader,
+      }
+
+    }
+  
+    return out;
+  }
+
   function exitProcess(out, options) {
     /**
      * Called to exit
@@ -4306,10 +4383,20 @@ var gtfsToAquius = gtfsToAquius || {
   out = buildLink(out);
 
   out = optimiseNode(out);
+  out = applyZeroCoordWarning(out);
+  out = buildSummaryTable(out, options);
+  out = buildNetworkTable(out, options);
 
   return exitProcess(out, options);
 }
 
 
 };
+
+try {
+  // Node only
+  module.exports = { gtfsToAquius }; // eslint-disable-line no-undef
+} catch {
+  // Ignore non-Node errors
+}
 // EoF
