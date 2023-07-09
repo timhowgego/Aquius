@@ -555,10 +555,12 @@ var gtfsToAquius = gtfsToAquius || {
       "allowDuration": false,
         // Include array of total minutes per trip and link (caution - must set service time bands &
         // while any non-time banded service currently produces incorrect totals)
+      "allowDwell": false,
+        // Include array of average minute dwell times per trip by node
       "allowCabotage": false,
         // Process duplicate vehicle trips with varying pickup/setdown restrictions as cabotage (see docs)
       "allowCode": true,
-        // Include public stop codes in node references
+        // Include public stop codes in node references (taken from GTFS stop_code unless codeAsStopId = true)
       "allowColor": true,
         // Include route-specific colors if available
       "allowDuplication": false,
@@ -583,6 +585,8 @@ var gtfsToAquius = gtfsToAquius || {
         // Include stops with no pickup and no setdown as dummy routing nodes
       "allowZeroCoordinate": true,
         // Include stops with 0,0 coordinates, else stops are skipped
+      "codeAsStopId": false,
+        // stop_id is used in place of stop_code (requires allowCode = true)
       "coordinatePrecision": 5,
         // Coordinate decimal places (smaller values tend to group clusters of stops)
       "duplicationRouteOnly": true,
@@ -1441,16 +1445,20 @@ var gtfsToAquius = gtfsToAquius || {
       }
     }
 
-    if (out.config.allowCode === true) {
+    if (out.config.allowCode) {
       // Add stop code as a separate reference object
       properties = {};
-      if (stopObject[out.gtfsHead.stops.stop_id] in out.config.stopOverride &&
-        "stop_code" in out.config.stopOverride[stopObject[out.gtfsHead.stops.stop_id]]
-      ) {
-        properties.n = out.config.stopOverride[stopObject[out.gtfsHead.stops.stop_id]].stop_code;
+      if (out.config.codeAsStopId) {
+        properties.n = stopObject[out.gtfsHead.stops.stop_id].trim();
       } else {
-        if (out.gtfsHead.stops.stop_code !== -1) {
-          properties.n = stopObject[out.gtfsHead.stops.stop_code].trim();
+        if (stopObject[out.gtfsHead.stops.stop_id] in out.config.stopOverride &&
+          "stop_code" in out.config.stopOverride[stopObject[out.gtfsHead.stops.stop_id]]
+        ) {
+          properties.n = out.config.stopOverride[stopObject[out.gtfsHead.stops.stop_id]].stop_code;
+        } else {
+          if (out.gtfsHead.stops.stop_code !== -1) {
+            properties.n = stopObject[out.gtfsHead.stops.stop_code].trim();
+          }
         }
       }
       if ("n" in properties &&
@@ -2002,7 +2010,7 @@ var gtfsToAquius = gtfsToAquius || {
     }
 
     out._.trip = {};
-      // trip_id: {service [numbers], stops [sequence, node], pickup [], setdown [], reference [], frequent, block}
+      // trip_id: {service [numbers], stops [sequence, node, dwell], pickup [], setdown [], reference [], frequent, block}
     out._.routes = {};
       // route_id: {product, reference{n, c, u}}
 
@@ -2102,7 +2110,7 @@ var gtfsToAquius = gtfsToAquius || {
      * @return {object} out
      */ 
 
-    var arrive, dates, depart, duplicate, key, keys, lastDepart, node, onOffCache, stopObject, times, i, j, k, l;
+    var arrive, dates, depart, duplicate, dwell, key, keys, lastDepart, node, onOffCache, stopObject, times, i, j, k, l;
     var timeCache = {};
       // TimeStrings cached temporarily for speed - times tend to be reused
     var trips = Object.keys(out.gtfs.stop_times);
@@ -2164,44 +2172,50 @@ var gtfsToAquius = gtfsToAquius || {
 
               arrive = 0;
               depart = 0;
+              dwell = 0;
+
+              if (out.gtfsHead.stop_times.departure_time !== -1 &&
+                stopObject[out.gtfsHead.stop_times.departure_time] !== ""
+              ) {
+                if (stopObject[out.gtfsHead.stop_times.departure_time] in timeCache === false) {
+                  timeCache[stopObject[out.gtfsHead.stop_times.departure_time]] =
+                    getGtfsTimeSeconds(stopObject[out.gtfsHead.stop_times.departure_time]);
+                }
+                depart = timeCache[stopObject[out.gtfsHead.stop_times.departure_time]];
+                if ("start" in out._.trip[trips[i]] === false ||
+                  depart < out._.trip[trips[i]].start
+                ) {
+                  out._.trip[trips[i]].start = depart;
+                }
+              }
+
+              if (out.gtfsHead.stop_times.arrival_time !== -1 &&
+                stopObject[out.gtfsHead.stop_times.arrival_time] !== ""
+              ) {
+                if (stopObject[out.gtfsHead.stop_times.arrival_time] in timeCache === false) {
+                  timeCache[stopObject[out.gtfsHead.stop_times.arrival_time]] =
+                    getGtfsTimeSeconds(stopObject[out.gtfsHead.stop_times.arrival_time]);
+                }
+                arrive = timeCache[stopObject[out.gtfsHead.stop_times.arrival_time]];
+                if ("end" in out._.trip[trips[i]] === false ||
+                    arrive > out._.trip[trips[i]].end
+                ) {
+                    out._.trip[trips[i]].end = arrive;
+                }
+              }
+
+              if (out.config.allowDwell && arrive !== 0 && depart > arrive) {
+                dwell = ((depart - arrive) / 60);  // Seconds to minutes
+              }
 
               out._.trip[trips[i]].stops.push([
                 stopObject[out.gtfsHead.stop_times.stop_sequence],
-                node
+                node,
+                dwell
               ]);
-
+              
               if ("frequent" in out._.trip[trips[i]] === false) {
                 // Frequent trips initially untimed, and cannot be part of any duplication
-
-                if (out.gtfsHead.stop_times.departure_time !== -1 &&
-                  stopObject[out.gtfsHead.stop_times.departure_time] !== ""
-                ) {
-                  if (stopObject[out.gtfsHead.stop_times.departure_time] in timeCache === false) {
-                    timeCache[stopObject[out.gtfsHead.stop_times.departure_time]] =
-                      getGtfsTimeSeconds(stopObject[out.gtfsHead.stop_times.departure_time]);
-                  }
-                  depart = timeCache[stopObject[out.gtfsHead.stop_times.departure_time]];
-                  if ("start" in out._.trip[trips[i]] === false ||
-                    depart < out._.trip[trips[i]].start
-                  ) {
-                    out._.trip[trips[i]].start = depart;
-                  }
-                }
-
-                if (out.gtfsHead.stop_times.arrival_time !== -1 &&
-                  stopObject[out.gtfsHead.stop_times.arrival_time] !== ""
-                ) {
-                  if (stopObject[out.gtfsHead.stop_times.arrival_time] in timeCache === false) {
-                    timeCache[stopObject[out.gtfsHead.stop_times.arrival_time]] =
-                      getGtfsTimeSeconds(stopObject[out.gtfsHead.stop_times.arrival_time]);
-                  }
-                  arrive = timeCache[stopObject[out.gtfsHead.stop_times.arrival_time]];
-                  if ("end" in out._.trip[trips[i]] === false ||
-                    arrive > out._.trip[trips[i]].end
-                  ) {
-                    out._.trip[trips[i]].end = arrive;
-                  }
-                }
 
                 if (typeof duplicate !== "undefined") {
 
@@ -3056,8 +3070,8 @@ var gtfsToAquius = gtfsToAquius || {
      * @return {object} out
      */
 
-    var add, backward, blockNodes, check, forward, isBackward, keys, line, merge, nodeCount, nodes,
-      nodeStack, reference, routeId, stops, thisLink, trips, i, j, k, l;
+    var add, backward, blockDwells, blockNodes, check, dwells, forward, isBackward, keys, line, merge,
+      nodeCount, nodes, nodeStack, reference, routeId, stops, thisLink, trips, i, j, k, l;
     var link = {};
       // linkUniqueId: {route array, product id, service count,
       // direction unless both, pickup array, setdown array, reference array}
@@ -3189,6 +3203,7 @@ var gtfsToAquius = gtfsToAquius || {
         nodes = [];
         nodeCount = {};
           // Node:Count. Prevents inclusion in p/u/split where node occurs >1
+        dwells = [];  // Parallels nodes
         out._.trip[trips[i]].stops.sort(function(a, b) {
           return a[0] - b[0];
         });
@@ -3220,7 +3235,7 @@ var gtfsToAquius = gtfsToAquius || {
            * since failed trips are retained separately (only the through-journey is lost)
            */
           merge = [];
-            // TimeMS, nodes, tripId
+            // TimeMS, nodes, tripId, dwells
 
           for (j = 0; j < out._.trip[trips[i]].block.trips.length; j += 1) {
             if (out._.trip[trips[i]].block.trips[j] in skipTrip === false &&
@@ -3238,12 +3253,14 @@ var gtfsToAquius = gtfsToAquius || {
                 return a[0] - b[0];
               });
               blockNodes = [];
+              blockDwells = [];
               for (k = 0; k < stops.length; k += 1) {
                 blockNodes.push(stops[k][1]);
+                blockDwells.push(stops[k][2]);
               }
               merge.push([(out._.trip[out._.trip[trips[i]].block.trips[j]].start +
                 out._.trip[out._.trip[trips[i]].block.trips[j]].end) / 2,
-                blockNodes, out._.trip[trips[i]].block.trips[j]]);
+                blockNodes, out._.trip[trips[i]].block.trips[j], blockDwells]);
             }
           }
 
@@ -3259,8 +3276,10 @@ var gtfsToAquius = gtfsToAquius || {
                   merge[j][1][0] === nodes[nodes.length - 1]
                 ) {
                   merge[j][1] = merge[j][1].slice(1);
+                  merge[j][3] = merge[j][3].slice(1);
                 }
                 nodes = nodes.concat(merge[j][1]);
+                dwells = dwells.concat(merge[j][3]);
                 if (merge[j][2] !== trips[i]) {
 
                   skipTrip[merge[j][2]] = "";
@@ -3346,6 +3365,7 @@ var gtfsToAquius = gtfsToAquius || {
         for (j = 0; j < out._.trip[trips[i]].stops.length; j += 1) {
           if (add) {
             nodes.push(out._.trip[trips[i]].stops[j][1]);
+            dwells.push(out._.trip[trips[i]].stops[j][2]);
           }
           if (out._.trip[trips[i]].stops[j][1] in nodeCount) {
             nodeCount[out._.trip[trips[i]].stops[j][1]] += 1; 
@@ -3368,6 +3388,9 @@ var gtfsToAquius = gtfsToAquius || {
           if ("minutes" in link[forward] && "minutes" in out._.trip[trips[i]]) {
             link[forward].minutes = mergeDuration(link[forward].minutes, out._.trip[trips[i]].minutes);
           }
+          if ("dwells" in link[forward]) {
+            link[forward].dwells = mergeDuration(link[forward].dwells, dwells)
+          }
 
         } else {
 
@@ -3382,6 +3405,9 @@ var gtfsToAquius = gtfsToAquius || {
             if ("minutes" in link[backward] && "minutes" in out._.trip[trips[i]]) {
               link[backward].minutes = mergeDuration(link[backward].minutes, out._.trip[trips[i]].minutes);
             }
+            if ("dwells" in link[backward]) {
+              link[backward].dwells = mergeDuration(link[backward].dwells, dwells)
+            }
 
             if ("direction" in link[backward]) {
               delete link[backward].direction;
@@ -3393,7 +3419,8 @@ var gtfsToAquius = gtfsToAquius || {
               "direction": 1,
               "product": out._.routes[routeId].product,
               "route": nodes,
-              "service": out._.trip[trips[i]].service
+              "service": out._.trip[trips[i]].service,
+              "dwells": dwells,
             };
 
             if ("minutes" in out._.trip[trips[i]]) {
@@ -3579,6 +3606,9 @@ var gtfsToAquius = gtfsToAquius || {
       }
       if ("minutes" in thisLink) {
         line[3].m = thisLink.minutes;
+      }
+      if (out.config.allowDwell && "dwells" in thisLink) {
+        line[3].w = thisLink.dwells;
       }
 
       out.aquius.link.push(line);

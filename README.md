@@ -371,10 +371,11 @@ allowCabotage|boolean|false|Process duplicate vehicle trips with varying pickup/
 allowCode|boolean|true|Include stop codes
 allowColor|boolean|true|Include route-specific colors
 allowDuplication|boolean|false|Include duplicate vehicle trips (same route, service period, direction and stop times)
-allowDuration|boolean|false|Include array of average total minutes per trip by service period (experimental)
+allowDuration|boolean|false|Include array of crude average total minutes per trip by service period (experimental)
+allowDwell|boolean|false|Include array of crude average minute dwell times per trip by node (experimental)
 allowHeadsign|boolean|false|Include trip-specific headsigns (information may be redundant if using allowRoute)
 allowName|boolean|true|Include stop names (increases file size significantly)
-allowNoc|boolean|true|Append Great Britain NOC to operator name if available (for newly generated network filter only)
+allowNoc|boolean|false|Append Great Britain NOC to operator name if available (for newly generated network filter only)
 allowRoute|boolean|true|Include route-specific short names
 allowRouteLong|boolean|false|Include route-specific long names
 allowRouteUrl|boolean|true|Include URLs for routes (can increase file size significantly unless URLs conform to logical repetitive style)
@@ -382,6 +383,7 @@ allowSplit|boolean|false|Include trips on the same route (service period and dir
 allowStopUrl|boolean|true|Include URLs for stops (can increase file size significantly unless URLs conform to logical repetitive style)
 allowWaypoint|boolean|true|Include stops with no pickup and no setdown as dummy routing nodes
 allowZeroCoordinate|boolean|true|Include stops with 0,0 coordinates, else stops are skipped
+codeAsStopId|boolean|false|Use stop_id as stop code (requires `allowCode=true`)
 coordinatePrecision|integer|5|Coordinate decimal places (smaller values tend to group clusters of stops), described below
 duplicationRouteOnly|boolean|true|Restrict duplicate check to services on the same route
 fromDate|YYYYMMDD dateString|Today|Start date for service pattern analysis (inclusive)
@@ -733,7 +735,8 @@ The `link` key contains an `Array` of lines of link data. Each line of link data
 * `block` or `b` - `integer` ID unique to a group of links which are actually provided by exactly the same vehicle journey(s), but where each link contains different properties. The ID has no meaning beyond uniquely defining the group. A `block` simply prevents the service total assigned to the group being counted more than once. If the properties of the block are the same, with the product and potentially the nodes differing, define a `shared` instead (which is generally simpler to manage and faster to process). Unlike `shared`, a block must contain links with the same service total, has no defined parent, can define groups of links which have the same product, and specifically identifies the links it is common to. The `block` is primarily used for cabotage, where pickup and setdown restrictions vary depending on the passenger journey being undertaken, not the vehicle journey. Flixbus, for example, manage such restrictions by creating multiple copies of each vehicle journey, each copy with different pickup and setdown conditions.
 * `circular` or `c` - `boolean` true or `integer` 1 indicates operation is actually a continuous loop, where the start and end points are the same node. Only the nodes for one complete loop should be included - the notional start and end node thus included twice. Circular services are processed so that their duplicated start/end node is only counted once. Figure-of-eight loops are intentionally double-counted at the midpoint each service passes twice per journey, since such services may reasonably be considered to offer two completely different routes to passengers, however this does result in arithmetic quirks (as demonstrated by Madrid Atocha's C-7).
 * `direction` or `d` - `boolean` true or `integer` 1 indicates operation is only in the direction recorded, not also in the opposite direction. As noted under [Known Issues](#known-issues), services that are both circular and directional will produce numeric quirks. *Tip:* Services that loop only at one end of a route ("lasso" routes) should be recorded as uni-directional with nodes on the common section recorded twice, once in each direction - not recorded as circular.
-* `duration` as `m` - `Array` containing `integer` average total minutes per trip by service period (experimental, not used in Aquius user interface, works best with service period time ranges).
+* `duration` as `m` - `Array` containing numeric average total minutes per trip by service period (experimental, not used in Aquius user interface, works best with service period time ranges).
+* `dwell` as `w` - `Array` containing numeric average total minutes of dwell time in node order (experimental, not used in Aquius user interface).
 * `pickup` or `u` - `Array` containing `integer` Node IDs describing nodes on the service's route where passengers can only board (get on), not alight (get off), expressed relative to order of the Nodes served. For a link summarising both directions, a pickup condition automatically becomes a setdown condition when that node order is reversed. If pickup and setdown are not mirrorred thus, define two separate links, one in each direction.
 * `reference` or `r` - `Array` containing one or more `Object` of descriptive data associated with the routes within the link - for example, route headcodes or display colors. Possible keys and values are described below.
 * `setdown` or `s` - `Array` containing `integer` Node IDs describing nodes on the service's route where passengers can only alight (get off), not board (get on), expressed relative to order of the Nodes served. For a link summarising both directions, a setdown condition automatically becomes a pickup condition when that node order is reversed. If setdown and pickup are not mirrorred thus, define two separate links, one in each direction.
