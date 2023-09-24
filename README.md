@@ -391,6 +391,7 @@ inGeojson|boolean|true|If geojson boundaries are provided, only services at stop
 isCircular|array|[]|GTFS "route_id" (strings) to be referenced as circular. If empty (default), GTFS to Aquius follows its own logic, described below
 meta|object|{"schema": "0"}|As [Data Structure](#data-structure) meta key
 mirrorLink|boolean|true|Services mirrored in reverse are combined into the same link. Reduces filesize, but can distort service averages
+modeInclude|array|[]|Mode GTFS route_type as strings to limit analysis to, all if empty (for example, for funicular only, `["7", "1400"]`)
 networkFilter|object|{"type": "agency"}|Group services by, using network definitions, detailed below
 nodeGeojson|object|{}|Cache containing node "x:y": Geojson "x:y" (both coordinates at coordinatePrecision), described below
 option|object|{}|As [Configuration](#configuration)/[Data Structure](#data-structure) option key

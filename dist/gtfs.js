@@ -603,6 +603,8 @@ var gtfsToAquius = gtfsToAquius || {
         // As Data Structure meta key
       "mirrorLink": true,
         // Services mirrored in reverse are combined into the same link. Reduces filesize, but can distort service averages
+      "modeInclude": [],
+        // Mode GTFS route_type as strings to limit analysis to, all if empty (for example, for funicular only, ["7", "1400"])
       "networkFilter": {
         "type": "agency"
       },
@@ -890,8 +892,9 @@ var gtfsToAquius = gtfsToAquius || {
       "stop_times": ["trip_id", "stop_id", "stop_sequence"]
     };
 
-    if ("type" in out.config.networkFilter &&
-      out.config.networkFilter.type === "mode"
+    if (("type" in out.config.networkFilter &&
+      out.config.networkFilter.type === "mode") ||
+      out.config.modeInclude.length > 0
     ) {
       out.gtfsHead.routes.route_type = -1;
     }
@@ -2864,7 +2867,11 @@ var gtfsToAquius = gtfsToAquius || {
       route = out.gtfs.routes[i];
       routeId = route[out.gtfsHead.routes.route_id];
 
-      if (routeId in out._.routes) {
+      if (routeId in out._.routes && (
+        (out.config.modeInclude.length === 0) || (
+          out.gtfsHead.routes.route_type !== -1 &&
+          out.config.modeInclude.indexOf(route[out.gtfsHead.routes.route_type]) >= 0) 
+      )) {
 
         reference = {"slug": ""};
           // Slug is a temporary indexable unique reference
