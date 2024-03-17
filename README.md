@@ -366,6 +366,7 @@ By default GTFS To Aquius simply analyses services over the next 7 days, produci
 
 Key|Type|Default|Description
 ---|----|-------|-----------
+agencyPrefix|string|""|Prefix string to all agency names in this GTFS file. Helpful to maintain uniqueness of names when processing batches of GTFS files. Only applied when networkFilter references are created automatically, so will not override reference names already specified in config.json
 allowBlock|boolean|false|Process block_id as a sequence of inter-operated trips, described below
 allowCabotage|boolean|false|Process duplicate vehicle trips with varying pickup/setdown restrictions as cabotage, described below
 allowCode|boolean|true|Include stop codes

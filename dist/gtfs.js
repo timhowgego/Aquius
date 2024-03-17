@@ -550,6 +550,10 @@ var gtfsToAquius = gtfsToAquius || {
 
     var i;
     var defaults = {
+      "agencyPrefix": "",
+        // Prefix string to all agency names in this GTFS file. Helpful to maintain uniqueness of names
+        // when processing batches of GTFS files. Only applied when networkFilter references are created automatically,
+        // so will not override reference names already specified in config.json
       "allowBlock": false,
         // Process block_id as sequence of inter-operated trips, else blocked trips are processed separately
       "allowDuration": false,
@@ -1147,10 +1151,10 @@ var gtfsToAquius = gtfsToAquius || {
                 " [" + out.gtfs.agency[i][out.gtfsHead.agency.agency_noc] + "]" : "";
                 if (out.gtfsHead.agency.agency_name !== -1) {
                   out.config.networkFilter.reference[out.gtfs.agency[i][agencyColumn]] = 
-                    {"en-US": out.gtfs.agency[i][out.gtfsHead.agency.agency_name] + nameExtra};
+                    {"en-US": out.config.agencyPrefix + out.gtfs.agency[i][out.gtfsHead.agency.agency_name] + nameExtra};
                 } else {
                   out.config.networkFilter.reference[out.gtfs.agency[i][agencyColumn]] = 
-                    {"en-US": out.gtfs.agency[i][out.gtfsHead.agency.agency_id] + nameExtra};
+                    {"en-US": out.config.agencyPrefix + out.gtfs.agency[i][out.gtfsHead.agency.agency_id] + nameExtra};
                 }
               }
               out.aquius.reference.product[index] = out.config.networkFilter.reference[out.gtfs.agency[i][agencyColumn]];
@@ -1218,7 +1222,7 @@ var gtfsToAquius = gtfsToAquius || {
                       " [" + out.gtfs.agency[j][out.gtfsHead.agency.agency_noc] + "]" : "";
                     out.config.networkFilter.network.push([
                       [keys[i]],
-                      {"en-US": out.gtfs.agency[j][out.gtfsHead.agency.agency_name] + nameExtra}
+                      {"en-US": out.config.agencyPrefix + out.gtfs.agency[j][out.gtfsHead.agency.agency_name] + nameExtra}
                     ]);
                     break;
                   }
