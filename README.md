@@ -387,7 +387,7 @@ allowZeroCoordinate|boolean|true|Include stops with 0,0 coordinates, else stops 
 codeAsStopId|boolean|false|Use stop_id as stop code (requires `allowCode=true`)
 coordinatePrecision|integer|5|Coordinate decimal places (smaller values tend to group clusters of stops), described below
 duplicationRouteOnly|boolean|true|Restrict duplicate check to services on the same route
-fromDate|YYYYMMDD dateString|Today|Start date for service pattern analysis (inclusive)
+fromDate|YYYYMMDD dateString|Today, or if today is not in GTFS's dates, middle of the available dates|Start date for service pattern analysis (inclusive)
 inGeojson|boolean|true|If geojson boundaries are provided, only services at stops within a boundary will be analysed. If false, assigns stops to nearest boundary (by centroid)
 isCircular|array|[]|GTFS "route_id" (strings) to be referenced as circular. If empty (default), GTFS to Aquius follows its own logic, described below
 meta|object|{"schema": "0"}|As [Data Structure](#data-structure) meta key
@@ -409,7 +409,7 @@ stopExclude|array|[]|GTFS "stop_id" (strings) to be excluded from analysis
 stopInclude|array|[]|GTFS "stop_id" (strings) to be included in analysis, all if empty
 stopOverride|object|{}|Properties applied to stops, by GTFS "stop_id" key, detailed below
 stopPlace|boolean|false|Group and merge stops by their respective place centroid (assumes geojson)
-toDate|YYYYMMDD dateString|Next week|End date for service pattern analysis (inclusive)
+toDate|YYYYMMDD dateString|Week after fromDate|End date for service pattern analysis (inclusive)
 translation|object|{}|As [Configuration](#configuration)/[Data Structure](#data-structure) translation key
 
 *Tip:* The fastest way to start building a `config.json` file is to run GTFS To Aquius once, download and edit the resulting `config.json`, then use that file in subsequent GTFS To Aquius processing.

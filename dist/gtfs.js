@@ -4,7 +4,6 @@
 var gtfsToAquius = gtfsToAquius || {
 /**
  * @namespace GTFS to Aquius
- * @version 0.1
  * @copyright MIT License
  */
 
@@ -512,7 +511,7 @@ var gtfsToAquius = gtfsToAquius || {
      * @return {integer} milliseconds from epoch
      */
 
-    if (dateString.length < 8) {
+    if (typeof dateString === "undefined" || dateString.length < 8) {
       return 0;
         // Fallback to 1970
     }
@@ -595,8 +594,8 @@ var gtfsToAquius = gtfsToAquius || {
         // Coordinate decimal places (smaller values tend to group clusters of stops)
       "duplicationRouteOnly": true,
         // Restrict duplications check to services on the same route
-      "fromDate": formatGtfsDate(Date.now()),
-        // Start date for service pattern analysis (inclusive)
+      "fromDate": "",
+        // Start date for service pattern analysis (inclusive), default provided by defaultDates()
       "inGeojson": true,
         // If geojson boundaries are provided, only services at stops within a boundary will be analysed. If false, assigns stops to nearest boundary (by centroid)
       "isCircular": [],
@@ -643,8 +642,8 @@ var gtfsToAquius = gtfsToAquius || {
         // Properties applied to stops, by GTFS "stop_id" key (see docs)
       "stopPlace": false,
         // Group and merge stops by their respective place centroid (assumes geojson)
-      "toDate": formatGtfsDate(Date.now() + 5184e5),
-        // End date for service pattern analysis (inclusive), thus +6 days for 1 week
+      "toDate": "",
+        // End date for service pattern analysis (inclusive), thus +6 days for 1 week, default provided by defaultDates()
       "translation": {}
         // As Data Structure/Configuration translation key
     };
@@ -937,6 +936,79 @@ var gtfsToAquius = gtfsToAquius || {
         out = parseCsv(out, keys[i], gtfs[keys[i]]);
        }
     }
+
+    return out;
+  }
+
+  function defaultDates(out) {
+    /**
+     * Adds default fromDate and toDate to config if not present or out of GTFS date range
+     * Assigns 7 days from now if GTFS data is available covering that period
+     * Else assigns a 7 day period in the middle of available GTFS dates
+     * (unless the GFTS data covers less than 7 days, in which case assigns all available dates)
+     * @param {object} out
+     * @return {object} out
+     */
+    var i, maxDateMS, minDateMS, startDateMS, endDateMS, theDateMS, useStartDateMS, useEndDateMS, avgDateMS;
+    var defaultStartEndOffsetMS = 5184e5;  // 6 days
+
+    if (out.gtfsHead.calendar.start_date !== -1 &&
+      out.gtfsHead.calendar.end_date !== -1 &&
+      out.gtfs.calendar.length > 0) {
+      for (i = 0; i < out.gtfs.calendar.length; i += 1) {
+        startDateMS = unformatGtfsDate(out.gtfs.calendar[i][out.gtfsHead.calendar.start_date]);
+        endDateMS = unformatGtfsDate(out.gtfs.calendar[i][out.gtfsHead.calendar.end_date]);
+        if (typeof minDateMS === "undefined" || startDateMS < minDateMS) {
+          minDateMS = startDateMS;
+        }
+        if (typeof maxDateMS === "undefined" || endDateMS > maxDateMS) {
+          maxDateMS = endDateMS;
+        }
+      }
+    } else if (out.gtfsHead.calendar_dates.date !== -1 && out.gtfs.calendar_dates.length > 0) {
+      // Date exceptions tend to be extensive holiday calendar lists,
+      // so only consider if base calendar file is unused and all dates are exceptions
+      for (i = 0; i < out.gtfs.calendar_dates.length; i += 1) {
+        theDateMS = unformatGtfsDate(out.gtfs.calendar_dates[i][out.gtfsHead.calendar_dates.date]);
+        if (typeof minDateMS === "undefined" || theDateMS < minDateMS) {
+          minDateMS = theDateMS;
+        }
+        if (typeof maxDateMS === "undefined" || theDateMS > maxDateMS) {
+          maxDateMS = theDateMS;
+        }
+      }
+    }
+
+    if (typeof out.config.fromDate !== "undefined" && out.config.fromDate !== "") {
+      useStartDateMS = unformatGtfsDate(out.config.fromDate);
+    }
+    if (typeof out.config.toDate !== "undefined" && out.config.toDate !== "") {
+      useEndDateMS = unformatGtfsDate(out.config.toDate);
+      if (typeof useStartDateMS === "undefined") {
+        useStartDateMS = useEndDateMS - defaultStartEndOffsetMS;
+      }
+    }
+    if (typeof useStartDateMS === "undefined") {
+      useStartDateMS = Date.now();
+    }
+    if (typeof useEndDateMS === "undefined") {
+      useEndDateMS = useStartDateMS + defaultStartEndOffsetMS;
+    }
+
+    if (typeof minDateMS !== "undefined" && typeof maxDateMS !== "undefined" && 
+      (useStartDateMS < minDateMS || useEndDateMS > maxDateMS)) {
+      if ((maxDateMS - minDateMS) < defaultStartEndOffsetMS) {
+        useStartDateMS = minDateMS;
+        useEndDateMS = maxDateMS;
+      } else {
+        avgDateMS = (minDateMS + maxDateMS) / 2;
+        useStartDateMS = avgDateMS - (defaultStartEndOffsetMS / 2);
+        useEndDateMS = avgDateMS + (defaultStartEndOffsetMS / 2);
+      }
+    }
+
+    out.config.fromDate = formatGtfsDate(useStartDateMS);
+    out.config.toDate = formatGtfsDate(useEndDateMS);
 
     return out;
   }
@@ -4402,6 +4474,8 @@ var gtfsToAquius = gtfsToAquius || {
   if ("error" in out) {
     return exitProcess(out, options);
   }
+
+  out = defaultDates(out);
 
   out = buildHeader(out);
   out = buildNetwork(out);
