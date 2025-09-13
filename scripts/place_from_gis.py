@@ -12,14 +12,13 @@ See place_from_gis.py -h for further arguments
 """
 
 import argparse
-import importlib.util
 import logging
 from pathlib import Path
 from typing import List, Optional
 
 import geopandas as gpd
 
-from _common import get_common_args, get_place_scale, load_json, save_json
+from _common import get_common_args, get_place_scale, is_aquius, load_json, use_arrow, save_json
 
 WGS84CRS = "EPSG:4326"
 NAME_COL = "name"
@@ -57,7 +56,7 @@ def get_args() -> argparse.Namespace:
         dest='precision',
         type=int,
         default=5,
-        help='coordinatePrecision (as GTFS To Aquius), -1 to disable forced conversion',
+        help='coordinatePrecision (as GTFS To Aquius)',
     )
 
     return parser.parse_args()
@@ -68,10 +67,7 @@ def load_geofile(filepath: Path, expected_crs: str, required_cols: List[str],
     """Load and test geofile, returns None on failure"""
 
     try:
-        if importlib.util.find_spec("pyarrow") is not None:
-            geo_gdf = gpd.read_file(filepath, use_arrow=True)  # Faster
-        else:
-            geo_gdf = gpd.read_file(filepath)
+        geo_gdf = gpd.read_file(filepath, use_arrow=use_arrow())
     except IOError as err:
         logging.error("Cannot load %s: %s", filepath, err)
         return None
@@ -160,12 +156,12 @@ def main():
 
     args = get_args()
     aquius = load_json(filepath=args.aquius)
-    if (not isinstance(aquius, dict) or "node" not in aquius or
-        not isinstance(aquius["node"], list)):
+    if not is_aquius(aquius=aquius, skip_place=True):
         logging.error("Not an aquius file: %s", args.aquius)
         return
-    if "place" not in aquius or not isinstance(aquius["place"], list):
+    if "place" not in aquius:
         aquius["place"] = []
+
     # boundary_gdf also holds place data columns, only name and population required:
     boundary_gdf = load_geofile(filepath=args.geofile, expected_crs=WGS84CRS,
                                 required_cols=[NAME_COL, POPULATION_COL], unique_cols=[NAME_COL])

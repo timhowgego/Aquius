@@ -15,7 +15,7 @@ import argparse
 import logging
 from pathlib import Path
 
-from _common import get_common_args, load_json, save_to_csv
+from _common import get_common_args, is_aquius, load_json, save_to_csv
 
 
 def get_args() -> argparse.Namespace:
@@ -70,9 +70,9 @@ def main():
     arguments = get_args()
     use_service_index = getattr(arguments, 'index')
     inputted = load_json(filepath=getattr(arguments, 'aquius'))
-    if (not isinstance(inputted, dict) or 'node' not in inputted or 'link' not in inputted or
-        'reference' not in inputted or 'product' not in inputted['reference']):
-        logging.error('Not an aquius file: %s', arguments.aquius)
+    if not is_aquius(inputted):
+        logging.error("Not an aquius file: %s", arguments.aquius)
+        return
 
     operator_place_service: dict[str: dict[str: float]] = {}  # Operator: {place: services}
     operator_service: dict[str, float] = {}  # Operator: service

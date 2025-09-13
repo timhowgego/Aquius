@@ -4,6 +4,7 @@ Common functions in support of scripts - do not execute this file direct
 
 import argparse
 import csv
+import importlib.util
 import json
 import logging
 from math import floor, log10
@@ -96,6 +97,45 @@ def get_place_scale(population: int) -> float:
 
     raw_scale = 200000/population
     return round(raw_scale, 2-int(floor(log10(abs(raw_scale))))-1)
+
+
+def is_aquius(aquius: dict, skip_place: bool = False) -> bool:
+    """
+    Tests required top-level aquius keys exist in dict - does not check deeper data
+    Function is currently intended to catch fundamentally incomplete files
+    """
+
+    if not isinstance(aquius, dict):
+        logging.warning("Aquius is not a dictionary")
+        return False
+    for dict_key in ["meta"]:
+        if dict_key not in aquius or not isinstance(aquius[dict_key], dict):
+            logging.warning("Aquius missing %s as dictionary", dict_key)
+            return False
+    for optional_dict_key in ["option", "reference", "translation"]:
+        if optional_dict_key in aquius and not isinstance(aquius[optional_dict_key], dict):
+            logging.warning("Aquius %s not a dictionary", optional_dict_key)
+            return False
+    list_props = ["link", "network", "node", "service"]
+    if not skip_place:
+        list_props.append("place")
+    for list_key in list_props:
+        if list_key not in aquius or not isinstance(aquius[list_key], list):
+            logging.warning("Aquius missing %s as list", list_key)
+            return False
+    if "schema" not in aquius["meta"]:
+        logging.warning("Aquius missing schema")
+        return False
+
+    return True
+
+
+def use_arrow() -> bool:
+    """True if pyarrow available (its use is generally faster)"""
+
+    if importlib.util.find_spec("pyarrow") is not None:
+        return True
+    return False
 
 
 if __name__ == "__main__":

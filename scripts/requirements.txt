@@ -1,1 +1,3 @@
+numpy~=2.3
 geopandas~=1.1
+haversine~=2.9

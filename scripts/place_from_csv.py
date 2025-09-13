@@ -29,7 +29,15 @@ import argparse
 import logging
 from pathlib import Path
 
-from _common import get_common_args, get_place_scale, load_csv, load_json, save_json, to_precision
+from _common import (
+    get_common_args,
+    get_place_scale,
+    is_aquius,
+    load_csv,
+    load_json,
+    save_json,
+    to_precision
+)
 
 
 def get_args() -> argparse.Namespace:
@@ -61,14 +69,11 @@ def main():
     arguments = get_args()
     precision = getattr(arguments, 'precision')
     aquius = load_json(filepath=getattr(arguments, 'aquius'))
-
-    if (not isinstance(aquius, dict) or 'node' not in aquius or
-        not isinstance(aquius['node'], list)):
-        logging.error('Not an aquius file: %s', arguments.aquius)
-    if 'place' not in aquius or not isinstance(aquius['place'], list):
-        aquius['place'] = []
-    if 'option' not in aquius or not isinstance(aquius['option'], dict):
-        aquius['option'] = {}
+    if not is_aquius(aquius=aquius, skip_place=True):
+        logging.error("Not an aquius file: %s", arguments.aquius)
+        return
+    if "place" not in aquius:
+        aquius["place"] = []
 
     node_lookup: dict = {}
     for index, node in enumerate(aquius['node']):
